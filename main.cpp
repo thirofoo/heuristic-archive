@@ -129,104 +129,76 @@ struct Block{
     }
 
     inline void expand(int nz1,int ny1,int nx1,int nz2,int ny2,int nx2,vector<vector<vector<int>>> &state1,vector<vector<vector<int>>> &state2){
-        // 次数更新
-        rep(i,DIR_NUM){
-            int tz1 = nz1 + b_dir[surf1][0][i];
-            int ty1 = ny1 + b_dir[surf1][1][i];
-            int tx1 = nx1 + b_dir[surf1][2][i];
-            if(!outField_3d(tz1,ty1,tx1) && state1[tz1][ty1][tx1] == id){
-                dig1[nz1][ny1][nx1]++;
-                dig1[tz1][ty1][tx1]++;
+        if(nz1 != -1){
+            rep(i,DIR_NUM){
+                int tz1 = nz1 + b_dir[surf1][0][i];
+                int ty1 = ny1 + b_dir[surf1][1][i];
+                int tx1 = nx1 + b_dir[surf1][2][i];
+                if(!outField_3d(tz1,ty1,tx1) && state1[tz1][ty1][tx1] == id){
+                    dig1[nz1][ny1][nx1]++;
+                    dig1[tz1][ty1][tx1]++;
+                }
             }
-        }
-        rep(i,DIR_NUM){
-            int tz2 = nz2 + b_dir[surf2][0][i];
-            int ty2 = ny2 + b_dir[surf2][1][i];
-            int tx2 = nx2 + b_dir[surf2][2][i];
-            if(!outField_3d(tz2,ty2,tx2) && state2[tz2][ty2][tx2] == id){
-                dig2[nz2][ny2][nx2]++;
-                dig2[tz2][ty2][tx2]++;
-            }
+            blo_idx1[nz1][ny1][nx1] = size;
+            place1.emplace_back(T(nz1,ny1,nx1));
+            state1[nz1][ny1][nx1] = id;
         }
 
-        // blo_idx更新
-        blo_idx1[nz1][ny1][nx1] = size;
-        blo_idx2[nz2][ny2][nx2] = size;
+        if(nz2 != -1){
+            rep(i,DIR_NUM){
+                int tz2 = nz2 + b_dir[surf2][0][i];
+                int ty2 = ny2 + b_dir[surf2][1][i];
+                int tx2 = nx2 + b_dir[surf2][2][i];
+                if(!outField_3d(tz2,ty2,tx2) && state2[tz2][ty2][tx2] == id){
+                    dig2[nz2][ny2][nx2]++;
+                    dig2[tz2][ty2][tx2]++;
+                }
+            }
+            blo_idx2[nz2][ny2][nx2] = size;
+            place2.emplace_back(T(nz2,ny2,nx2));
+            state2[nz2][ny2][nx2] = id;
+        }
 
-        // add_block
-        place1.emplace_back(T(nz1,ny1,nx1));
-        place2.emplace_back(T(nz2,ny2,nx2));
-        state1[nz1][ny1][nx1] = id;
-        state2[nz2][ny2][nx2] = id;
         size++;
         return;
     }
 
     inline void erase(int nz1,int ny1,int nx1,int nz2,int ny2,int nx2,vector<vector<vector<int>>> &state1,vector<vector<vector<int>>> &state2){
-        int idx1 = blo_idx1[nz1][ny1][nx1];
-        int idx2 = blo_idx2[nz2][ny2][nx2];
-        
-        auto [z1,y1,x1] = place1[idx1];
-        auto [z2,y2,x2] = place2[idx2];
-        place1.erase(place1.begin()+idx1);
-        place2.erase(place2.begin()+idx2);
+        int idx1 = -1,idx2 = -1;
+        if(nz1 != -1)idx1 = blo_idx1[nz1][ny1][nx1];
+        if(nz2 != -1)idx2 = blo_idx2[nz2][ny2][nx2];
+         
+        if(idx1 >= 0)place1.erase(place1.begin()+idx1);
+        if(idx2 >= 0)place2.erase(place2.begin()+idx2);
 
-        // 次数更新
-        dig1[z1][y1][x1] = 0;
-        dig2[z2][y2][x2] = 0;
-        rep(i,DIR_NUM){
-            int tz1 = z1 + b_dir[surf1][0][i];
-            int ty1 = y1 + b_dir[surf1][1][i];
-            int tx1 = x1 + b_dir[surf1][2][i];
-            if(!!outField_3d(tz1,ty1,tx1) && state1[tz1][ty1][tx1] == id){
-                dig1[tz1][ty1][tx1]--;
+        // 次数 & blo_idx 更新
+        if(nz1 != -1){
+            dig1[nz1][ny1][nx1] = 0;
+            blo_idx1[nz1][ny1][nx1] = -1;
+            rep(i,DIR_NUM){
+                int tz1 = nz1 + b_dir[surf1][0][i];
+                int ty1 = ny1 + b_dir[surf1][1][i];
+                int tx1 = nx1 + b_dir[surf1][2][i];
+                if(!outField_3d(tz1,ty1,tx1) && state1[tz1][ty1][tx1] == id){
+                    dig1[tz1][ty1][tx1]--;
+                }
             }
+            state1[nz1][ny1][nx1] = 0;
         }
-        rep(i,DIR_NUM){
-            int tz2 = z2 + b_dir[surf2][0][i];
-            int ty2 = y2 + b_dir[surf2][1][i];
-            int tx2 = x2 + b_dir[surf2][2][i];
-            if(!outField_3d(tz2,ty2,tx2) && state2[tz2][ty2][tx2] == id){
-                dig2[tz2][ty2][tx2]--;
+        if(nz2 != -1){
+            dig2[nz2][ny2][nx2] = 0;
+            blo_idx2[nz2][ny2][nx2] = -1;
+            rep(i,DIR_NUM){
+                int tz2 = nz2 + b_dir[surf2][0][i];
+                int ty2 = ny2 + b_dir[surf2][1][i];
+                int tx2 = nx2 + b_dir[surf2][2][i];
+                if(!outField_3d(tz2,ty2,tx2) && state2[tz2][ty2][tx2] == id){
+                    dig2[tz2][ty2][tx2]--;
+                }
             }
+            state2[nz2][ny2][nx2] = 0;
         }
-
-        // blo_idx更新
-        blo_idx1[z1][y1][x1] = -1;
-        blo_idx2[z2][y2][x2] = -1;
-
-        state1[z1][y1][x1] = 0;
-        state2[z2][y2][x2] = 0;
         size--;
-
-        // while(!place1.empty() && num--){
-        //     auto [z1,y1,x1] = place1.back(); place1.pop_back();
-        //     auto [z2,y2,x2] = place2.back(); place2.pop_back();
-
-        //     // 次数確認
-        //     dig1[z1][y1][x1] = 0;
-        //     dig2[z2][y2][x2] = 0;
-        //     rep(i,DIR_NUM){
-        //         int tz1 = z1 + b_dir[surf1][0][i];
-        //         int ty1 = y1 + b_dir[surf1][1][i];
-        //         int tx1 = x1 + b_dir[surf1][2][i];
-        //         if(!!outField_3d(tz1,ty1,tx1) && state1[tz1][ty1][tx1] == id){
-        //             dig1[tz1][ty1][tx1]--;
-        //         }
-        //     }
-        //     rep(i,DIR_NUM){
-        //         int tz2 = z2 + b_dir[surf2][0][i];
-        //         int ty2 = y2 + b_dir[surf2][1][i];
-        //         int tx2 = x2 + b_dir[surf2][2][i];
-        //         if(!outField_3d(tz2,ty2,tx2) && state2[tz2][ty2][tx2] == id){
-        //             dig2[tz2][ty2][tx2]--;
-        //         }
-        //     }
-
-        //     state1[z1][y1][x1] = 0;
-        //     state2[z2][y2][x2] = 0;
-        //     size--;
-        // }
         return;
     }
 
@@ -239,12 +211,14 @@ struct Block{
     }
 };
 
+
+
 struct Solver{
     int d;
-    ll best_score;
+    ll best_score,cand_score;
     vector<vector<bool>> sil1_f,sil1_r,sil2_f,sil2_r;
-    vector<vector<vector<int>>> ans1,ans2;
-    vector<Block> Block_list;
+    vector<vector<vector<int>>> cand1,cand2,ans1,ans2,init1,init2;
+    vector<Block> Block_list,init_list;
     priority_queue<P> pq1,pq2;
 
     Solver(){}
@@ -273,9 +247,11 @@ struct Solver{
         }
         dig1.assign(d,vector<vector<int>>(d,vector<int>(d,0)));
         dig2.assign(d,vector<vector<int>>(d,vector<int>(d,0)));
-        ans1.assign(d,vector<vector<int>>(d,vector<int>(d,0)));
-        ans2.assign(d,vector<vector<int>>(d,vector<int>(d,0)));
+        cand1.assign(d,vector<vector<int>>(d,vector<int>(d,0)));
+        cand2.assign(d,vector<vector<int>>(d,vector<int>(d,0)));
     }
+
+
 
     void solve(){
         utility::mytm.CodeStart();
@@ -286,43 +262,65 @@ struct Solver{
             vector<bool> r(d,false),c(d,false);
             vector<int> ri,ci;
             rep(y,d)rep(x,d)if(!sil1_f[z][x] || !sil1_r[z][y]){
-                ans1[z][y][x] = -1;
+                cand1[z][y][x] = -1;
                 dig1[z][y][x] = 1e7;
             }
             rep(x,d)if(sil1_f[z][x])ci.emplace_back(x);
             rep(y,d)if(sil1_r[z][y])ri.emplace_back(y);
             rep(i,max(ri.size(),ci.size())){
-                ans1[z][ri[(ri.size() <= i ? ri.size()-1 : i)]][ci[(ci.size() <= i ? ci.size()-1 : i)]] = now1;
-                now1++;
+                if(now1 <= 1){
+                    cand1[z][ri[i%ri.size()]][ci[i%ci.size()]] = now1;
+                    now1++;
+                }
             }
         }
         rep(z,d){
             vector<bool> r(d,false),c(d,false);
             vector<int> ri,ci;
             rep(y,d)rep(x,d)if(!sil2_f[z][x] || !sil2_r[z][y]){
-                ans2[z][y][x] = -1;
+                cand2[z][y][x] = -1;
                 dig2[z][y][x] = 1e7;
             }
             rep(x,d)if(sil2_f[z][x])ci.emplace_back(x);
             rep(y,d)if(sil2_r[z][y])ri.emplace_back(y);
             rep(i,max(ri.size(),ci.size())){
-                ans2[z][ri[(ri.size() <= i ? ri.size()-1 : i)]][ci[(ci.size() <= i ? ci.size()-1 : i)]] = now2;
-                now2++;
+                if(now2 <= 1){
+                    cand2[z][ri[i%ri.size()]][ci[i%ci.size()]] = now2;
+                    now2++;
+                }
             }
         }
         int now = max(now1,now2);
-        vector<vector<T>> block_info(now,vector<T>(2,T{-1,-1,-1}));
+        vector<vector<T>> block_info(now+1,vector<T>(2,T{-1,-1,-1}));
         rep(z,d)rep(y,d)rep(x,d){
-            if(ans1[z][y][x] > 0)block_info[ans1[z][y][x]][0] = T(z,y,x);
-            if(ans2[z][y][x] > 0)block_info[ans2[z][y][x]][1] = T(z,y,x);
+            if(cand1[z][y][x] > 0)block_info[cand1[z][y][x]][0] = T(z,y,x);
+            if(cand2[z][y][x] > 0)block_info[cand2[z][y][x]][1] = T(z,y,x);
         }
-        rep(i,now){
+        for(int i=1;i<=now;i++){
             Block_list.emplace_back(Block(block_info[i][0],block_info[i][1],rand_int()%DIR_NUM,rand_int()%DIR_NUM,d,i));
         }
+        init1 = cand1;
+        init2 = cand2;
+        init_list = Block_list;
 
         // 山登り法
-        best_score = calcScore();
+        best_score = LLONG_MAX;
+        cand_score = calcScore();
         while(utility::mytm.elapsed() <= TIME_LIMIT){
+
+            if(turn >= 1000){
+                if(cand_score < best_score){
+                    best_score = cand_score;
+                    ans1 = cand1;
+                    ans2 = cand2;
+                }
+                cand1 = init1;
+                cand2 = init2;
+                Block_list = init_list;
+                cand_score = calcScore();
+                turn = 0;
+            }
+
             // query候補
             // 1. 1Block延長
             // 2. 1Block削除
@@ -335,7 +333,15 @@ struct Solver{
             if     (query <= 10)query1(); // 方向転換
             else if(query <= 20)query2(); // ブロック削除
             else                query3(); // ブロック拡張
+
+            turn++;
         }
+
+        if(cand_score < best_score){
+            ans1 = cand1;
+            ans2 = cand2;
+        }
+        cerr << best_score << endl;
 
         // index圧縮
         vector<int> idx;
@@ -351,48 +357,9 @@ struct Solver{
                 ans2[i][j][k] = lower_bound(idx.begin(),idx.end(),ans2[i][j][k])-idx.begin()+1;
             }
         }
-
-        // for(auto block:Block_list){
-        //     rep(z,d){
-        //         rep(y,d){
-        //             rep(x,d){
-        //                 cerr << block.blo_idx1[z][y][x] << " ";
-        //             }
-        //             cerr << endl;
-        //         }
-        //         cerr << endl;
-        //     }
-        //     cerr << endl;
-        // }
-        // for(auto block:Block_list){
-        //     rep(z,d){
-        //         rep(y,d){
-        //             rep(x,d){
-        //                 cerr << block.blo_idx2[z][y][x] << " ";
-        //             }
-        //             cerr << endl;
-        //         }
-        //         cerr << endl;
-        //     }
-        //     cerr << endl;
-        // }
-
-        // rep(z,d){
-        //     rep(y,d){
-        //         rep(x,d)cerr << dig1[z][y][x] << " ";
-        //         cerr << endl;
-        //     }
-        //     cerr << endl;
-        // }
-        // cerr << endl;
-        // rep(z,d){
-        //     rep(y,d){
-        //         rep(x,d)cerr << dig2[z][y][x] << " ";
-        //         cerr << endl;
-        //     }
-        //     cerr << endl;
-        // }
     }
+
+
 
     inline void query1(){
         // size1 方向転換
@@ -405,43 +372,44 @@ struct Solver{
         }
     }
 
+
+
     inline void query2(){
-        // ブロック削除query
 
         // 削除ブロック決定
         int r1 = rand_int()%Block_list.size();
 
         for(auto [nz1,ny1,nx1]:Block_list[r1].place1){
             if(nz1 == -1)continue;
-            ans1[nz1][ny1][nx1] = 0;
+            cand1[nz1][ny1][nx1] = 0;
         }
         for(auto [nz2,ny2,nx2]:Block_list[r1].place2){
             if(nz2 == -1)continue;
-            ans2[nz2][ny2][nx2] = 0;
+            cand2[nz2][ny2][nx2] = 0;
         }
         bool f = true;
         rep(z,d)rep(x,d){
             if(!sil1_f[z][x])continue;
             int cnt = 0;
-            rep(y,d)cnt += (ans1[z][y][x] > 0);
+            rep(y,d)cnt += (cand1[z][y][x] > 0);
             f &= (cnt > 0);
         }
         rep(z,d)rep(y,d){
             if(!sil1_r[z][y])continue;
             int cnt = 0;
-            rep(x,d)cnt += (ans1[z][y][x] > 0);
+            rep(x,d)cnt += (cand1[z][y][x] > 0);
             f &= (cnt > 0);
         }
         rep(z,d)rep(x,d){
             if(!sil2_f[z][x])continue;
             int cnt = 0;
-            rep(y,d)cnt += (ans2[z][y][x] > 0);
+            rep(y,d)cnt += (cand2[z][y][x] > 0);
             f &= (cnt > 0);
         }
         rep(z,d)rep(y,d){
             if(!sil2_r[z][y])continue;
             int cnt = 0;
-            rep(x,d)cnt += (ans2[z][y][x] > 0);
+            rep(x,d)cnt += (cand2[z][y][x] > 0);
             f &= (cnt > 0);
         }
 
@@ -459,16 +427,19 @@ struct Solver{
         else{
             for(auto [nz1,ny1,nx1]:Block_list[r1].place1){
                 if(nz1 == -1)continue;
-                ans1[nz1][ny1][nx1] = Block_list[r1].id;
+                cand1[nz1][ny1][nx1] = Block_list[r1].id;
             }
             for(auto [nz2,ny2,nx2]:Block_list[r1].place2){
                 if(nz2 == -1)continue;
-                ans2[nz2][ny2][nx2] = Block_list[r1].id;
+                cand2[nz2][ny2][nx2] = Block_list[r1].id;
             }
         }
     }
 
+
+
     inline void query3(){
+
         // どのブロックを拡張するか
         int r1 = rand_int()%Block_list.size();
         // 何ブロック目を起点とするか
@@ -486,8 +457,8 @@ struct Solver{
         int ny2 = y2 + b_dir[Block_list[r1].surf2][1][r3];
         int nx2 = x2 + b_dir[Block_list[r1].surf2][2][r3];
 
-        if(outField_3d(nz1,ny1,nx1) || ans1[nz1][ny1][nx1])return;
-        if(outField_3d(nz2,ny2,nx2) || ans2[nz2][ny2][nx2])return;
+        if(outField_3d(nz1,ny1,nx1) || cand1[nz1][ny1][nx1])return;
+        if(outField_3d(nz2,ny2,nx2) || cand2[nz2][ny2][nx2])return;
 
         // expand先が他ブロックの場合
         // 1. 消去可能か。(他ブロックの連結条件が途切れないか)
@@ -495,19 +466,16 @@ struct Solver{
         // 3. expand
         // 4. score改善ならそのまま、改悪ならerase → expand(復元)
 
-        
-
-        Block_list[r1].expand(nz1,ny1,nx1,nz2,ny2,nx2,ans1,ans2);
+        Block_list[r1].expand(nz1,ny1,nx1,nz2,ny2,nx2,cand1,cand2);
 
         ll now_score = calcScore();
-        cerr << best_score << " " << now_score << endl;
-        if(now_score < best_score){
-            best_score = now_score;
-            if(turn <= 10)output();
-            turn++;
+        cerr << cand_score << " " << now_score << endl;
+        if(now_score < cand_score){
+            cand_score = now_score;
+            turn = 0;
         }
         else{
-            Block_list[r1].erase(nz1,ny1,nx1,nz2,ny2,nx2,ans1,ans2);
+            Block_list[r1].erase(nz1,ny1,nx1,nz2,ny2,nx2,cand1,cand2);
         }
     }
 
