@@ -162,14 +162,14 @@ struct Block{
         return;
     }
 
-    inline void erase(int idx,vector<vector<vector<int>>> &state1,vector<vector<vector<int>>> &state2){
-        auto [z1,y1,x1] = place1.back(); place1.pop_back();
-        auto [z2,y2,x2] = place2.back(); place2.pop_back();
-
-        // auto [z1,y1,x1] = place1[idx];
-        // auto [z2,y2,x2] = place2[idx];
-        // place1.erase(place1.begin()+idx);
-        // place2.erase(place2.begin()+idx);
+    inline void erase(int nz1,int ny1,int nx1,int nz2,int ny2,int nx2,vector<vector<vector<int>>> &state1,vector<vector<vector<int>>> &state2){
+        int idx1 = blo_idx1[nz1][ny1][nx1];
+        int idx2 = blo_idx2[nz2][ny2][nx2];
+        
+        auto [z1,y1,x1] = place1[idx1];
+        auto [z2,y2,x2] = place2[idx2];
+        place1.erase(place1.begin()+idx1);
+        place2.erase(place2.begin()+idx2);
 
         // 次数更新
         dig1[z1][y1][x1] = 0;
@@ -507,7 +507,7 @@ struct Solver{
             turn++;
         }
         else{
-            Block_list[r1].erase(1,ans1,ans2);
+            Block_list[r1].erase(nz1,ny1,nx1,nz2,ny2,nx2,ans1,ans2);
         }
     }
 
