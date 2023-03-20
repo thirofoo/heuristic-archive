@@ -8,6 +8,7 @@ typedef long long ll;
 typedef long double ld;
 typedef pair<int, int> P;
 typedef tuple<int, int, int> T;
+typedef tuple<int, int, int, int, int> T2;
 #define rep(i, n) for(int i = 0; i < n; i++)
 
 namespace utility {
@@ -50,67 +51,134 @@ inline double prob(int now,int next,int start) {
 
 //-----------------以下から実装部分-----------------//
 
-int turn = 0;
-vector<int> dx = {1, -1, 0,  0, 0,  0};
-vector<int> dy = {0,  0, 1, -1, 0,  0};
-vector<int> dz = {0,  0, 0,  0, 1, -1};
+constexpr int DIR_NUM = 6;
+int turn = 0,pre_erase = -1;
+queue<T> erase_block;
+vector<vector<vector<int>>> dig1,dig2;
+
+// 面の方向 (サイコロの出目と同じ)
+//     
+//    ・ーーーーー ・
+//   /　　１　　 / |
+//  /　　　　　 /　|　　　　y方向
+// ◎ーーーーー・ 2｜   　 ⇗
+// ｜　　　　　｜  ・　　　◎⇒ x方向
+// ｜　　０　　｜ /　　　 ⇓
+// ｜　　　　　｜/　　　　z方向
+// ・ーーーーー・
+
+vector<vector<vector<int>>> b_dir = {
+    // b_dir[i] : 面iを0と見立てた時の軸の方向
+    // { z正,z負,y正,y負,x正,x負 }
+    {
+        { 1,-1, 0, 0, 0, 0}, // dz
+        { 0, 0, 1,-1, 0, 0}, // dy
+        { 0, 0, 0, 0, 1,-1}, // dx
+    },
+    {
+        { 0, 0, 1,-1, 0, 0},
+        {-1, 1, 0, 0, 0, 0},
+        { 0, 0, 0, 0, 1,-1},
+    },
+    {
+        { 0, 0, 0, 0, 1,-1},
+        {-1, 1, 0, 0, 0, 0},
+        { 0, 0,-1, 1, 0, 0},
+    },
+    {
+        { 0, 0,-1, 1, 0, 0},
+        {-1, 1, 0, 0, 0, 0},
+        { 0, 0, 0, 0,-1, 1},
+    },
+    {
+        { 0, 0, 0, 0,-1, 1},
+        {-1, 1, 0, 0, 0, 0},
+        { 0, 0, 1,-1, 0, 0},
+    },
+    {
+        {-1, 1, 0, 0, 0, 0},
+        { 0, 0,-1, 1, 0, 0},
+        { 0, 0, 0, 0, 1,-1},
+    },
+};
 priority_queue<T> pq1,pq2;
 
-struct Stick{
-    // State内で用いる変数等の定義
-    int nz, ny, nx, dir, size, d, id;
-    vector<T> place;
+struct Block{
+    bool one;
+    int size, d, id, dir1, dir2;
+    vector<T> place1,place2;
+    stack<T> cache1,cache2;
 
-    Stick(int _z, int _y, int _x, int _dir, int _d, int _id){
-        // コンストラクタ(初期化)
-        this->nx = _x;
-        this->ny = _y;
-        this->nz = _z;
-        this->dir = _dir;
-        this->d = _d;
-        this->id = _id;
+    Block(T b1, T b2, int _dir1, int _dir2, int _d, int _id){
+        d = _d;
+        id = _id;
+        dir1 = _dir1; // 基準面1
+        dir2 = _dir2; // 基準面2
         size = 1;
-        place.emplace_back(T(nz,ny,nx));
+        place1.emplace_back(b1);
+        place2.emplace_back(b2);
+        one = (place1[0] == T(-1,-1,-1) || place2[0] == T(-1,-1,-1));
+        // 回転は実装せず、全消し & 方向転換でとりあえずやる。(回転きつすぎ)
     }
 
-    inline void changeDir(vector<vector<vector<int>>> &ans,int n_dir){
-        while(place.size() > 1){
-            auto [z,y,x] = place.back();
-            ans[z][y][x] = 0;
-            place.pop_back();
-        }
-        if(n_dir == -1)return;
-        this->dir = n_dir;
-        int now_x = nx + dx[this->dir];
-        int now_y = ny + dy[this->dir];
-        int now_z = nz + dz[this->dir];
-        this->size = 1;
-        while(!outField_3d(now_x,now_y,now_z) && !ans[now_z][now_y][now_x]){
-            ans[now_z][now_y][now_x] = this->id;
-            place.emplace_back(T(now_z,now_y,now_x));
-            now_z += dz[this->dir];
-            now_y += dy[this->dir];
-            now_x += dx[this->dir];
-            this->size++;
-        }
+    inline bool expand(vector<vector<vector<int>>> &state1,vector<vector<vector<int>>> &state2){
+        int rnd = rand_int()%place1.size(); // 起点ブロック
+        int d = rand_int()%DIR_NUM; // 拡張方向
+
+        auto [z1,y1,x1] = place1[rnd];
+        int nz1 = z1 + b_dir[dir1][0][d];
+        int ny1 = y1 + b_dir[dir1][1][d];
+        int nx1 = x1 + b_dir[dir1][2][d];
+        if(outField_3d(nz1,ny1,nx1) || state1[nz1][ny1][nx1])return false;
+        // if(outField_3d(nz1,ny1,nx1) || dig1[nz1][ny1][nx1] <= 1)return false;
+
+        auto [z2,y2,x2] = place2[rnd];
+        int nz2 = z2 + b_dir[dir2][0][d];
+        int ny2 = y2 + b_dir[dir2][1][d];
+        int nx2 = x2 + b_dir[dir2][2][d];
+        if(outField_3d(nz2,ny2,nx2) || state2[nz2][ny2][nx2])return false;
+        // if(outField_3d(nz2,ny2,nx2) || dig2[nz2][ny2][nx2] <= 1)return false;
+
+        // 次数を管理
+        // rep(i,DIR_NUM){
+        //     int lz1 = nz1 + b_dir[0][0][i];
+        //     int ly1 = ny1 + b_dir[0][1][i];
+        //     int lx1 = nx1 + b_dir[0][2][i];
+        //     if(!outField_3d(lz1,ly1,lx1) && state1[lz1][ly1][lx1] == id){
+        //         dig1[nz1][ny1][nx1]++;
+        //         dig1[lz1][ly1][lx1]++;
+        //     }
+        //     int lz2 = nz2 + b_dir[0][0][i];
+        //     int ly2 = ny2 + b_dir[0][1][i];
+        //     int lx2 = nx2 + b_dir[0][2][i];
+        //     if(!outField_3d(lz2,ly2,lx2) && state2[lz2][ly2][lx2] == id){
+        //         dig2[nz2][ny2][nx2]++;
+        //         dig2[lz2][ly2][lx2]++;
+        //     }
+        // }
+
+        // add_block
+        place1.emplace_back(T(nz1,ny1,nx1));
+        place2.emplace_back(T(nz2,ny2,nx2));
+        state1[nz1][ny1][nx1] = id;
+        state2[nz2][ny2][nx2] = id;
+        size++;
+
+        return true;
     }
 
-    inline void eraseStick(vector<vector<vector<int>>> &ans){
-        while(place.size() > 1){
-            auto [z,y,x] = place.back();
-            ans[z][y][x] = 0;
-            place.pop_back();
+    inline bool erase(int num,vector<vector<vector<int>>> &state1,vector<vector<vector<int>>> &state2){
+        pre_erase = id;
+        while(!place1.empty() && num--){
+            auto [z1,y1,x1] = place1.back(); place1.pop_back();
+            auto [z2,y2,x2] = place2.back(); place2.pop_back();
+            state1[z1][y1][x1] = 0;
+            state2[z2][y2][x2] = 0;
+            cache1.push(T(z1,y1,x1));
+            cache2.push(T(z2,y2,x2));
+            size--;
         }
-    }
-
-    inline void cutStick(vector<vector<vector<int>>> &ans,int s,int nid){
-        while(place.size() > s){
-            auto [z,y,x] = place.back();
-            ans[z][y][x] = 0;
-            place.pop_back();
-        }
-        this->id = nid;
-        for(auto [z,y,x]:place)ans[z][y][x] = this->id;
+        return place1.empty();
     }
 
     inline bool outField_2d(int x,int y){
@@ -127,7 +195,7 @@ struct Solver{
     ll best_score1, best_score2;
     vector<vector<bool>> sil1_f,sil1_r,sil2_f,sil2_r;
     vector<vector<vector<int>>> ans1,ans2;
-    vector<Stick> Stick1,Stick2;
+    vector<Block> Block_list;
     priority_queue<P> pq1,pq2;
 
     Solver(){}
@@ -154,6 +222,8 @@ struct Solver{
             string s; cin >> s;
             rep(y,d)sil2_r[z][y] = (s[y] == '1');
         }
+        dig1.assign(d,vector<vector<int>>(d,vector<int>(d,1e7)));
+        dig2.assign(d,vector<vector<int>>(d,vector<int>(d,1e7)));
         ans1.assign(d,vector<vector<int>>(d,vector<int>(d,0)));
         ans2.assign(d,vector<vector<int>>(d,vector<int>(d,0)));
     }
@@ -161,91 +231,70 @@ struct Solver{
     void solve(){
         utility::mytm.CodeStart();
 
-        // 必要最低限の1*1のみで構成
-        int cnt = 1;
+        // 必要最低限の1*1のみで構成 (初期解)
+        int now1 = 1,now2 = 1;
         rep(z,d){
             vector<bool> r(d,false),c(d,false);
             vector<int> ri,ci;
+            rep(y,d)rep(x,d)if(!sil1_f[z][x] | !sil1_r[z][y]){
+                ans1[z][y][x] = -1;
+                dig1[z][y][x] = 1e7;
+            }
             rep(x,d)if(sil1_f[z][x])ci.emplace_back(x);
             rep(y,d)if(sil1_r[z][y])ri.emplace_back(y);
-            
-            rep(y,d)rep(x,d)if(!sil1_f[z][x] || !sil1_r[z][y])ans1[z][y][x] = -1;
             rep(i,max(ri.size(),ci.size())){
-                ans1[z][ri[i%ri.size()]][ci[i%ci.size()]] = cnt;
-                cnt++;
+                ans1[z][ri[(ri.size() <= i ? ri.size()-1 : i)]][ci[(ci.size() <= i ? ci.size()-1 : i)]] = now1;
+                now1++;
             }
         }
         rep(z,d){
             vector<bool> r(d,false),c(d,false);
             vector<int> ri,ci;
+            rep(y,d)rep(x,d)if(!sil2_f[z][x] | !sil2_r[z][y]){
+                ans2[z][y][x] = -1;
+                dig2[z][y][x] = 1e7;
+            }
             rep(x,d)if(sil2_f[z][x])ci.emplace_back(x);
             rep(y,d)if(sil2_r[z][y])ri.emplace_back(y);
-
-            rep(y,d)rep(x,d)if(!sil2_f[z][x] || !sil2_r[z][y])ans2[z][y][x] = -1;
             rep(i,max(ri.size(),ci.size())){
-                ans2[z][ri[i%ri.size()]][ci[i%ci.size()]] = cnt;
-                cnt++;
+                ans2[z][ri[(ri.size() <= i ? ri.size()-1 : i)]][ci[(ci.size() <= i ? ci.size()-1 : i)]] = now2;
+                now2++;
             }
         }
+        int now = max(now1,now2);
+        vector<vector<T>> block_info(now,vector<T>(2,T{-1,-1,-1}));
         rep(z,d)rep(y,d)rep(x,d){
-            if(ans1[z][y][x] > 0)Stick1.emplace_back(Stick(z,y,x,-1,d,ans1[z][y][x]));
-            if(ans2[z][y][x] > 0)Stick2.emplace_back(Stick(z,y,x,-1,d,ans2[z][y][x]));
+            if(ans1[z][y][x] > 0)block_info[ans1[z][y][x]][0] = T(z,y,x);
+            if(ans2[z][y][x] > 0)block_info[ans2[z][y][x]][1] = T(z,y,x);
         }
-        best_score1 = calcScore(1);
-        best_score2 = calcScore(2);
-
-        // ↑ を核として出来るだけ長いstickを作る
-        while(utility::mytm.elapsed() <= TIME_LIMIT/2){
-            int rnd = rand_int()%Stick1.size();
-            int dir = rand_int()%dx.size();
-            while(dir == Stick1[rnd].dir)dir = rand_int()%dx.size();
-
-            int pre_dir = Stick1[rnd].dir;
-            Stick1[rnd].changeDir(ans1,dir);
-
-            ll now_score = calcScore(1);
-            if(now_score < best_score1){
-                best_score1 = now_score;
-            }
-            else Stick1[rnd].changeDir(ans1,pre_dir);
-            turn++;
+        rep(i,now){
+            Block_list.emplace_back(Block(block_info[i][0],block_info[i][1],rand_int()%DIR_NUM,rand_int()%DIR_NUM,d,i));
         }
 
-        turn = 0;
+        // 山登り法
+        bool f;
+        ll best_score = calcScore();
         while(utility::mytm.elapsed() <= TIME_LIMIT){
-            int rnd = rand_int()%Stick2.size();
-            int dir = rand_int()%dx.size();
-            while(dir == Stick2[rnd].dir)dir = rand_int()%dx.size();
+            // query候補
+            // 1. 1Block延長
+            // 2. 1Block削除
+            // 3. 合併
+            // 4. 削除
+            // 5. 同型同士ペア交換
 
-            int pre_dir = Stick2[rnd].dir;
-            Stick2[rnd].changeDir(ans2,dir);
-
-            ll now_score = calcScore(2);
-            if(now_score < best_score2){
-                best_score2 = now_score;
-            }
-            else Stick2[rnd].changeDir(ans2,pre_dir);
-        }
-
-        rep(i,Stick1.size())pq1.push(P(Stick1[i].size,i));
-        rep(i,Stick2.size())pq2.push(P(Stick2[i].size,i));
-        while(!pq1.empty() && !pq2.empty()){
-            auto [size1,i1] = pq1.top(); pq1.pop();
-            auto [size2,i2] = pq2.top(); pq2.pop();
-            int size = min(size1,size2);
-            Stick1[i1].cutStick(ans1,size,Stick1[i1].id);
-            Stick2[i2].cutStick(ans2,size,Stick1[i1].id);
-        }
-
-        // 過剰分stickは1*1に戻す
-        while(!pq1.empty() || !pq2.empty()){
-            if(!pq1.empty()){
-                auto [size1,i1] = pq1.top(); pq1.pop();
-                Stick1[i1].cutStick(ans1,1,Stick1[i1].id);
+            int rnd = rand_int()%Block_list.size();
+            f = Block_list[rnd].expand(ans1,ans2);
+            if(!f)continue;
+            
+            ll now_score = calcScore();
+            cerr << best_score << " " << now_score << endl;
+            if(now_score < best_score){
+                best_score = now_score;
+                if(turn <= 10)output();
+                turn++;
             }
             else{
-                auto [size2,i2] = pq2.top(); pq2.pop();
-                Stick2[i2].cutStick(ans2,1,Stick2[i2].id);
+                Block_list[rnd].erase(1,ans1,ans2);
             }
         }
 
@@ -265,12 +314,13 @@ struct Solver{
         }
     }
 
-    ll calcScore(int i){
+    ll calcScore(){
         ld score = 0;
-        for(auto stick:(i == 1 ? Stick1 : Stick2)){
-            score += 1/(ld)stick.size;
+        for(auto b:Block_list){
+            if(b.size > 0)score += 1/(ld)b.size;
+            if(b.one)score += (ld)b.size;
         }
-        return score*1e9;
+        return round(score*1e9);
     }
 
     void output(){
