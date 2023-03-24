@@ -33,22 +33,7 @@ inline unsigned int rand_int() {
     return ( tw=(tw^(tw>>19))^(tt^(tt>>8)) );
 }
 
-inline double rand_double() {
-    return (double)(rand_int()%(int)1e9)/1e9;
-}
-
-//温度関数
-#define TIME_LIMIT 5700
-inline double temp(int start) {
-    double start_temp = 1000,end_temp = 1;
-    return start_temp + (end_temp-start_temp)*((utility::mytm.elapsed()-start)/TIME_LIMIT);
-}
-
-//焼きなましの採用確率
-inline double prob(ll best,ll now,int start) {
-    return exp((double)(best - now) / temp(start));
-}
-
+#define TIME_LIMIT 5800
 //-----------------以下から実装部分-----------------//
 
 // 面の方向 (サイコロの出目と同じ)
@@ -99,15 +84,8 @@ const vector<vector<vector<int>>> b_dir = {
 constexpr int DIR_NUM = 6;
 int turn = 0;
 
-struct Place{
-    int x;
-    int y;
-    int z;
-};
-
 struct Block{
-    int size, d, id, surf1, surf2, tz1, ty1, tx1, tz2, ty2, tx2;
-    vector<vector<vector<int>>> blo_idx1,blo_idx2;
+    int size, d, id, surf1, surf2;
     vector<T> place1,place2;
 
     Block(const T &b1,const T &b2,const int &_surf1,const int &_surf2,const int &_d,const int &_id){
@@ -118,17 +96,9 @@ struct Block{
         size = 1;
         place1.emplace_back(b1);
         place2.emplace_back(b2);
-        blo_idx1.assign(d,vector<vector<int>>(d,vector<int>(d,-1)));
-        blo_idx2.assign(d,vector<vector<int>>(d,vector<int>(d,-1)));
-        auto [z1,y1,x1] = b1;
-        auto [z2,y2,x2] = b2;
-        blo_idx1[z1][y1][x1] = size-1;
-        blo_idx2[z2][y2][x2] = size-1;
     }
 
     inline void expand(const int &nz1,const int &ny1,const int &nx1,const int &nz2,const int &ny2,const int &nx2,vector<vector<vector<int>>> &state1,vector<vector<vector<int>>> &state2){
-        blo_idx1[nz1][ny1][nx1] = size;
-        blo_idx2[nz2][ny2][nx2] = size;
         place1.emplace_back(T(nz1,ny1,nx1));
         place2.emplace_back(T(nz2,ny2,nx2));
         state1[nz1][ny1][nx1] = id;
@@ -138,27 +108,17 @@ struct Block{
     }
 
     inline void erase(const int &nz1,const int &ny1,const int &nx1,const int &nz2,const int &ny2,const int &nx2,vector<vector<vector<int>>> &state1,vector<vector<vector<int>>> &state2){
-        int idx1 = -1,idx2 = -1;
-        if(nz1 != -1)idx1 = blo_idx1[nz1][ny1][nx1];
-        if(nz2 != -1)idx2 = blo_idx2[nz2][ny2][nx2];
-        
-        if(idx1 >= 0)place1.erase(place1.begin()+idx1);
-        if(idx2 >= 0)place2.erase(place2.begin()+idx2);
-
-        blo_idx1[nz1][ny1][nx1] = -1;
-        blo_idx2[nz2][ny2][nx2] = -1;
+        int idx = 0;
+        for(auto &&[z,y,x]:place1){
+            if(nz1 == z && ny1== y && nx1 == x)break;
+            idx++;
+        }
+        place1.erase(place1.begin()+idx);
+        place2.erase(place2.begin()+idx);
         state1[nz1][ny1][nx1] = 0;
         state2[nz2][ny2][nx2] = 0;
         size--;
         return;
-    }
-
-    inline bool outField_2d(int x,int y){
-        return (x < 0 || x >= d || y < 0 || y >= d);
-    }
-
-    inline bool outField_3d(int x,int y,int z){
-        return (x < 0 || x >= d || y < 0 || y >= d || z < 0 || z >= d);
     }
 };
 
@@ -166,13 +126,22 @@ struct Block{
 
 struct Solver{
     bool created;
-    double temp,rnd_d;
-    int d, r1, r2, r3, id, start_time, tz1, ty1, tx1, tz2, ty2, tx2;
-    ll best_score, cand_score, last_score;
+    double temp, rnd_d, score;
+    int d, r1, r2, r3, id, start_time, tz1, ty1, tx1, tz2, ty2, tx2, time;
+    ll best_score, cand_score, last_score, now_score;
     vector<vector<bool>> sil1_f, sil1_r, sil2_f, sil2_r;
     vector<vector<vector<int>>> cand1, cand2, ans1, ans2, last1, last2;
     vector<Block> Block_list, ans_list, last_list;
     vector<T> cand1_v, cand2_v, cv;
+
+    vector<vector<vector<vector<int>>>> archive1, archive2;
+    vector<vector<Block>> Block_archive;
+
+    ll final_score;
+    vector<Block> final_list;
+    vector<vector<vector<int>>> final1, final2;
+
+    vector<vector<bool>> blo_cnt1_r, blo_cnt1_f, blo_cnt2_r, blo_cnt2_f;
 
     Solver(){
         id = 1;
@@ -184,6 +153,10 @@ struct Solver{
         sil1_r.assign(d,vector<bool>(d,false));
         sil2_f.assign(d,vector<bool>(d,false));
         sil2_r.assign(d,vector<bool>(d,false));
+        blo_cnt1_f.assign(d,vector<bool>(d,false));
+        blo_cnt1_r.assign(d,vector<bool>(d,false));
+        blo_cnt2_f.assign(d,vector<bool>(d,false));
+        blo_cnt2_r.assign(d,vector<bool>(d,false));
         rep(i,4){
             rep(z,d){
                 string s; cin >> s;
@@ -210,43 +183,76 @@ struct Solver{
         last1 = ans1;
         last2 = ans2;
         last_list = ans_list;
+
+        final_score = last_score;
+        final1 = ans1;
+        final2 = ans2;
+        final_list = ans_list;
+
+        archive1.emplace_back(last1);
+        archive2.emplace_back(last2);
+        Block_archive.emplace_back(last_list);
         // output();
 
         start_time = utility::mytm.elapsed();
         stack<T2> store;
-        int query_time = 0;
+        int query_time = 0, update_time = 0;
         
         // 初期解部分破壊 → 再構築 (山登り法)
         while(utility::mytm.elapsed() <= TIME_LIMIT){
+
             // 乱択でブロック破壊
-            int time = rand_int()%Block_list.size();
+            time = rand_int()%(Block_list.size()-1)+1;
             while(time--)eraseBlock(rand_int()%Block_list.size());
 
             constructAnswer();
             if(!created)continue;
             cand_score = calcScore();
 
-            // temp = prob(last_score/100000,cand_score/100000,start_time);
-            // rnd_d = rand_double();
-
-            // if(temp > rnd_d){
             if(cand_score < last_score){
-                // cerr << cand_score/100000 << " " << last_score/100000 << endl;
-                // cerr << temp << " " << rnd_d << endl;
                 cerr << cand_score << " " << last_score << endl;
                 last_score = cand_score;
                 last1 = ans1;
                 last2 = ans2;
                 last_list = ans_list;
+
+                if(cand_score < final_score){
+                    final_score = cand_score;
+                    final1 = ans1;
+                    final2 = ans2;
+                    final_list = ans_list;
+                }
+
+                archive1.emplace_back(last1);
+                archive2.emplace_back(last2);
+                Block_archive.emplace_back(last_list);
+                update_time = 0;
             }
             else{
-                Block_list = last_list;
                 cand1 = last1;
                 cand2 = last2;
+                Block_list = last_list;
+                update_time++;
             }
+
+            // 局所解脱出を図る (一定ターン数無理なら過去を遡る)
+            if(update_time >= 1000){
+                if(!archive1.empty()){
+                    cand1 = archive1.back(); archive1.pop_back();
+                    cand2 = archive2.back(); archive2.pop_back();
+                    Block_list = Block_archive.back(); Block_archive.pop_back();
+                    last1 = cand1;
+                    last2 = cand2;
+                    last_list = Block_list;
+                    last_score = calcScore();
+                }
+                update_time = 0;
+            }
+
             query_time++;
         }
         cerr << "query_time : " << query_time << endl;
+        cerr << "final_score : " << final_score << endl;
         return;
     }
 
@@ -258,39 +264,40 @@ struct Solver{
             cand1_v.assign({});
             cand2_v.assign({});
 
-            rep(z,d)rep(y,d)rep(x,d){
-                if(sil1_f[z][x] && sil1_r[z][y]){
-                    bool f = true;
-                    rep(ty,d)f &= (cand1[z][ty][x] <= 0);
-                    if(f){
-                        cand1_v.emplace_back(T(z,y,x));
-                        break;
+            rep(z,d){
+                rep(x,d){
+                    blo_cnt1_f[z][x] = false;
+                    rep(y,d){
+                        blo_cnt1_f[z][x] = (cand1[z][y][x] > 0);
+                        if(blo_cnt1_f[z][x])break;
                     }
-                    f = true;
-                    rep(tx,d)f &= (cand1[z][y][tx] <= 0);
-                    if(f){
-                        cand1_v.emplace_back(T(z,y,x));
-                        break;
+                    blo_cnt2_f[z][x] = false;
+                    rep(y,d){
+                        blo_cnt2_f[z][x] = (cand2[z][y][x] > 0);
+                        if(blo_cnt2_f[z][x])break;
                     }
                 }
-                if(sil2_f[z][x] && sil2_r[z][y]){
-                    bool f = true;
-                    rep(ty,d)f &= (cand2[z][ty][x] <= 0);
-                    if(f){
-                        cand2_v.emplace_back(T(z,y,x));
-                        break;
+                rep(y,d){
+                    blo_cnt1_r[z][y] = false;
+                    rep(x,d){
+                        blo_cnt1_r[z][y] = (cand1[z][y][x] > 0);
+                        if(blo_cnt1_r[z][y])break;
                     }
-                    f = true;
-                    rep(tx,d)f &= (cand2[z][y][tx] <= 0);
-                    if(f){
-                        cand2_v.emplace_back(T(z,y,x));
-                        break;
+                    blo_cnt2_r[z][y] = false;
+                    rep(x,d){
+                        blo_cnt2_r[z][y] = (cand2[z][y][x] > 0);
+                        if(blo_cnt2_r[z][y])break;
                     }
                 }
             }
 
-            auto [nz1,ny1,nx1] = (cand1_v.empty() ? T(-1,-1,-1) : cand1_v[rand_int()%cand1_v.size()]);
-            auto [nz2,ny2,nx2] = (cand2_v.empty() ? T(-1,-1,-1) : cand2_v[rand_int()%cand2_v.size()]);
+            rep(z,d)rep(y,d)rep(x,d){
+                if(sil1_f[z][x] && sil1_r[z][y] && (!blo_cnt1_f[z][x] || !blo_cnt1_r[z][y]))cand1_v.emplace_back(T(z,y,x));
+                if(sil2_f[z][x] && sil2_r[z][y] && (!blo_cnt2_f[z][x] || !blo_cnt2_r[z][y]))cand2_v.emplace_back(T(z,y,x));
+            }
+
+            auto &&[nz1,ny1,nx1] = (cand1_v.empty() ? T(-1,-1,-1) : cand1_v[rand_int()%cand1_v.size()]);
+            auto &&[nz2,ny2,nx2] = (cand2_v.empty() ? T(-1,-1,-1) : cand2_v[rand_int()%cand2_v.size()]);
 
             if(nz1 == -1 && nz2 == -1){
                 // シルエット完成時
@@ -301,7 +308,7 @@ struct Solver{
                 cv.assign({});
                 rep(z,d)rep(y,d)rep(x,d)if(!cand1[z][y][x])cv.emplace_back(T(z,y,x));
                 if(!cv.empty()){
-                    auto [z,y,x] = cv[rand_int()%cv.size()];
+                    auto &&[z,y,x] = cv[rand_int()%cv.size()];
                     nz1 = z, ny1 = y, nx1 = x;
                 }
                 else{
@@ -313,7 +320,7 @@ struct Solver{
                 cv.assign({});
                 rep(z,d)rep(y,d)rep(x,d)if(!cand2[z][y][x])cv.emplace_back(T(z,y,x));
                 if(!cv.empty()){
-                    auto [z,y,x] = cv[rand_int()%cv.size()];
+                    auto &&[z,y,x] = cv[rand_int()%cv.size()];
                     nz2 = z, ny2 = y, nx2 = x;
                 }
                 else{
@@ -334,11 +341,12 @@ struct Solver{
                     cand_score = LLONG_MAX-1;
                     Block_list.back().surf1 = d1;
                     Block_list.back().surf2 = d2;
-                    while(turn <= 100){
+                    while(turn <= 50){
                         query(Block_list.size()-1);
                         turn++;
                     }
                     // cerr << cand_score << " " << best_score << endl;
+                    cand_score = calcScore();
                     if(cand_score < best_score){
                         best_score = cand_score;
                         ans1 = cand1;
@@ -346,8 +354,8 @@ struct Solver{
                         ans_list.back() = Block_list.back();
                     }
                     while(Block_list.back().size > 1){
-                        auto [z1,y1,x1] = Block_list.back().place1.back();
-                        auto [z2,y2,x2] = Block_list.back().place2.back();
+                        auto &&[z1,y1,x1] = Block_list.back().place1.back();
+                        auto &&[z2,y2,x2] = Block_list.back().place2.back();
                         Block_list.back().erase(z1,y1,x1,z2,y2,x2,cand1,cand2);
                     }
                     turn = 0;
@@ -360,9 +368,6 @@ struct Solver{
 
             id++;
         }
-
-        cand1 = ans1;
-        cand2 = ans2;
         Block_list = ans_list;
     }
 
@@ -375,12 +380,12 @@ struct Solver{
         r2 = rand_int()%Block_list[r1].size;
         r3 = rand_int()%DIR_NUM;
 
-        auto [z1,y1,x1] = Block_list[r1].place1[r2];
+        auto &&[z1,y1,x1] = Block_list[r1].place1[r2];
         tz1 = z1 + b_dir[Block_list[r1].surf1][0][r3];
         ty1 = y1 + b_dir[Block_list[r1].surf1][1][r3];
         tx1 = x1 + b_dir[Block_list[r1].surf1][2][r3];
 
-        auto [z2,y2,x2] = Block_list[r1].place2[r2];
+        auto &&[z2,y2,x2] = Block_list[r1].place2[r2];
         tz2 = z2 + b_dir[Block_list[r1].surf2][0][r3];
         ty2 = y2 + b_dir[Block_list[r1].surf2][1][r3];
         tx2 = x2 + b_dir[Block_list[r1].surf2][2][r3];
@@ -389,57 +394,45 @@ struct Solver{
         if(outField_3d(tz2,ty2,tx2) || cand2[tz2][ty2][tx2])return;
 
         Block_list[r1].expand(tz1,ty1,tx1,tz2,ty2,tx2,cand1,cand2);
-
-        ll now_score = calcScore();
-        if(now_score < cand_score){
-            cand_score = now_score;
-            turn = 0;
-        }
-        else{
-            Block_list[r1].erase(tz1,ty1,tx1,tz2,ty2,tx2,cand1,cand2);
-        }
+        turn = 0;
     }
 
     inline void eraseBlock(const int &id){
         while(!Block_list[id].place1.empty()){
-            auto [z1,y1,x1] = Block_list[id].place1.back();
-            auto [z2,y2,x2] = Block_list[id].place2.back();
+            auto &&[z1,y1,x1] = Block_list[id].place1.back();
+            auto &&[z2,y2,x2] = Block_list[id].place2.back();
             Block_list[id].erase(z1,y1,x1,z2,y2,x2,cand1,cand2);
         }
         Block_list.erase(Block_list.begin()+id);
     }
 
     inline ll calcScore(){
-        ld score = 0;
-        rep(i,Block_list.size()){
-            if(Block_list[i].size > 0){
-                score += 1/(ld)Block_list[i].size;
-            }
-        }
-        return round(score*1e9);
+        score = 0;
+        for(auto &&b:Block_list)if(b.size)score += 1/(double)b.size;
+        return score*1e9;
     }
 
-    inline bool outField_2d(int x,int y){
+    inline bool outField_2d(const int &x,const int &y){
         return (x < 0 || x >= d || y < 0 || y >= d);
     }
 
-    inline bool outField_3d(int x,int y,int z){
+    inline bool outField_3d(const int &x,const int &y,const int &z){
         return (x < 0 || x >= d || y < 0 || y >= d || z < 0 || z >= d);
     }
 
     void idxCompression(){
         // index圧縮
         vector<int> idx;
-        rep(i,d)rep(j,d)rep(k,d)if(last1[i][j][k] > 0)idx.emplace_back(last1[i][j][k]);
-        rep(i,d)rep(j,d)rep(k,d)if(last2[i][j][k] > 0)idx.emplace_back(last2[i][j][k]);
+        rep(i,d)rep(j,d)rep(k,d)if(final1[i][j][k] > 0)idx.emplace_back(final1[i][j][k]);
+        rep(i,d)rep(j,d)rep(k,d)if(final2[i][j][k] > 0)idx.emplace_back(final2[i][j][k]);
         sort(idx.begin(),idx.end());
         idx.erase(unique(idx.begin(),idx.end()),idx.end());
         rep(i,d)rep(j,d)rep(k,d){
-            if(last1[i][j][k] > 0){
-                last1[i][j][k] = lower_bound(idx.begin(),idx.end(),last1[i][j][k])-idx.begin()+1;
+            if(final1[i][j][k] > 0){
+                final1[i][j][k] = lower_bound(idx.begin(),idx.end(),final1[i][j][k])-idx.begin()+1;
             }
-            if(last2[i][j][k] > 0){
-                last2[i][j][k] = lower_bound(idx.begin(),idx.end(),last2[i][j][k])-idx.begin()+1;
+            if(final2[i][j][k] > 0){
+                final2[i][j][k] = lower_bound(idx.begin(),idx.end(),final2[i][j][k])-idx.begin()+1;
             }
         }
     }
@@ -447,12 +440,12 @@ struct Solver{
     void output(){
         idxCompression();
         int t1 = 0,t2 = 0;
-        rep(x,d)rep(y,d)rep(z,d)t1 = max(last1[z][y][x],t1);
-        rep(x,d)rep(y,d)rep(z,d)t2 = max(last2[z][y][x],t2);
+        rep(x,d)rep(y,d)rep(z,d)t1 = max(final1[z][y][x],t1);
+        rep(x,d)rep(y,d)rep(z,d)t2 = max(final2[z][y][x],t2);
         cout << max(t1,t2) << endl;
-        rep(x,d)rep(y,d)rep(z,d)cout << (last1[z][y][x] <= 0 ? 0 : last1[z][y][x]) << " ";
+        rep(x,d)rep(y,d)rep(z,d)cout << (final1[z][y][x] <= 0 ? 0 : final1[z][y][x]) << " ";
         cout << endl;
-        rep(x,d)rep(y,d)rep(z,d)cout << (last2[z][y][x] <= 0 ? 0 : last2[z][y][x]) << " ";
+        rep(x,d)rep(y,d)rep(z,d)cout << (final2[z][y][x] <= 0 ? 0 : final2[z][y][x]) << " ";
         cout << endl;
     }
 };
