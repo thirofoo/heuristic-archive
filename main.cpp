@@ -33,7 +33,22 @@ inline unsigned int rand_int() {
     return ( tw=(tw^(tw>>19))^(tt^(tt>>8)) );
 }
 
+inline double rand_double() {
+    return (double)(rand_int()%(int)1e9)/1e9;
+}
+ 
+//温度関数
 #define TIME_LIMIT 5800
+inline double temp(int start) {
+    double start_temp = 500,end_temp = 1;
+    return start_temp + (end_temp-start_temp)*((utility::mytm.elapsed()-start)/TIME_LIMIT);
+}
+ 
+//焼きなましの採用確率
+inline double prob(ll best,ll now,int start) {
+    return exp((double)(best - now) / temp(start));
+}
+
 //-----------------以下から実装部分-----------------//
 
 // 面の方向 (サイコロの出目と同じ)
@@ -81,8 +96,11 @@ const vector<vector<vector<int>>> b_dir = {
         { 0, 0, 0, 0, 1,-1},
     },
 };
+const vector<int> dx = { 1,-1, 0, 0, 0, 0};
+const vector<int> dy = { 0, 0, 1,-1, 0, 0};
+const vector<int> dz = { 0, 0, 0, 0, 1,-1};
 constexpr int DIR_NUM = 6;
-int turn = 0;
+vector<vector<int>> exist_f1, exist_r1, exist_f2, exist_r2;
 
 struct Block{
     int size, d, id, surf1, surf2;
@@ -124,24 +142,23 @@ struct Block{
 
 
 
+Block tmp(T(0,0,0),T(0,0,0),0,0,0,0);
+
 struct Solver{
-    bool created;
     double temp, rnd_d, score;
-    int d, r1, r2, r3, id, start_time, tz1, ty1, tx1, tz2, ty2, tx2, time;
-    ll best_score, cand_score, last_score, now_score;
+    int d, id, start_time, start_id, tz1, ty1, tx1, tz2, ty2, tx2, time, rnd, erase_id;
+
     vector<vector<bool>> sil1_f, sil1_r, sil2_f, sil2_r;
-    vector<vector<vector<int>>> cand1, cand2, ans1, ans2, last1, last2;
-    vector<Block> Block_list, ans_list, last_list;
     vector<T> cand1_v, cand2_v, cv;
 
-    vector<vector<vector<vector<int>>>> archive1, archive2;
-    vector<vector<Block>> Block_archive;
+    vector<Block> Block_list, last_list;
+    ll best_score, cand_score, last_score, now_score, final_score;
+    vector<vector<vector<int>>> cand1, cand2, last1, last2, final1, final2;
 
-    ll final_score;
-    vector<Block> final_list;
-    vector<vector<vector<int>>> final1, final2;
-
-    vector<vector<bool>> blo_cnt1_r, blo_cnt1_f, blo_cnt2_r, blo_cnt2_f;
+    int query_time, yaki_time, expand_time;
+    vector<vector<vector<bool>>> visited;
+    queue<Block> erase_archive;
+    queue<T> todo, visit_reset;
 
     Solver(){
         id = 1;
@@ -153,10 +170,11 @@ struct Solver{
         sil1_r.assign(d,vector<bool>(d,false));
         sil2_f.assign(d,vector<bool>(d,false));
         sil2_r.assign(d,vector<bool>(d,false));
-        blo_cnt1_f.assign(d,vector<bool>(d,false));
-        blo_cnt1_r.assign(d,vector<bool>(d,false));
-        blo_cnt2_f.assign(d,vector<bool>(d,false));
-        blo_cnt2_r.assign(d,vector<bool>(d,false));
+        exist_f1.assign(d,vector<int>(d,0));
+        exist_r1.assign(d,vector<int>(d,0));
+        exist_f2.assign(d,vector<int>(d,0));
+        exist_r2.assign(d,vector<int>(d,0));
+        visited.assign(d,vector<vector<bool>>(d,vector<bool>(d,false)));
         rep(i,4){
             rep(z,d){
                 string s; cin >> s;
@@ -168,9 +186,9 @@ struct Solver{
         }
         cand1.assign(d,vector<vector<int>>(d,vector<int>(d,0)));
         cand2.assign(d,vector<vector<int>>(d,vector<int>(d,0)));
-        rep(z,d){
-            rep(y,d)rep(x,d)if(!sil1_f[z][x] || !sil1_r[z][y])cand1[z][y][x] = -1;
-            rep(y,d)rep(x,d)if(!sil2_f[z][x] || !sil2_r[z][y])cand2[z][y][x] = -1;
+        rep(z,d)rep(y,d)rep(x,d){
+            if(!sil1_f[z][x] || !sil1_r[z][y])cand1[z][y][x] = -1;
+            if(!sil2_f[z][x] || !sil2_r[z][y])cand2[z][y][x] = -1;
         }
     }
 
@@ -180,151 +198,138 @@ struct Solver{
         // 初期解生成
         constructAnswer();
         last_score = calcScore();
-        last1 = ans1;
-        last2 = ans2;
-        last_list = ans_list;
-
-        final_score = last_score;
-        final1 = ans1;
-        final2 = ans2;
-        final_list = ans_list;
-
-        archive1.emplace_back(last1);
-        archive2.emplace_back(last2);
-        Block_archive.emplace_back(last_list);
-        // output();
+      	final_score = last_score;
+        last_list = Block_list;
+        last1 = cand1;
+        last2 = cand2;
+      	final1 = last1;
+        final2 = last2;
 
         start_time = utility::mytm.elapsed();
-        stack<T2> store;
-        int query_time = 0, update_time = 0;
+        query_time = 0, yaki_time = 0, expand_time = 0;
+        while(!erase_archive.empty())erase_archive.pop();
         
-        // 初期解部分破壊 → 再構築 (山登り法)
+        // 焼きなまし法
         while(utility::mytm.elapsed() <= TIME_LIMIT){
-
-            // 乱択でブロック破壊
-            time = rand_int()%(Block_list.size()-1)+1;
-            while(time--)eraseBlock(rand_int()%Block_list.size());
-
-            constructAnswer();
-            if(!created)continue;
+            
+            preErase();        // 部分破壊
+            constructAnswer(); // 再構築
             cand_score = calcScore();
 
-            if(cand_score < last_score){
-                cerr << cand_score << " " << last_score << endl;
+            temp = prob(last_score/100000,cand_score/100000,start_time);
+            rnd_d = rand_double();
+ 
+            if(temp > rnd_d){
                 last_score = cand_score;
-                last1 = ans1;
-                last2 = ans2;
-                last_list = ans_list;
-
+                last1 = cand1;
+                last2 = cand2;
+                last_list = Block_list;
+                // if(temp < 1.0){
+                //     cerr << cand_score << " " << final_score << '\n';
+                //     yaki_time++;
+                // }
                 if(cand_score < final_score){
+                    // 最終提出用 archive
                     final_score = cand_score;
-                    final1 = ans1;
-                    final2 = ans2;
-                    final_list = ans_list;
+                    final1 = cand1;
+                    final2 = cand2;
                 }
-
-                archive1.emplace_back(last1);
-                archive2.emplace_back(last2);
-                Block_archive.emplace_back(last_list);
-                update_time = 0;
             }
             else{
-                cand1 = last1;
-                cand2 = last2;
-                Block_list = last_list;
-                update_time++;
-            }
+                // 差分更新
+                while(expand_time--)eraseBlock(Block_list.size()-1,false);
+                while(!erase_archive.empty()){
+                    Block &tmp = erase_archive.front();
+                    Block_list.emplace_back(tmp);
+                    rep(i,tmp.size){
+                        auto &&[z1,y1,x1] = tmp.place1[i];
+                        auto &&[z2,y2,x2] = tmp.place2[i];
+                        cand1[z1][y1][x1] = tmp.id;
+                        cand2[z2][y2][x2] = tmp.id;
 
-            // 局所解脱出を図る (一定ターン数無理なら過去を遡る)
-            if(update_time >= 1000){
-                if(!archive1.empty()){
-                    cand1 = archive1.back(); archive1.pop_back();
-                    cand2 = archive2.back(); archive2.pop_back();
-                    Block_list = Block_archive.back(); Block_archive.pop_back();
-                    last1 = cand1;
-                    last2 = cand2;
-                    last_list = Block_list;
-                    last_score = calcScore();
+                        // bitでブロックの有無管理
+                        exist_f1[z1][x1] |= (1 << y1);
+                        exist_r1[z1][y1] |= (1 << x1);
+                        exist_f2[z2][x2] |= (1 << y2);
+                        exist_r2[z2][y2] |= (1 << x2);
+                    }
+                    erase_archive.pop();
                 }
-                update_time = 0;
             }
-
-            query_time++;
+            while(!erase_archive.empty())erase_archive.pop();
+            expand_time = 0;
+            // query_time++;
         }
-        cerr << "query_time : " << query_time << endl;
-        cerr << "final_score : " << final_score << endl;
+        // cerr << "query_time : " << query_time << '\n';
+        cerr << "final_score : " << final_score << '\n';
+        // cerr << "yaki_time : " << yaki_time << '\n';
         return;
     }
 
     inline void constructAnswer(){
-        created = false;
-
-        while(utility::mytm.elapsed() <= TIME_LIMIT){
-
-            cand1_v.assign({});
-            cand2_v.assign({});
-
+        start_id = id;
+        while(true){
+            while(!cand1_v.empty())cand1_v.pop_back();
+            while(!cand2_v.empty())cand2_v.pop_back();
             rep(z,d){
-                rep(x,d){
-                    blo_cnt1_f[z][x] = false;
-                    rep(y,d){
-                        blo_cnt1_f[z][x] = (cand1[z][y][x] > 0);
-                        if(blo_cnt1_f[z][x])break;
-                    }
-                    blo_cnt2_f[z][x] = false;
-                    rep(y,d){
-                        blo_cnt2_f[z][x] = (cand2[z][y][x] > 0);
-                        if(blo_cnt2_f[z][x])break;
-                    }
-                }
                 rep(y,d){
-                    blo_cnt1_r[z][y] = false;
-                    rep(x,d){
-                        blo_cnt1_r[z][y] = (cand1[z][y][x] > 0);
-                        if(blo_cnt1_r[z][y])break;
-                    }
-                    blo_cnt2_r[z][y] = false;
-                    rep(x,d){
-                        blo_cnt2_r[z][y] = (cand2[z][y][x] > 0);
-                        if(blo_cnt2_r[z][y])break;
+                    if(sil1_r[z][y] || sil2_r[z][y]){
+                        rep(x,d){
+                            if(sil1_f[z][x] && sil1_r[z][y] && (!exist_f1[z][x] || !exist_r1[z][y])){
+                                cand1_v.emplace_back(T(z,y,x));
+                            }
+                            if(sil2_f[z][x] && sil2_r[z][y] && (!exist_f2[z][x] || !exist_r2[z][y])){
+                                cand2_v.emplace_back(T(z,y,x));
+                            }
+                        }
                     }
                 }
-            }
-
-            rep(z,d)rep(y,d)rep(x,d){
-                if(sil1_f[z][x] && sil1_r[z][y] && (!blo_cnt1_f[z][x] || !blo_cnt1_r[z][y]))cand1_v.emplace_back(T(z,y,x));
-                if(sil2_f[z][x] && sil2_r[z][y] && (!blo_cnt2_f[z][x] || !blo_cnt2_r[z][y]))cand2_v.emplace_back(T(z,y,x));
             }
 
             auto &&[nz1,ny1,nx1] = (cand1_v.empty() ? T(-1,-1,-1) : cand1_v[rand_int()%cand1_v.size()]);
             auto &&[nz2,ny2,nx2] = (cand2_v.empty() ? T(-1,-1,-1) : cand2_v[rand_int()%cand2_v.size()]);
 
-            if(nz1 == -1 && nz2 == -1){
-                // シルエット完成時
-                created = true;
-                break;
-            }
+            // シルエット完成時
+            if(nz1 == -1 && nz2 == -1)break;
+
+            // 片方シルエット完成時
             if(nz1 == -1){
-                cv.assign({});
-                rep(z,d)rep(y,d)rep(x,d)if(!cand1[z][y][x])cv.emplace_back(T(z,y,x));
+                while(!cv.empty())cv.pop_back();
+                rep(z,d)rep(y,d){
+                    if(!sil1_r[z][y])continue;
+                    rep(x,d)if(!cand1[z][y][x])cv.emplace_back(T(z,y,x));
+                }
                 if(!cv.empty()){
                     auto &&[z,y,x] = cv[rand_int()%cv.size()];
                     nz1 = z, ny1 = y, nx1 = x;
                 }
                 else{
-                    eraseBlock(rand_int()%Block_list.size());
+                    rnd = rand_int()%Block_list.size();
+                    if(start_id <= Block_list[rnd].id){
+                        eraseBlock(rnd,false);
+                        expand_time--;
+                    }
+                    else eraseBlock(rnd,true);
                     continue;
                 }
             }
             if(nz2 == -1){
-                cv.assign({});
-                rep(z,d)rep(y,d)rep(x,d)if(!cand2[z][y][x])cv.emplace_back(T(z,y,x));
+                while(!cv.empty())cv.pop_back();
+                rep(z,d)rep(y,d){
+                    if(!sil2_r[z][y])continue;
+                    rep(x,d)if(!cand2[z][y][x])cv.emplace_back(T(z,y,x));
+                }
                 if(!cv.empty()){
                     auto &&[z,y,x] = cv[rand_int()%cv.size()];
                     nz2 = z, ny2 = y, nx2 = x;
                 }
                 else{
-                    eraseBlock(rand_int()%Block_list.size());
+                    rnd = rand_int()%Block_list.size();
+                    if(start_id <= Block_list[rnd].id){
+                        eraseBlock(rnd,false);
+                        expand_time--;
+                    }
+                    else eraseBlock(rnd,true);
                     continue;
                 }
             }
@@ -333,90 +338,145 @@ struct Solver{
             best_score = LLONG_MAX;
             cand1[nz1][ny1][nx1] = id;
             cand2[nz2][ny2][nx2] = id;
-            ans_list = Block_list;
+            exist_f1[nz1][nx1] |= (1 << ny1);
+            exist_r1[nz1][ny1] |= (1 << nx1);
+            exist_f2[nz2][nx2] |= (1 << ny2);
+            exist_r2[nz2][ny2] |= (1 << nx2);
     
-            // Block_list.back() を方向を変えて探索
+            // 追加Blockの方向全探索
             rep(d1,DIR_NUM){
                 rep(d2,DIR_NUM){
                     cand_score = LLONG_MAX-1;
                     Block_list.back().surf1 = d1;
                     Block_list.back().surf2 = d2;
-                    while(turn <= 50){
-                        query(Block_list.size()-1);
-                        turn++;
-                    }
-                    // cerr << cand_score << " " << best_score << endl;
+                    
+                    // 最大限に拡張
+                    query(Block_list.size() - 1);
                     cand_score = calcScore();
+
                     if(cand_score < best_score){
                         best_score = cand_score;
-                        ans1 = cand1;
-                        ans2 = cand2;
-                        ans_list.back() = Block_list.back();
+                        tmp = Block_list.back();
                     }
+                    // 差分更新で元に戻す
                     while(Block_list.back().size > 1){
                         auto &&[z1,y1,x1] = Block_list.back().place1.back();
                         auto &&[z2,y2,x2] = Block_list.back().place2.back();
                         Block_list.back().erase(z1,y1,x1,z2,y2,x2,cand1,cand2);
                     }
-                    turn = 0;
                 }
             }
-
-            cand1 = ans1;
-            cand2 = ans2;
-            Block_list.back() = ans_list.back();
-
+            
+            // ブロック採用
+            rep(i,tmp.size){
+                auto &&[z1,y1,x1] = tmp.place1[i];
+                auto &&[z2,y2,x2] = tmp.place2[i];
+                cand1[z1][y1][x1] = id;
+                cand2[z2][y2][x2] = id;
+                exist_f1[z1][x1] |= (1 << y1);
+                exist_r1[z1][y1] |= (1 << x1);
+                exist_f2[z2][x2] |= (1 << y2);
+                exist_r2[z2][y2] |= (1 << x2);
+            }
+            swap(Block_list.back(),tmp);
+            expand_time++;
             id++;
         }
-        Block_list = ans_list;
     }
 
-    // ブロック拡張クエリ
-    inline void query(const int &idx){
+    inline void preErase(){
+        // ブロック1 or 2個破壊
+        time = rand_int()%2 + 1;
+        rnd = rand_int()%Block_list.size();
+        if(time == 2){
+            auto &&[nz,ny,nx] = Block_list[rnd].place1[rand_int()%Block_list[rnd].place1.size()];
+            todo.push(T(nz,ny,nx));
+            while(!todo.empty() && time > 0){
+                auto &&[z,y,x] = todo.front();
+                if(visited[z][y][x]){
+                    todo.pop();
+                    continue;
+                }
+                visited[z][y][x] = true;
+                visit_reset.push(T(z,y,x));
+                if(cand1[z][y][x] > 0 && cand1[z][y][x] != cand1[nz][ny][nx]){
+                    erase_id = cand1[z][y][x];
+                    break;
+                }
+                rep(i,DIR_NUM){
+                    tz1 = z + dz[i];
+                    ty1 = y + dy[i];
+                    tx1 = x + dx[i];
+                    if(outField(tz1,ty1,tx1) || visited[tz1][ty1][tx1])continue;
+                    todo.push(T(tz1,ty1,tx1));
+                }
+                todo.pop();
+            }
+            while(!todo.empty())todo.pop();
+            while(!visit_reset.empty()){
+                auto &&[z,y,x] = visit_reset.front();
+                visited[z][y][x] = false;
+                visit_reset.pop();
+            }
+            // 2個破壊
+            eraseBlock(rnd,true);
+            rep(i,Block_list.size()){
+                if(erase_id == Block_list[i].id){
+                    eraseBlock(i,true);
+                    break;
+                }
+            }
+        }
+        else eraseBlock(rnd,true); // 1個破壊
+    }
+
+    // ブロック拡張query
+    inline void query(const int &r1){
         // r1 : どのブロックを拡張するか
         // r2 : 何ブロック目を起点とするか
         // r3 : どの方向に伸ばしていくか
-        r1 = (idx >= 0 ? idx :rand_int()%Block_list.size());
-        r2 = rand_int()%Block_list[r1].size;
-        r3 = rand_int()%DIR_NUM;
+        rep(r2,Block_list[r1].size){
+            rep(r3,DIR_NUM){
+                auto &&[z1,y1,x1] = Block_list[r1].place1[r2];
+                tz1 = z1 + b_dir[Block_list[r1].surf1][0][r3];
+                ty1 = y1 + b_dir[Block_list[r1].surf1][1][r3];
+                tx1 = x1 + b_dir[Block_list[r1].surf1][2][r3];
+                if(outField(tz1,ty1,tx1) || cand1[tz1][ty1][tx1])continue;
 
-        auto &&[z1,y1,x1] = Block_list[r1].place1[r2];
-        tz1 = z1 + b_dir[Block_list[r1].surf1][0][r3];
-        ty1 = y1 + b_dir[Block_list[r1].surf1][1][r3];
-        tx1 = x1 + b_dir[Block_list[r1].surf1][2][r3];
+                auto &&[z2,y2,x2] = Block_list[r1].place2[r2];
+                tz2 = z2 + b_dir[Block_list[r1].surf2][0][r3];
+                ty2 = y2 + b_dir[Block_list[r1].surf2][1][r3];
+                tx2 = x2 + b_dir[Block_list[r1].surf2][2][r3];
+                if(outField(tz2,ty2,tx2) || cand2[tz2][ty2][tx2])continue;
 
-        auto &&[z2,y2,x2] = Block_list[r1].place2[r2];
-        tz2 = z2 + b_dir[Block_list[r1].surf2][0][r3];
-        ty2 = y2 + b_dir[Block_list[r1].surf2][1][r3];
-        tx2 = x2 + b_dir[Block_list[r1].surf2][2][r3];
-
-        if(outField_3d(tz1,ty1,tx1) || cand1[tz1][ty1][tx1])return;
-        if(outField_3d(tz2,ty2,tx2) || cand2[tz2][ty2][tx2])return;
-
-        Block_list[r1].expand(tz1,ty1,tx1,tz2,ty2,tx2,cand1,cand2);
-        turn = 0;
+                Block_list[r1].expand(tz1,ty1,tx1,tz2,ty2,tx2,cand1,cand2);
+            }
+        }
     }
 
-    inline void eraseBlock(const int &id){
-        while(!Block_list[id].place1.empty()){
-            auto &&[z1,y1,x1] = Block_list[id].place1.back();
-            auto &&[z2,y2,x2] = Block_list[id].place2.back();
-            Block_list[id].erase(z1,y1,x1,z2,y2,x2,cand1,cand2);
+    inline void eraseBlock(const int &idx, const bool &flag){
+        if(flag)erase_archive.push(Block_list[idx]);
+
+        while(!Block_list[idx].place1.empty()){
+            auto &&[z1,y1,x1] = Block_list[idx].place1.back();
+            auto &&[z2,y2,x2] = Block_list[idx].place2.back();
+            Block_list[idx].erase(z1,y1,x1,z2,y2,x2,cand1,cand2);
+            
+            exist_f1[z1][x1] ^= (1 << y1);
+            exist_r1[z1][y1] ^= (1 << x1);
+            exist_f2[z2][x2] ^= (1 << y2);
+            exist_r2[z2][y2] ^= (1 << x2);
         }
-        Block_list.erase(Block_list.begin()+id);
+        Block_list.erase(Block_list.begin()+idx);
     }
 
     inline ll calcScore(){
         score = 0;
         for(auto &&b:Block_list)if(b.size)score += 1/(double)b.size;
-        return score*1e9;
+        return score*1000000000;
     }
 
-    inline bool outField_2d(const int &x,const int &y){
-        return (x < 0 || x >= d || y < 0 || y >= d);
-    }
-
-    inline bool outField_3d(const int &x,const int &y,const int &z){
+    inline bool outField(const int &x,const int &y,const int &z){
         return (x < 0 || x >= d || y < 0 || y >= d || z < 0 || z >= d);
     }
 
@@ -442,11 +502,11 @@ struct Solver{
         int t1 = 0,t2 = 0;
         rep(x,d)rep(y,d)rep(z,d)t1 = max(final1[z][y][x],t1);
         rep(x,d)rep(y,d)rep(z,d)t2 = max(final2[z][y][x],t2);
-        cout << max(t1,t2) << endl;
+        cout << max(t1,t2) << '\n';
         rep(x,d)rep(y,d)rep(z,d)cout << (final1[z][y][x] <= 0 ? 0 : final1[z][y][x]) << " ";
-        cout << endl;
+        cout << '\n';
         rep(x,d)rep(y,d)rep(z,d)cout << (final2[z][y][x] <= 0 ? 0 : final2[z][y][x]) << " ";
-        cout << endl;
+        cout << '\n';
     }
 };
 
