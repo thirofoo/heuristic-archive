@@ -75,6 +75,7 @@ struct Mino {
 struct Solver {
     int oil_cnt;
     bool all_search;
+    vector<P> oil_place;
     vector<Mino> minos;
     vector<vector<int>> oil, field, field_cnt;
 
@@ -136,16 +137,16 @@ struct Solver {
 
             auto dfs = [&](auto self, int idx) -> void {
                 if( idx == m ) {
-                    vector<P> ans;
+                    oil_place.clear();
                     bool flag = true;
                     rep(i,n) rep(j,n) {
-                        if( field[i][j] > 0 ) ans.emplace_back(P(i,j));
+                        if( field[i][j] > 0 ) oil_place.emplace_back(P(i,j));
                         if( oil[i][j] == 1e9 ) continue;
                         flag &= (field[i][j] == oil[i][j]);
                         if( !flag ) break;
                     }
                     if( !flag ) return;
-                    cand.emplace_back(ans);
+                    cand.emplace_back(oil_place);
                     return;
                 }
                 for(auto &&[x, y] : minos[idx].valid_area) {
@@ -187,10 +188,10 @@ struct Solver {
 
         // 最後まで分からなかった場合 ⇒ 結果から答えを出力
         if( oil_cnt == n*n ) {
-            vector<P> ans;
-            rep(i,n) rep(j,n) if( oil[i][j] > 0 ) ans.emplace_back(P(i,j));
-            cout << "a " << ans.size() << " ";
-            for(auto &&[x, y] : ans) cout << x << " " << y << " ";
+            oil_place.clear();
+            rep(i,n) rep(j,n) if( oil[i][j] > 0 ) oil_place.emplace_back(P(i,j));
+            cout << "a " << oil_place.size() << " ";
+            for(auto &&[x, y] : oil_place) cout << x << " " << y << " ";
             cout << endl << flush;
             cin >> res;
         }
@@ -208,8 +209,8 @@ struct Solver {
                 if( oil[i][j] != 1e9 ) continue;
                 score1 = 0.0, score2 = 0.0;
                 rep(k,m) {
-                    score1 += log(minos[k].pattern[i][j]+1);
-                    score2 += log(minos[k].valid_area.size()-minos[k].pattern[i][j]+1);
+                    score1 += log(minos[k].pattern[i][j]+1e3);
+                    score2 += log(minos[k].valid_area.size()-minos[k].pattern[i][j]+1e3);
                 }
                 if( min_score > abs(score1-score2) ) {
                     min_score = abs(score1-score2);
@@ -224,11 +225,11 @@ struct Solver {
             
             auto dfs = [&](auto self, int idx) -> void {
                 if( idx == m ) {
-                    vector<P> ans;
+                    oil_place.clear();
                     bool flag = true;
                     rep(i,n) {
                         rep(j,n) {
-                            if( field[i][j] > 0 ) ans.emplace_back(P(i,j));
+                            if( field[i][j] > 0 ) oil_place.emplace_back(P(i,j));
                             if( oil[i][j] == 1e9 ) continue;
                             flag &= (field[i][j] == oil[i][j]);
                             if( !flag ) break;
@@ -256,9 +257,11 @@ struct Solver {
             };
 
             dfs(dfs, 0);
+
+            double score1, score2;
             rep(i,n) rep(j,n) {
                 if( oil[i][j] != 1e9 ) continue;
-                double score1 = 0, score2 = 0;
+                score1 = 0, score2 = 0;
                 rep(k,m) {
                     score1 += log(field_cnt[i][j]+1);
                     score2 += log(total-field_cnt[i][j]+1);
