@@ -1,0 +1,12 @@
+[submodule "AHC025"]
+	path = AHC025
+	url = https://github.com/thirofoo/AHC025
+[submodule "AHC027"]
+	path = AHC027
+	url = https://github.com/thirofoo/AHC027
+[submodule "AHC029"]
+	path = AHC029
+	url = https://github.com/thirofoo/AHC029
+[submodule "masters-qual-2024"]
+	path = masters-qual-2024
+	url = https://github.com/thirofoo/masters-qual-2024
