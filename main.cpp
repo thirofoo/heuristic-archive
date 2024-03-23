@@ -64,18 +64,25 @@ struct State{
     }
 };
 
+struct Answer {
+    int score;
+    vector<vector<vector<T>>> place;
+    // place[day][row][idx] = {x1, y1, x2, y2}
+    // day 日目, row 行目, idx 番目の区間
+    Answer(const int score, const vector<vector<vector<T>>> &place) : score(score), place(place) {}
+
+    inline bool operator<(const Answer &a) const { return score < a.score; }
+    inline bool operator>(const Answer &a) const { return score > a.score; }
+};
+
 struct Solver{
     int w, d, n;
     vector<vector<int>> area;
     vector<int> line_row, line_col;
-
-    // score, { {x1, y1, x2, y2} }
-    using Answer = pair<int, vector<vector<vector<T>>>>;
     priority_queue<Answer, vector<Answer>, greater<Answer>> pq;
 
     Solver() {
         this->input();
-        
     }
 
     void input() {
@@ -86,12 +93,12 @@ struct Solver{
     }
 
     void output() {
-        if (pq.empty()) {
+        if( pq.empty() ) {
             cerr << "No Answer" << endl;
             return;
         }
         Answer best = pq.top();
-        for(auto &&day_place: best.second) {
+        for(auto &&day_place: best.place) {
             // pair(area_size, {x1, y1, x2, y2})
             vector<pair<int,T>> day_sort_place;
             rep(i,day_place.size()) {
@@ -113,21 +120,23 @@ struct Solver{
 
     void solve() {
         utility::mytm.CodeStart();
-        // 初期貪欲解法
-        // 1. 行で分割する数を決める
-        // 2. 各日に合わせる用に各区間に列の柵を追加
-        // ※ 一旦日ごとで考えて柵の移動を最小化等はしない
+        // 初期貪欲解
+        // 1. X 行に分割
+        // 2. 各日に合わせて行に列の柵を追加
+        // ※ これが出来れば最低でも ( 行分割の数 ) * W * D のコストで可能
 
-        // 上手く列の柵が立てば ( 行分割の数 ) * W * D で可能
-        // => 列の柵の立て方が重要
         int max_ele = 0;
         rep(i,d) max_ele = max(max_ele, area[i].back());
+        vector<int> max_area_per_rank(n, 0);
+        rep(i,d) rep(j,n) max_area_per_rank[j] = max(max_area_per_rank[j], area[i][j]);
 
         reps(X,1,w+1) {
-            // 1. 行分割の数 (X) を決定
-            // max_{i}( ∑_{j} ( ((area[i][j]-1) / height) + 1 ) * X ) <= w^2
-            // を満たさないと分割不可能
+            // 1. 以下 2 つを満たす行分割の数 (X) を決定 ( height = (int)w / X )
+            // height * w >= max_ele ( 最大要素が 1 行に収まるか )
+            // max_{i}( ∑_{j} ( ((area[i][j]-1) / height) + 1 ) * X ) <= w^2 ( 各日のスペースが全て収まりそうか )
             int height = w / X;
+            if (height * w < max_ele) break;
+
             int day_max_cnt = 0;
             rep(i,d) {
                 int cnt = 0;
@@ -135,9 +144,6 @@ struct Solver{
                 day_max_cnt = max(day_max_cnt, cnt);
             }
             if (day_max_cnt > w*w) continue;
-            // 同時に height * w >= max_ele でないと NG
-            // ※ 一番大きい要素が 1 行に収まらない
-            if (height * w < max_ele) break;
 
             // 2. 列の柵を立てる
             Answer cand = Answer(0, {});
@@ -146,48 +152,35 @@ struct Solver{
                 priority_queue<P> row; // {空列, 行番号}
                 vector<vector<T>> place(X);
                 rep(i,X) row.push({w, i});
-                // 大きい area から空きが多い行に割り当て
+
+                // 大きい陣地から空きが多い行に割り当て
+                // ※ 覆いきれない場合は残りの空列を全て利用
                 for(int j=n-1; j>=0; j--) {
-                    auto [capasity, idx] = row.top(); row.pop();
-                    int need = ((area[i][j]-1) / height) + 1;
-                    if (capasity < need) {
+                    if( row.empty() ) {
                         flag = false;
                         break;
                     }
-                    place[idx].emplace_back(T(idx*height, w-capasity, (idx+1)*height, w-capasity+need));
-                    row.push(P(capasity-need, idx));
+                    auto [capasity, idx] = row.top(); row.pop();
+                    int need = ((area[i][j]-1) / height) + 1;
+                    place[idx].emplace_back(T(idx*height, w-capasity, (idx+1)*height, min(w-capasity+need, w)));
+                    if( capasity > need ) row.push(P(capasity-need, idx));
+                    else cand.score += (need - capasity) * height * 100; // space 不足 cost
                 }
-                if (!flag) break;
-                // 前回と線分の差分を見てスコアを計算
+                if( !flag ) break;
                 if( i != 0 ) {
-                    int add_cost = 0;
-                    for(auto row_group : cand.second.back()) for(auto &&[x1, y1, x2, y2]: row_group) {
+                    // 柵移動 cost
+                    for(auto row_group : cand.place.back()) for(auto &&[x1, y1, x2, y2]: row_group) {
                         for(auto next_row_group : place) for(auto &&[nx1, ny1, nx2, ny2]: next_row_group) {
-                            if (y1 != ny1 || y2 != ny2) add_cost += height;
+                            if (y1 != ny1 || y2 != ny2) cand.score += height;
                         }
                     }
-                    cand.first += add_cost;
                 }
-                cand.second.emplace_back(place);
+                cand.place.emplace_back(place);
             }
-            if (!flag) continue;
+            if( !flag ) continue;
             pq.push(cand);
         }
         return;
-    }
-
-    inline int calcScore() {
-        int res = 0;
-        // line から分割された面積を計算
-        vector<int> area_size;
-        reps(i,1,line_row.size()-1) {
-            reps(j,1,line_col.size()-1) {
-                area_size.emplace_back((line_row[i]-line_row[i-1]) * (line_col[j]-line_col[j-1]));
-            }
-        }
-        sort(area_size.begin(), area_size.end());
-        vector<bool> used(area_size.size(), false);
-        return 0;
     }
 };
 
