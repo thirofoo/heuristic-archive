@@ -120,6 +120,8 @@ struct Solver{
 
     void solve() {
         utility::mytm.CodeStart();
+        getTheoreticalAnswer();
+
         // 初期貪欲解
         // 1. X 行に分割
         // 2. 各日に合わせて行に列の柵を追加
@@ -178,6 +180,51 @@ struct Solver{
                 cand.place.emplace_back(place);
             }
             if( !flag ) continue;
+            pq.push(cand);
+        }
+        return;
+    }
+
+    void getTheoreticalAnswer() {
+        // 理論値 (cost = 1) が達成可能な場合を考慮
+        // ※ 現段階では Seed = 32 のみ
+        int max_ele = 0;
+        rep(i,d) max_ele = max(max_ele, area[i].back());
+        vector<int> max_area_per_rank(n, 0);
+        rep(i,d) rep(j,n) max_area_per_rank[j] = max(max_area_per_rank[j], area[i][j]);
+        reps(X,1,w+1) {
+            // 1. 以下 2 つを満たす行分割の数 (X) を決定 ( height = (int)w / X )
+            // height * w >= max_ele ( 最大要素が 1 行に収まるか )
+            // max_{i}( ∑_{j} ( ((area[i][j]-1) / height) + 1 ) * X ) <= w^2 ( 各日のスペースが全て収まりそうか )
+            int height = w / X;
+            if (height * w < max_ele) break;
+
+            int max_rank_cnt = 0;
+            rep(j,n) max_rank_cnt += ((max_area_per_rank[j]-1) / height) + 1;
+            if (max_rank_cnt > w*w) continue;
+
+            // 2. 列の柵を立てる
+            Answer cand = Answer(1, {});
+            vector<vector<T>> place(X);
+
+            priority_queue<P> row; // {空列, 行番号}
+            rep(i,X) row.push({w, i});
+            // 大きい陣地から空きが多い行に割り当て
+            // ※ 覆いきれない場合は残りの空列を全て利用
+            bool flag = true;
+            for(int j=n-1; j>=0; j--) {
+                if( row.empty() ) {
+                    flag = false;
+                    break;
+                }
+                auto [capasity, idx] = row.top(); row.pop();
+                int need = ((max_area_per_rank[j]-1) / height) + 1;
+
+                place[idx].emplace_back(T(idx*height, w-capasity, (idx+1)*height, min(w-capasity+need, w)));
+                if( capasity > need ) row.push(P(capasity-need, idx));
+            }
+            if( !flag ) continue;
+            rep(i,d) cand.place.emplace_back(place);
             pq.push(cand);
         }
         return;
