@@ -16,3 +16,6 @@
 [submodule "AHC031"]
 	path = AHC031
 	url = https://github.com/thirofoo/AHC031
+[submodule "AHC033"]
+	path = AHC033
+	url = https://github.com/thirofoo/AHC033.git
