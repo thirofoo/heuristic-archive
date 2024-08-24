@@ -8,3 +8,5 @@ vis.html
 src
 target
 local_visualizer
+a.out
+tools/*
