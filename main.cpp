@@ -62,20 +62,22 @@ struct Solver {
 
     rep(i, T) {
       cout << N << endl;
-      int threshold = sum / (i + 1);
-      int now_h = 0, pre_box = -1;
-      rep(i, N) {
-        auto [w, h] = boxes[i];
-        cout << i << " " << (w < h ? "1" : "0") << " L " << pre_box << endl << flush;
-        pre_box = i;
-        now_h += h;
-        if(now_h > threshold) {
-          now_h = 0;
+      int now_hw = 0, pre_box = -1, box_cnt = 0;
+      int threshold = sum / ((i / 2) * 0.25 + 7.0);
+      rep(j, N) {
+        auto [w, h] = boxes[j];
+        cout << j << " " << ((w < h) ^ (i % 2 == 0)) << " " << (i % 2 == 1 ? "L" : "U") << " " << pre_box << endl << flush;
+        pre_box = j;
+        now_hw += (i % 2 == 1 ? h : w);
+        box_cnt++;
+        if(now_hw > threshold) {
+          now_hw = 0;
           pre_box = -1;
+          box_cnt = 0;
         }
       }
-      int input;
-      cin >> input;
+      int th, tw;
+      cin >> th >> tw;
     }
 
     return;
