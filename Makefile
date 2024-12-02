@@ -23,9 +23,14 @@ clean:
 # 単体テスト
 test:
 	@clear
-	@echo "単体 test"
-	@cd tools; \
-	cargo run -r --bin tester ../main < ./in/0000.txt > ./out/0000.txt
+	@if [ -z "$(idx)" ]; then \
+	    echo "Error: idx is not specified. Usage: make test idx=1"; \
+	    exit 1; \
+	fi
+	@echo "単体 test with idx=$(idx)"
+	@formatted_idx=$$(printf "%04d" $(idx)); \
+	cd tools; \
+	cargo run -r --bin tester ../main < ./in/$$formatted_idx.txt > ./out/$$formatted_idx.txt
 
 # 全体テスト
 all_test:
