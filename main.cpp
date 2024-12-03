@@ -7,7 +7,7 @@ namespace utility {
     chrono::system_clock::time_point start;
     void CodeStart() { start = chrono::system_clock::now(); }
     double elapsed() const {
-      using namespace std::chrono;
+      using namespace chrono;
       return (double)duration_cast<milliseconds>(system_clock::now() - start)
           .count();
     }
@@ -36,11 +36,40 @@ inline double gaussian(double mean, double stddev) {
 using ll = long long;
 using P = pair<int, int>;
 
-struct Solver {
-  int N, T, sigma;
-  vector<P> boxes;
+struct Op {
+  int box_id;   // 箱の番号
+  bool rotate;  // 0 : 素, 1 : 90°回転
+  char dir;     // L : 無限遠右から左, U : 無限遠下から上
+  int prev_id;  // 差し込む基準となる箱の番号
+  string op_str;
 
-  Solver() { this->input(); }
+  Op(int box_id, bool rotate, char dir, int prev_id)
+      : box_id(box_id), rotate(rotate), dir(dir), prev_id(prev_id) {
+    this->update_str();
+    return;      
+  }
+
+  inline void update_str() {
+    this->op_str = to_string(box_id) + " " + to_string(rotate) + " " + dir + " " + to_string(prev_id);
+    return;
+  }
+
+  bool operator<(const Op& other) const {
+    // op_str の辞書順比較 (一意性)
+    return op_str < other.op_str;
+  }
+};
+
+struct Solver {
+  int N, T, sigma, output_cnt;
+  vector<P> boxes;
+  map<vector<Op>, P> memo;
+
+  Solver() {
+    this->input();
+    output_cnt = 0;
+    return;
+  }
 
   void input() {
     cin >> N >> T >> sigma;
@@ -55,104 +84,121 @@ struct Solver {
 
   void solve() {
     // Greedy 解法
-    ll sum = 0;
-    for(auto [w, h] : boxes) sum += (ll)w * (ll)h;
-    set<int> threshold_set, used_threshold;
-    set<vector<string>> hash_set;
-    int threshold = sqrt(sum);
-    int turn = 0, th, tw;
+    ll area_sum = 0;
+    for(auto [w, h] : boxes) area_sum += (ll)w * (ll)h;
+    int threshold = sqrt(area_sum);
+    int ignore_cnt = sqrt(N) + 1;
+    vector<pair<int, vector<Op>>> ops_list;
 
-    // ========== 1. 再起関数を用いて折り返し地点を探索 ========== 
-    constexpr int TURN_MAX = 1;
-    vector<string> answer, best_answer;
-    int output_num = 0, best_score = 1e9;
-    vector<int> rotate_flag(N, -1);
-    rep(i, N) {
-      auto &&[w, h] = boxes[i];
-      rotate_flag[i] = (w < h);
+    while(threshold < sqrt(area_sum) * 1.2) {
+      int now_idx = 0, max_height = 0;
+      vector<Op> ops;
+
+      bool is_valid;
+      while(now_idx < N) {
+        int total_h = 0, start_idx = now_idx;
+        bool measure_flag = false;
+        while(true) {
+          auto && [w, h] = boxes[now_idx];
+          if(now_idx - start_idx >= ignore_cnt && !measure_flag) {
+            vector<Op> tmp_ops = vector<Op>(ops.begin() + start_idx, ops.end());
+            auto [_, in_h] = output(tmp_ops);
+            total_h = max(total_h, in_h);
+            if(output_cnt >= T) return;
+            measure_flag = true;
+          }
+
+          // サイズ引き延ばしができるか否か
+          if(now_idx < N && total_h + min(w, h) <= threshold) {
+            Op op(now_idx, (w < h), 'L', (now_idx == start_idx ? -1 : now_idx - 1));
+            ops.emplace_back(op);
+            total_h += min(w, h);
+            now_idx++;
+          }
+          else break;
+        }
+        if(now_idx >= N) {
+          is_valid = (total_h * 2 >= threshold || ops_list.empty());
+        }
+      }
+      if(is_valid) {
+        auto [th, tw] = output(ops);
+        ops_list.emplace_back(tw + th, ops);
+        if(output_cnt >= T) return;
+      }
+      threshold += 100;
     }
+    sort(ops_list.begin(), ops_list.end());
 
-    auto dfs = [&](auto self, int idx, int carry_cnt) -> void {
-      if(output_num >= T) return;
-
-      int total_height = 0, pre_box = -1, pile_cnt = 0;
-      while(idx < N && total_height + boxes[idx].second <= threshold) {
-        auto &&[w, h] = boxes[idx];
-        bool rotate = rotate_flag[idx];
-        total_height += (rotate ? w : h);
-        answer.emplace_back(to_string(idx) + " " + to_string(rotate) + " L " + to_string(pre_box));
-        pre_box = idx;
-        idx++;
-        pile_cnt++;
-      }
-
-      for(int i = 0; i + carry_cnt <= TURN_MAX && idx + i < N; i++) {
-        rep(j, i) {
-          auto &&[w, h] = boxes[idx + j];
-          answer.emplace_back(to_string(idx + j) + " " + to_string(w < h) + " L " + to_string(pre_box));
-          pre_box = idx + j;
-        }
-        self(self, idx + i, carry_cnt + i);
-        if(output_num >= T) return;
-        rep(j, i) {
-          auto &&[w, h] = boxes[idx + j];
-          answer.pop_back();
-          pre_box -= 1;
-        }
-      }
-      if(idx == N && !hash_set.count(answer) && (total_height * 4 >= threshold * 3 || hash_set.empty())) {
-        // あまりにも列を無駄にしてる場合も無視
-        hash_set.insert(answer);
-        cout << answer.size() << endl << flush;
-        for(auto s : answer) cout << s << endl << flush;
-        cin >> tw >> th;
-        if(tw + th < best_score) {
-          best_score = tw + th;
-          best_answer = answer;
-        }
-        output_num++;
-        if(output_num >= T) return;
-      }
-      while(pile_cnt-- > 0) answer.pop_back();
-      return;
-    };
-    while(output_num < T && threshold <= sqrt(sum * 2LL)) {
-      dfs(dfs, 0, 0);
-      threshold += sigma;
-    }
-
-    // ========== 2. 残りの操作回数で最良解の箱をランダムに方向反転をして改良を狙う ========== 
-    while(output_num < T) {
+    // ========== 残りの操作回数で最良解の箱をランダムに方向反転をして改良を狙う ========== 
+    int cnt = 0, ops_idx = 0;
+    while(output_cnt < T && cnt <= 1000) {
+      cnt++;
       vector<int> flip_idx;
       int time = 1;
-      while(time--) flip_idx.emplace_back(rand_int() % best_answer.size());
-      // 方向反転
+      auto && [best_score, best_ops] = ops_list[ops_idx];
+      while(time > 0) {
+        int idx = rand_int() % N;
+        auto && [w, h] = boxes[idx];
+        flip_idx.emplace_back(idx);
+        time--;
+      }
+      
       rep(i, flip_idx.size()) {
-        int idx = flip_idx[i];
-        rep(j, best_answer[idx].size()) {
-          if(best_answer[idx][j] != ' ') continue;
-          best_answer[idx][j + 1] = (best_answer[idx][j + 1] == '0' ? '1' : '0');
+        // 方向反転
+        best_ops[flip_idx[i]].rotate = !best_ops[flip_idx[i]].rotate;
+        best_ops[flip_idx[i]].update_str();
+      }
+
+      bool updated = false;
+      if(!memo.count(best_ops)) {
+        auto [th, tw] = output(best_ops);
+        if(tw + th < best_score) {
+          best_score = tw + th;
+          updated = true;
+          cnt = 0;
+        }
+      }
+      if(updated) continue;
+      rep(i, flip_idx.size()) {
+        best_ops[flip_idx[i]].rotate = !best_ops[flip_idx[i]].rotate;
+        best_ops[flip_idx[i]].update_str();
+      }
+
+      if(cnt >= 2 * N) {
+        cnt = 0;
+        ops_idx++;
+        if(ops_idx >= ops_list.size()) {
           break;
         }
       }
-      cout << best_answer.size() << endl << flush;
-      for(auto s : best_answer) cout << s << endl << flush;
+    }
+
+    // ※ あまりの手数は浪費
+    while(output_cnt < T) {
+      cout << ops_list[0].second.size() << endl;
+      for(auto op : ops_list[0].second) cout << op.op_str << endl;
+      cout << flush;
+      output_cnt++;
+      int tw, th;
       cin >> tw >> th;
-      if(tw + th < best_score) best_score = tw + th;
-      else {
-        rep(i, flip_idx.size()) {
-          int idx = flip_idx[i];
-          rep(j, best_answer[idx].size()) {
-            if(best_answer[idx][j] != ' ') continue;
-            best_answer[idx][j + 1] = (best_answer[idx][j + 1] == '0' ? '1' : '0');
-            break;
-          }
-        }
-      }
-      output_num++;
     }
 
     return;
+  }
+
+  inline P output(const vector<Op> &ops) {
+    if(memo.count(ops)) return memo[ops];
+    cout << ops.size() << endl;
+    for(auto op : ops) cout << op.op_str << endl;
+    cout << flush;
+
+    int tw, th;
+    cin >> tw >> th;
+
+    output_cnt++;
+    memo[ops] = P(tw, th);
+    return P(tw, th);
   }
 };
 
