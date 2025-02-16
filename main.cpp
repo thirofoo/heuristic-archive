@@ -26,12 +26,8 @@ inline unsigned int rand_int() {
   return (tw = (tw ^ (tw >> 19)) ^ (tt ^ (tt >> 8)));
 }
 
-inline double rand_double() {
-  return (double) (rand_int() % (int) 1e9) / 1e9;
-}
-
 // 温度関数
-#define TIME_LIMIT 2950
+#define TIME_LIMIT 2800
 inline double temp(double start) {
   double start_temp = 100, end_temp = 1;
   return start_temp + (end_temp - start_temp) * ((utility::mytm.elapsed() - start) / TIME_LIMIT);
@@ -153,34 +149,34 @@ inline LineType get_line_type(Point &from, Point &now, Point &to) {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 struct Solver {
   vector<pair<Point, Point>> points;
-  vector<Answer> answers;
+  vector<Answer> answers, best_answers;
   vector<vector<int>> setted;
 
-  vector<vector<bool>> near_station;
+  vector<vector<bool>> planned_station;
+  vector<vector<int>> near_station;
   vector<vector<vector<Point>>> another_side;
   vector<vector<int>> house_cnt, work_cnt;
 
+  int best_money = 0;
   int income = 0;
+
+  // BFS 用の配列
+  bitset<2500> visited;
+  vector<vector<Point>> prev;
+  queue<Point> que;
 
   Solver() {
     this->input();
     setted.resize(N, vector<int>(N, LineType::NONE));
-    near_station.resize(N, vector<bool>(N, false));
+    near_station.resize(N, vector<int>(N, false));
+    planned_station.resize(N, vector<bool>(N, false));
+
+    // BFS 用の配列
+    prev.assign(N, vector<Point>(N, Point(-1, -1)));    
+
+    utility::mytm.CodeStart();
     return;
   }
 
@@ -203,9 +199,9 @@ struct Solver {
 
   void output() {
     // 不足分の操作は全て待機 (-1)
-    while(answers.size() < T) answers.emplace_back(-1, -1, -1);
+    while(best_answers.size() < T) best_answers.emplace_back(-1, -1, -1);
     rep(i, T) {
-      auto [type, x, y] = answers[i];
+      auto [type, x, y] = best_answers[i];
       if(type == -1) cout << -1 << '\n';
       else cout << type << " " << x << " " << y << '\n';
     }
@@ -214,27 +210,91 @@ struct Solver {
 
   void solve() {
     // 貪欲解法
-    // 1. 最も家・職場が含まれる箇所を前計算し、最も家を包含する箇所に駅を 1 つ設置 (初期駅)
-    // 2. 職場 → 家 → 職場 .. と新しい駅を設置していき、全連結にする
-    // 3. 2 を T - 200 (600) ターンまで繰り返す
+    // 1. 初期資金内で 100 以上のインカムを想定出来る最小距離の 2 箇所に駅を設置
+    // 2. 最も家・職場が含まれる箇所を前計算
+    // 3. 職場 → 家 → 職場 .. と新しい駅を設置していき、全連結にする
+    // 4. 3 を T ターンまで繰り返す
+    
+    vector<Point> station_places, initial_station_places;
+    vector<vector<bool>> already_near_station(N, vector<bool>(N, false));
 
     // 1.
-    vector<Point> station_places;
-    vector<vector<bool>> already_near_station(N, vector<bool>(N, false));
-    set<Point> planned_places;
-    // WIP : 仮として家・職場が多い上位 10 箇所を前計算 (もっと必要なら今後増やす)
-    int time = 10;
+    // 初期資金内で家 ⇔ 職場をつなげて最大インカムを得られる二つを選択
+    vector<vector<bool>> used(N, vector<bool>(N, false));
+    queue<Point> que;
+    int best_income = 0;
+    for(auto &[p1, p2] : points) {
+      for(auto &delta1 : delta_less2) {
+        Point next1 = p1 + delta1;
+        if(out_field(next1)) continue;
+        for(auto &delta2 : delta_less2) {
+          Point next2 = p2 + delta2;
+          if(out_field(next2)) continue;
+          
+          int dist = abs(next1.x - next2.x) + abs(next1.y - next2.y);
+          if(dist > (money - 5000 * 2) / 100) continue;
+          
+          for(auto &delta : delta_less2) {
+            // Point next = Point(x1, y1) + delta;
+            Point next = next1 + delta;
+            if(!out_field(next) && !used[next.x][next.y]) {
+              que.push(next);
+              used[next.x][next.y] = true;
+            }
+            next = next2 + delta;
+            if(!out_field(next) && !used[next.x][next.y]) {
+              que.push(next);
+              used[next.x][next.y] = true;
+            }
+          }
+          int cand_income = 0;
+          for(auto &delta : delta_less2) {
+            Point next = next1 + delta;
+            if(out_field(next)) continue;
+            for(auto &p : another_side[next.x][next.y]) {
+              if(used[p.x][p.y]) {
+                cand_income += abs(next.x - p.x) + abs(next.y - p.y);
+              }
+            }
+          }
+          // cerr << "Cand Income: " << cand_income << '\n';
+          if(best_income < cand_income) {
+            best_income = cand_income;
+            initial_station_places = {next1, next2};
+          }
+          while(!que.empty()) {
+            Point current = que.front();
+            que.pop();
+            used[current.x][current.y] = false;
+          }
+        }
+      } 
+    }
+    // cerr << "Best Income: " << best_income << '\n';
+    // cerr << "Station Places: " << initial_station_places[0].x << " " << initial_station_places[0].y << " " << initial_station_places[1].x << " " << initial_station_places[1].y << '\n';
+    for(auto &p : initial_station_places) {
+      for(auto &delta : delta_less2) {
+        Point next = p + delta;
+        if(out_field(next)) continue;
+        already_near_station[next.x][next.y] = true;
+      }
+      planned_station[p.x][p.y] = true;
+    }
+
+    // 2.
+    int time = 1000;
     while(time--) {
       int max_cnt = 0;
       Point max_p;
       rep(i, N) rep(j, N) {
-        if(planned_places.count(Point(i, j))) continue;
+        if(planned_station[i][j]) continue;
         int cand_cnt = 0;
         for(auto &delta : delta_less2) {
           Point next = Point(i, j) + delta;
           if(out_field(next)) continue;
           if(!already_near_station[next.x][next.y]) {
-            cand_cnt += (time % 2 == 1 ? house_cnt[next.x][next.y] : work_cnt[next.x][next.y]);
+            // cand_cnt += (time % 2 == 1 ? house_cnt[next.x][next.y] : work_cnt[next.x][next.y]);
+            cand_cnt += house_cnt[next.x][next.y] + work_cnt[next.x][next.y];
           }
         }
         if(cand_cnt > max_cnt) {
@@ -248,20 +308,63 @@ struct Solver {
         if(out_field(next)) continue;
         already_near_station[next.x][next.y] = true;
       }
-      planned_places.insert(max_p);
+      planned_station[max_p.x][max_p.y] = true;
       station_places.emplace_back(max_p);
     }
-    set_station(station_places[0]);
+    // 初期駅二つを設置
+    set_station(initial_station_places[0]);
+    calc_route(initial_station_places[1]);
+    initial_station_places.clear(); // 使い終わったのでクリア
+    cerr << "Initial Station Places: " << station_places.size() << '\n';
+    
+    best_money = money + income * (T - answers.size() + 1);
+    best_answers = answers;
+    
+    // 時間一杯まで順番を swap したりする山登り
+    int start_money = money;
+    int start_income = income;
+    vector<Answer> start_answers = answers;
+    vector<vector<int>> start_setted = setted;
+    vector<vector<int>> start_near_station = near_station;
+    // vector<vector<bool>> start_planned_station = planned_station;
 
-    // 2, 3.
-    for(int i = 1; i < station_places.size(); i++) {
-      if(answers.size() > T - 200) break;
-      calc_route(station_places[i]);
-      cerr << "Income: " << income << '\n';
-      cerr << "Money: " << money << "\n\n";
+    int iteration = 0;
+    while(utility::mytm.elapsed() < TIME_LIMIT) {
+      int e1 = rand_int() % station_places.size();
+      int e2 = rand_int() % station_places.size();
+      while(e1 == e2) e2 = rand_int() % station_places.size();
+      // int e2 = e1 - station_places.size() / 10 + rand_int() % (station_places.size() / 5);
+      // while(e1 == e2 || e2 < 0 || e2 >= station_places.size()) e2 = e1 - station_places.size() / 10 + rand_int() % (station_places.size() / 5);
+      swap(station_places[e1], station_places[e2]);
+
+      // 初期化
+      money = start_money;
+      answers = start_answers;
+      setted = start_setted;
+      income = start_income;
+      near_station = start_near_station;
+      // planned_station = start_planned_station;
+
+      bool updated = false;
+      for(int i = 0; i < station_places.size(); i++) {
+        if(answers.size() > T) break;
+        if(setted[station_places[i].x][station_places[i].y] != LineType::NONE) continue;
+        if(calc_route(station_places[i])) {
+          int final_money = money + income * (T - answers.size() + 1);
+          if(final_money > best_money) {
+            best_money = final_money;
+            best_answers = answers;
+            updated = true;
+          }
+        }
+      }
+      if(!updated) swap(station_places[e1], station_places[e2]);
+
+      iteration++;
     }
-    cerr << "Final Income: " << income << '\n';
-    cerr << "Final Money: " << money << '\n';
+    
+    cerr << "Iteration: " << iteration << '\n';
+    cerr << "Best Money: " << best_money << '\n';
     return;
   }
 
@@ -270,21 +373,19 @@ struct Solver {
     // 条件 : Start は更地であること
     assert(setted[start.x][start.y] == LineType::NONE);
 
-    vector<vector<int>> dist(N, vector<int>(N, -1));
-    vector<vector<Point>> prev(N, vector<Point>(N, Point(-1, -1)));
-    queue<Point> que;
+    // dist.assign(N, vector<int>(N, -1));
+    // dist[start.x][start.y] = 0;
+    visited.reset();
+    visited[start.x * N + start.y] = true;
     que.push(start);
-    dist[start.x][start.y] = 0;
+
     bool arrived = false;
     Point goal = Point(-1, -1);
-
     while(!que.empty()) {
       Point current = que.front();
       que.pop();
-      if(arrived) break; // ゴール到達可能であれば終了
-      if(setted[current.x][current.y] != LineType::NONE) continue;
 
-      for(int i = 0; i < DIR_NUM; i++) {
+      rep(i, DIR_NUM) {
         Point next = current + delta[i];
         if(out_field(next)) continue;
         
@@ -296,21 +397,26 @@ struct Solver {
           break;
         }
 
-        if(dist[next.x][next.y] != -1 || setted[next.x][next.y] != LineType::NONE) continue;
-        dist[next.x][next.y] = dist[current.x][current.y] + 1;
+        // if(dist[next.x][next.y] != -1 || setted[next.x][next.y] != LineType::NONE) continue;
+        // dist[next.x][next.y] = dist[current.x][current.y] + 1;
+        if(visited[next.x * N + next.y] || setted[next.x][next.y] != LineType::NONE || (income != 0 && planned_station[next.x][next.y])) continue;
+        visited[next.x * N + next.y] = true;
         prev[next.x][next.y] = current;
         que.push(next);
       }
+      if(arrived) break; // ゴール到達可能であれば終了
     }
+    while(!que.empty()) que.pop();
     if(goal == Point(-1, -1)) return false; // 他の駅に到達不可能
 
     // 経路復元 + 操作列生成 (駅設置込み)
     vector<Point> route;
     Point current = goal;
-    while(current != Point(-1, -1)) {
+    do {
       route.emplace_back(current);
       current = prev[current.x][current.y];
-    }
+    } while(current != start);
+    route.emplace_back(start);
     reverse(route.begin(), route.end());
     for(int i = 1; i < route.size() - 1; i++) {
       set_line(route[i - 1], route[i], route[i + 1]);
@@ -321,6 +427,7 @@ struct Solver {
 
   inline void set_station(Point &p) {
     assert(setted[p.x][p.y] == LineType::NONE);
+    assert(!(income == 0 && money < STATION_COST));
 
     // お金が足りない場合は待機
     while(money < STATION_COST) {
@@ -337,19 +444,20 @@ struct Solver {
     for(auto &[dx, dy] : delta_less2) {
       Point next = p + Point(dx, dy);
       if(out_field(next)) continue;
-      if(!near_station[next.x][next.y]) {
-        near_station[next.x][next.y] = true;
+      if(near_station[next.x][next.y] == 0) {
         for(auto &another : another_side[next.x][next.y]) {
           if(!near_station[another.x][another.y]) continue;
           income += abs(next.x - another.x) + abs(next.y - another.y);
         }
       }
+      near_station[next.x][next.y]++;
     }
     return;
   }
 
   inline void set_line(Point &from, Point &now, Point &to) {
     assert(setted[now.x][now.y] == LineType::NONE);
+    assert(!(income == 0 && money < LINE_COST));
 
     // お金が足りない場合は待機
     while(money < LINE_COST) {
