@@ -26,8 +26,12 @@ inline unsigned int rand_int() {
   return (tw = (tw ^ (tw >> 19)) ^ (tt ^ (tt >> 8)));
 }
 
+inline double rand_double() {
+  return (double) (rand_int() % (int) 1e9) / 1e9;
+}
+
 // 温度関数
-#define TIME_LIMIT 2800
+#define TIME_LIMIT 28000
 inline double temp(double start) {
   double start_temp = 100, end_temp = 1;
   return start_temp + (end_temp - start_temp) * ((utility::mytm.elapsed() - start) / TIME_LIMIT);
@@ -43,7 +47,7 @@ inline double prob(int best, int now, int start) {
 using Answer = tuple<int, int, int>;
 
 // 入力の基本パラメータ
-int N, M, money, T;
+int N, M, K, T;
 #define LINE_COST 100
 #define STATION_COST 5000
 
@@ -151,7 +155,7 @@ inline LineType get_line_type(Point &from, Point &now, Point &to) {
 
 struct Solver {
   vector<pair<Point, Point>> points;
-  vector<Answer> answers, best_answers;
+  vector<Answer> answers, best_answers, final_answers;
   vector<vector<int>> setted;
 
   vector<vector<bool>> planned_station;
@@ -159,7 +163,7 @@ struct Solver {
   vector<vector<vector<Point>>> another_side;
   vector<vector<int>> house_cnt, work_cnt;
 
-  int best_money = 0;
+  int money = 0, best_money = 0, final_money = 0;
   int income = 0;
 
   // BFS 用の配列
@@ -181,7 +185,8 @@ struct Solver {
   }
 
   void input() {
-    cin >> N >> M >> money >> T;
+    cin >> N >> M >> K >> T;
+    money = K;
     another_side.resize(N, vector<vector<Point>>(N, vector<Point>{}));
     house_cnt.resize(N, vector<int>(N, 0));
     work_cnt.resize(N, vector<int>(N, 0));
@@ -199,9 +204,9 @@ struct Solver {
 
   void output() {
     // 不足分の操作は全て待機 (-1)
-    while(best_answers.size() < T) best_answers.emplace_back(-1, -1, -1);
+    while(final_answers.size() < T) final_answers.emplace_back(-1, -1, -1);
     rep(i, T) {
-      auto [type, x, y] = best_answers[i];
+      auto [type, x, y] = final_answers[i];
       if(type == -1) cout << -1 << '\n';
       else cout << type << " " << x << " " << y << '\n';
     }
@@ -218,11 +223,19 @@ struct Solver {
     vector<Point> station_places, initial_station_places;
     vector<vector<bool>> already_near_station(N, vector<bool>(N, false));
 
+    rep(i, N) {
+      rep(j, N) cerr << (house_cnt[i][j] + work_cnt[i][j] > 0 ? "1 " : "0 ");
+      cerr << '\n';
+    }
+
     // 1.
     // 初期資金内で家 ⇔ 職場をつなげて最大インカムを得られる二つを選択
     vector<vector<bool>> used(N, vector<bool>(N, false));
     queue<Point> que;
+
+    vector<tuple<int, int, Point, Point>> start_cand;
     int best_income = 0;
+
     for(auto &[p1, p2] : points) {
       for(auto &delta1 : delta_less2) {
         Point next1 = p1 + delta1;
@@ -257,11 +270,13 @@ struct Solver {
               }
             }
           }
-          // cerr << "Cand Income: " << cand_income << '\n';
-          if(best_income < cand_income) {
-            best_income = cand_income;
-            initial_station_places = {next1, next2};
-          }
+          cand_income *= 100 - dist;
+          start_cand.emplace_back(cand_income, dist, next1, next2);
+          // if(best_income < cand_income) {
+          //   cerr << "Best Income: " << best_income / (100 - dist) << " -> " << cand_income / (100 - dist) << '\n';
+          //   best_income = cand_income;
+          //   initial_station_places = {next1, next2};
+          // }
           while(!que.empty()) {
             Point current = que.front();
             que.pop();
@@ -272,6 +287,9 @@ struct Solver {
     }
     // cerr << "Best Income: " << best_income << '\n';
     // cerr << "Station Places: " << initial_station_places[0].x << " " << initial_station_places[0].y << " " << initial_station_places[1].x << " " << initial_station_places[1].y << '\n';
+    assert(start_cand.size() > 0);
+    sort(start_cand.begin(), start_cand.end(), greater<>());
+    initial_station_places = {get<2>(start_cand[0]), get<3>(start_cand[0])};
     for(auto &p : initial_station_places) {
       for(auto &delta : delta_less2) {
         Point next = p + delta;
@@ -281,9 +299,11 @@ struct Solver {
       planned_station[p.x][p.y] = true;
     }
 
+
+
     // 2.
-    int time = 1000;
-    while(time--) {
+    while(true) {
+      bool new_station = false;
       int max_cnt = 0;
       Point max_p;
       rep(i, N) rep(j, N) {
@@ -292,9 +312,14 @@ struct Solver {
         for(auto &delta : delta_less2) {
           Point next = Point(i, j) + delta;
           if(out_field(next)) continue;
-          if(!already_near_station[next.x][next.y]) {
-            // cand_cnt += (time % 2 == 1 ? house_cnt[next.x][next.y] : work_cnt[next.x][next.y]);
-            cand_cnt += house_cnt[next.x][next.y] + work_cnt[next.x][next.y];
+
+          // if(!already_near_station[next.x][next.y]) {
+          //   cand_cnt += house_cnt[next.x][next.y] + work_cnt[next.x][next.y];
+          // }
+
+          cand_cnt += (house_cnt[next.x][next.y] + work_cnt[next.x][next.y]) * (already_near_station[next.x][next.y] ? 1 : 10);
+          if(!already_near_station[next.x][next.y] && (house_cnt[next.x][next.y] + work_cnt[next.x][next.y]) > 0) {
+            new_station = true;
           }
         }
         if(cand_cnt > max_cnt) {
@@ -302,7 +327,8 @@ struct Solver {
           max_p = Point(i, j);
         }
       }
-      if(max_cnt == 0) break;
+      if(!new_station) break;
+
       for(auto &delta : delta_less2) {
         Point next = max_p + delta;
         if(out_field(next)) continue;
@@ -328,14 +354,32 @@ struct Solver {
     vector<vector<int>> start_near_station = near_station;
     // vector<vector<bool>> start_planned_station = planned_station;
 
-    int iteration = 0;
+    int iteration = 0, e1, e2, query;
+    int kick_cnt = 0;
+    Point next;
+
     while(utility::mytm.elapsed() < TIME_LIMIT) {
-      int e1 = rand_int() % station_places.size();
-      int e2 = rand_int() % station_places.size();
-      while(e1 == e2) e2 = rand_int() % station_places.size();
-      // int e2 = e1 - station_places.size() / 10 + rand_int() % (station_places.size() / 5);
-      // while(e1 == e2 || e2 < 0 || e2 >= station_places.size()) e2 = e1 - station_places.size() / 10 + rand_int() % (station_places.size() / 5);
-      swap(station_places[e1], station_places[e2]);
+
+      query = rand_int() % 5;
+      if(query != 0) {
+        e1 = rand_int() % station_places.size();
+        e2 = rand_int() % station_places.size();
+        while(e1 == e2) e2 = rand_int() % station_places.size();
+        swap(station_places[e1], station_places[e2]);
+      } else {
+        int time = 0;
+        e1 = rand_int() % station_places.size();
+        e2 = rand_int() % delta_less2.size();
+        next = station_places[e1] + delta_less2[e2];
+        while(out_field(next) || setted[next.x][next.y] != LineType::NONE) {
+          e1 = rand_int() % station_places.size();
+          e2 = rand_int() % delta_less2.size();
+          next = station_places[e1] + delta_less2[e2];
+          time++;
+          if(time > 100) break;
+        }
+        swap(station_places[e1], next);
+      }
 
       // 初期化
       money = start_money;
@@ -343,24 +387,80 @@ struct Solver {
       setted = start_setted;
       income = start_income;
       near_station = start_near_station;
-      // planned_station = start_planned_station;
 
       bool updated = false;
       for(int i = 0; i < station_places.size(); i++) {
         if(answers.size() > T) break;
         if(setted[station_places[i].x][station_places[i].y] != LineType::NONE) continue;
         if(calc_route(station_places[i])) {
-          int final_money = money + income * (T - answers.size() + 1);
-          if(final_money > best_money) {
-            best_money = final_money;
+          int cand_money = money + income * (T - answers.size() + 1);
+
+          // 山登り法
+          if(cand_money > best_money) {
+            best_money = cand_money;
             best_answers = answers;
             updated = true;
+            cerr << "Updated: " << best_money << '\n';
           }
+
+          // 焼きなまし法
+          // double probability = prob(best_money, cand_money, 0.0);
+          // if(rand_double() < probability) {
+          //   updated = true;
+          //   if(cand_money > best_money) {
+          //     best_money = cand_money;
+          //     best_answers = answers;
+          //     // cerr << "Updated: " << best_money << '\n';
+          //   }
+          //   // else {
+          //   //   cerr << "Accepted: " << cand_money << '\n';
+          //   // }
+          // }
         }
       }
-      if(!updated) swap(station_places[e1], station_places[e2]);
+      if(!updated) {
+        kick_cnt++;
+        if(query != 0) {
+          swap(station_places[e1], station_places[e2]);
+        } else {
+          swap(station_places[e1], next);
+        }
+
+        // 1000 回以上更新がなかったら Kick で Best を戻す
+        if(kick_cnt > 1000) {
+          money = K;
+          answers.clear();
+          setted.assign(N, vector<int>(N, LineType::NONE));
+          income = 0;
+          near_station.assign(N, vector<int>(N, 0));
+
+          auto [_, __, next_point1, next_point2] = start_cand[rand_int() % min((int) start_cand.size(), 10)];
+          set_station(next_point1);
+          calc_route(next_point2);
+          start_money = money;
+          start_income = income;
+          start_answers = answers;
+          start_setted = setted;
+          start_near_station = near_station;
+
+          if(final_money < best_money) {
+            final_money = best_money;
+            final_answers = best_answers;
+          }
+          best_money = money + income * (T - answers.size() + 1);
+          best_answers = answers;
+          kick_cnt = 0;
+          // cerr << "Kick Apply" << '\n';
+        }
+      }
+      else kick_cnt = 0;
 
       iteration++;
+      // cerr << "Iteration: " << iteration << '\n';
+    }
+    if(final_money < best_money) {
+      final_money = best_money;
+      final_answers = best_answers;
     }
     
     cerr << "Iteration: " << iteration << '\n';
@@ -373,8 +473,6 @@ struct Solver {
     // 条件 : Start は更地であること
     assert(setted[start.x][start.y] == LineType::NONE);
 
-    // dist.assign(N, vector<int>(N, -1));
-    // dist[start.x][start.y] = 0;
     visited.reset();
     visited[start.x * N + start.y] = true;
     que.push(start);
@@ -397,8 +495,6 @@ struct Solver {
           break;
         }
 
-        // if(dist[next.x][next.y] != -1 || setted[next.x][next.y] != LineType::NONE) continue;
-        // dist[next.x][next.y] = dist[current.x][current.y] + 1;
         if(visited[next.x * N + next.y] || setted[next.x][next.y] != LineType::NONE || (income != 0 && planned_station[next.x][next.y])) continue;
         visited[next.x * N + next.y] = true;
         prev[next.x][next.y] = current;
@@ -430,7 +526,7 @@ struct Solver {
     assert(!(income == 0 && money < STATION_COST));
 
     // お金が足りない場合は待機
-    while(money < STATION_COST) {
+    while(money + income < STATION_COST) {
       money += income;
       answers.emplace_back(-1, -1, -1);
     }
@@ -460,7 +556,7 @@ struct Solver {
     assert(!(income == 0 && money < LINE_COST));
 
     // お金が足りない場合は待機
-    while(money < LINE_COST) {
+    while(money + income < LINE_COST) {
       money += income;
       answers.emplace_back(-1, -1, -1);
     }

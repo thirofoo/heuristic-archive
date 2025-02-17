@@ -40,9 +40,18 @@ all_test:
 	./test.sh
 
 # サンプルテスト
-sample:
+python_sample:
 	@clear
 	@echo "Sample test"
 	@python3 sample.py < _in > _out
+	@cd tools; \
+	cargo run -r --bin vis ../_in ../_out
+
+# サンプルテスト
+cpp_sample:
+	@clear
+	@echo "Sample test"
+	@g++ main.cpp -o main
+	@./main < _in > _out
 	@cd tools; \
 	cargo run -r --bin vis ../_in ../_out
