@@ -48,10 +48,27 @@ python_sample:
 	cargo run -r --bin vis ../_in ../_out
 
 # サンプルテスト
+TEST := $(word 2, $(MAKECMDGOALS))
+ifeq ($(TEST),)
+  CPP_IN := _in
+  CPP_OUT := _out
+  TOOL_IN := ../_in
+  TOOL_OUT := ../_out
+else
+  CPP_IN := ./tools/in/$(shell printf "%04d" $(TEST)).txt
+  CPP_OUT := ./tools/out/$(shell printf "%04d" $(TEST)).txt
+  TOOL_IN := ./in/$(shell printf "%04d" $(TEST)).txt
+  TOOL_OUT := ./out/$(shell printf "%04d" $(TEST)).txt
+endif
+
 cpp_sample:
 	@clear
 	@echo "Sample test"
 	@g++ main.cpp -o main
-	@./main < _in > _out
+	@./main < $(CPP_IN) > $(CPP_OUT)
 	@cd tools; \
-	cargo run -r --bin vis ../_in ../_out
+	cargo run -r --bin vis $(TOOL_IN) $(TOOL_OUT)
+
+# 数字など余計な引数をターゲットと解釈しないためのダミールール
+%:
+	@:
