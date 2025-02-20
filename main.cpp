@@ -128,6 +128,260 @@ inline LineType get_line_type(Point &from, Point &now, Point &to) {
   return LineType::NONE;
 }
 
+// ==================== 差分更新用 State ==================== //
+static vector<Point> prev_p(N * N, Point(-1, -1));
+static vector<int> visited(N * N, 0);
+static int current_time = 0; // 今何回目の BFS かのカウント方式で VISITED 初期化のオーバヘッド削減
+static queue<Point> que;
+
+struct State {
+  vector<Answer> answers;
+
+  int money, income;
+  vector<int> setted, near_station_cnt, house_near_cnt, work_near_cnt;
+
+  vector<vector<Point>> histories; // 線路・駅設置の履歴 (rollback 用)
+  vector<int> money_histories, income_histories; // 駅を置くタイミングでの情報 (rollback 用)
+
+  State() {
+    money = K;
+    income = 0;
+    setted.assign(N * N, LineType::NONE);
+    near_station_cnt.assign(N * N, 0);
+    house_near_cnt.assign(M, false);
+    work_near_cnt.assign(M, false);
+
+    histories.clear();
+    money_histories.clear();
+    income_histories.clear();
+    return;
+  }
+
+  inline void next(
+    Point &next_station,                         // 次に設置する駅の座標
+    const vector<vector<bool>> &planned_station, // planned_station[x][y] : (x, y) に駅を設置予定かどうか
+    const vector<vector<int>> &house_idx,        // house_idx[x]        : x に存在する家の index の集合
+    const vector<vector<int>> &work_idx,         // work_idx[x]         : x に存在する職場の index の集合
+    const vector<Point> &house_points,           // house_points[idx]   : idx 番目の家の座標
+    const vector<Point> &work_points             // work_points[idx]    : idx 番目の職場の座標
+  ) {
+    vector<Point> history;
+    if(setted[next_station.x * N + next_station.y] != LineType::NONE) {
+      // 空の操作を行ったとする
+      histories.emplace_back(history);
+      return;
+    }
+
+    que = queue<Point>();
+    que.push(next_station);
+
+    bool arrived = false;
+    Point goal = Point(-1, -1);
+    current_time++;
+    visited[next_station.x * N + next_station.y] = current_time;
+
+    while(!que.empty()) {
+      Point current = que.front();
+      que.pop();
+      for(auto &d : delta) {
+        Point next = current + d;
+        if(out_field(next)) continue;
+
+        // 駅に到達した場合
+        if(setted[next.x * N + next.y] == LineType::STATION) {
+          arrived = true;
+          goal = next;
+          prev_p[next.x * N + next.y] = current;
+          break;
+        }
+
+        // 既に設置済み or 今後設置予定の箇所は通らないようにする
+        if(visited[next.x * N + next.y] == current_time ||
+          setted[next.x * N + next.y] != LineType::NONE ||
+          (income != 0 && planned_station[next.x][next.y])
+        ) continue;
+
+        visited[next.x * N + next.y] = current_time;
+        prev_p[next.x * N + next.y] = current;
+        que.push(next);
+      }
+      if(arrived) break;
+    }
+
+    if(income == 0 && goal == Point(-1, -1)) {
+      // 一番最初の初期駅設置の場合
+      money_histories.emplace_back(money);
+      income_histories.emplace_back(income);
+      set_station(
+        next_station,
+        house_idx,
+        work_idx,
+        house_points,
+        work_points,
+        history
+      );
+      histories.emplace_back(history);
+      return;
+    }
+    // 駅に到達不可能な場合
+    if(goal == Point(-1, -1)) {
+      // 空の操作を行ったとする
+      histories.emplace_back(history);
+      return;
+    }
+
+    // 情報保持
+    money_histories.emplace_back(money);
+    income_histories.emplace_back(income);
+
+    // 経路復元
+    vector<Point> route;
+    Point current = goal;
+    do {
+      route.emplace_back(current);
+      current = prev_p[current.x * N + current.y];
+    } while(current != next_station);
+    route.emplace_back(next_station);
+    reverse(route.begin(), route.end());
+    
+    // 線路・駅設置
+    for(int i = 1; i < route.size() - 1; i++) {
+      set_line(route[i - 1], route[i], route[i + 1], history);
+    }
+    set_station(
+      next_station,
+      house_idx,
+      work_idx,
+      house_points,
+      work_points,
+      history
+    );
+
+    // history 更新
+    histories.emplace_back(history);
+    return;
+  }
+
+  // 1 回分の差分更新用 rollback 関数
+  inline void rollback(
+    vector<vector<int>> &house_idx, // house_idx[x]        : x に存在する家の index の集合
+    vector<vector<int>> &work_idx,  // work_idx[x]         : x に存在する職場の index の集合
+    const vector<Point> &house_points, // house_points[idx]   : idx 番目の家の座標
+    const vector<Point> &work_points   // work_points[idx]    : idx 番目の職場の座標
+  ) {
+    assert(histories.size() > 0);
+    auto history = histories.back();
+    histories.pop_back();
+    if(history.empty()) return; // 空の操作の場合
+
+    for(auto &p : history) {
+      if(setted[p.x * N + p.y] == LineType::STATION) { // 駅の場合
+        for(auto &d : delta_less2) {
+          Point next = p + d;
+          if(out_field(next)) continue;
+          for(auto &idx : house_idx[next.x * N + next.y]) {
+            if(work_near_cnt[idx] != 0 && house_near_cnt[idx] == 1) {
+              income -= abs(next.x - work_points[idx].x) + abs(next.y - work_points[idx].y);
+            }
+            house_near_cnt[idx]--;
+          }
+          for(auto &idx : work_idx[next.x * N + next.y]) {
+            if(house_near_cnt[idx] != 0 && work_near_cnt[idx] == 1) {
+              income -= abs(next.x - house_points[idx].x) + abs(next.y - house_points[idx].y);
+            }
+            work_near_cnt[idx]--;
+          }
+        }
+        setted[p.x * N + p.y] = LineType::NONE;
+        money -= income;
+      } else { // 線路の場合
+        setted[p.x * N + p.y] = LineType::NONE;
+      }
+    }
+
+    // money, income, turn, answers の rollback
+    money = money_histories.back();
+    money_histories.pop_back();
+    income = income_histories.back();
+    income_histories.pop_back();
+
+    assert(!answers.empty());
+    answers.pop_back(); // 駅設置動作を削除
+    while(!answers.empty()) {
+      auto [type, x, y] = answers.back();
+      if(type == LineType::STATION) break;
+      answers.pop_back();
+    }
+    return;
+  }
+  
+  private:
+
+  // 駅設置用関数
+  inline void set_station(
+    Point &next_station,                  // 次に設置する駅の座標
+    const vector<vector<int>> &house_idx, // house_idx[x]        : x に存在する家の index の集合
+    const vector<vector<int>> &work_idx,  // work_idx[x]         : x に存在する職場の index の集合
+    const vector<Point> &house_points,    // house_points[idx]   : idx 番目の家の座標
+    const vector<Point> &work_points,     // work_points[idx]    : idx 番目の職場の座標
+    vector<Point> &history
+  ) {
+    assert(setted[next_station.x * N + next_station.y] == LineType::NONE);
+    assert(!(income == 0 && money < STATION_COST));
+
+    // お金調達
+    while (money + income < STATION_COST) {
+      money += income;
+      answers.emplace_back(-1, -1, -1);
+    }
+
+    answers.emplace_back(LineType::STATION, next_station.x, next_station.y);
+    setted[next_station.x * N + next_station.y] = LineType::STATION;
+    money -= STATION_COST;
+    money += income;
+    history.emplace_back(next_station);
+
+    for(auto &d : delta_less2) {
+      Point next = next_station + d;
+      if(out_field(next)) continue;
+      for(auto &idx : house_idx[next.x * N + next.y]) {
+        if(work_near_cnt[idx] != 0 && house_near_cnt[idx] == 0) {
+          income += abs(next.x - work_points[idx].x) + abs(next.y - work_points[idx].y);
+        }
+        house_near_cnt[idx]++;
+      }
+      for(auto &idx : work_idx[next.x * N + next.y]) {
+        if(house_near_cnt[idx] != 0 && work_near_cnt[idx] == 0) {
+          income += abs(next.x - house_points[idx].x) + abs(next.y - house_points[idx].y);
+        }
+        work_near_cnt[idx]++;
+      }
+    }
+    return;
+  }
+
+  // 線路設置用関数
+  inline void set_line(Point &from, Point &now, Point &to, vector<Point> &history) {
+    assert(setted[now.x * N + now.y] == LineType::NONE);
+    assert(!(income == 0 && money < LINE_COST));
+
+    // お金が足りない場合は待機
+    while (money + income < LINE_COST) {
+      money += income;
+      answers.emplace_back(-1, -1, -1);
+    }
+
+    LineType line_type = get_line_type(from, now, to);
+    answers.emplace_back(line_type, now.x, now.y);
+    setted[now.x * N + now.y] = line_type;
+    money -= LINE_COST;
+    money += income;
+    
+    history.emplace_back(now);
+    return;
+  }
+};
+
 struct Solver {
   vector<Answer> answers, best_answers, final_answers;
   vector<vector<int>> setted;
@@ -140,8 +394,7 @@ struct Solver {
   vector<vector<int>> near_station;
   vector<vector<vector<Point>>> another_side;
 
-  int money = 0, best_money = 0, final_money = 0;
-  int income = 0;
+  int best_money = 0, final_money = 0;
   int _dummy;
 
   // BFS 用の配列
@@ -152,7 +405,7 @@ struct Solver {
   queue<Point> que;
 
   Solver() {
-    this->input();
+    input();
     setted.resize(N, vector<int>(N, LineType::NONE));
     near_station.resize(N, vector<int>(N, false));
     planned_station.resize(N, vector<bool>(N, false));
@@ -167,7 +420,6 @@ struct Solver {
 
   void input() {
     cin >> _dummy >> M >> K >> T;
-    money = K;
     another_side.resize(N, vector<vector<Point>>(N, vector<Point>{}));
     house_cnt.resize(N, vector<int>(N, 0));
     work_cnt.resize(N, vector<int>(N, 0));
@@ -207,12 +459,13 @@ struct Solver {
   void solve() {
     vector<Point> station_places, initial_station_places;
     vector<vector<bool>> already_near_station(N, vector<bool>(N, false));
+    State state;
 
     bool log_flag = true;
 
     // ==================== Part 1. 初期駅選択 Part ====================
     vector<vector<bool>> used(N, vector<bool>(N, false));
-    vector<tuple<int, int, Point, Point>> start_cand;
+    vector<tuple<int, Point, Point>> start_cand;
     int best_income = 0;
     rep(i, M) {
       Point p1 = house_points[i], p2 = work_points[i];
@@ -226,7 +479,7 @@ struct Solver {
             continue;
 
           int dist = abs(next1.x - next2.x) + abs(next1.y - next2.y);
-          if (dist - 1 > (money - 5000 * 2) / 100)
+          if (dist - 1 > (K - 5000 * 2) / 100)
             continue;
 
           for (auto &delta : delta_less2) {
@@ -253,7 +506,7 @@ struct Solver {
             }
           }
           cand_income *= 100 - dist;
-          start_cand.emplace_back(cand_income, dist, next1, next2);
+          start_cand.emplace_back(cand_income, next1, next2);
           while (!que.empty()) {
             Point current = que.front();
             que.pop();
@@ -264,7 +517,7 @@ struct Solver {
     }
     assert(start_cand.size() > 0);
     sort(start_cand.begin(), start_cand.end(), greater<>());
-    initial_station_places = {get<2>(start_cand[0]), get<3>(start_cand[0])};
+    initial_station_places = {get<1>(start_cand[0]), get<2>(start_cand[0])};
     for (auto &p : initial_station_places) {
       for (auto &delta : delta_less2) {
         Point next = p + delta;
@@ -274,10 +527,10 @@ struct Solver {
       }
       planned_station[p.x][p.y] = true;
     }
-    // 初期駅設置
-    set_station(initial_station_places[0]);
-    calc_route(initial_station_places[1]);
-    initial_station_places.clear();
+    state.next(initial_station_places[0], planned_station, house_idx, work_idx, house_points, work_points);
+    state.next(initial_station_places[1], planned_station, house_idx, work_idx, house_points, work_points);
+
+
 
     // ==================== Part 2. 駅設置箇所固定 Part ====================
     while (true) {
@@ -316,16 +569,15 @@ struct Solver {
       station_places.emplace_back(max_p);
     }
     sort(station_places.begin(), station_places.end(), greater<>());
+    reverse(station_places.begin(), station_places.end());
+    station_places.emplace_back(initial_station_places[1]);
+    station_places.emplace_back(initial_station_places[0]);
+    reverse(station_places.begin(), station_places.end());
     cerr << "Station Places Size: " << station_places.size() << '\n';
 
-    // ==================== Part 3. 山登り法 Part ====================
-    int start_money = money;
-    int start_income = income;
-    vector<Answer> start_answers = answers;
-    vector<vector<int>> start_setted = setted;
-    vector<vector<int>> start_near_station = near_station;
 
-    best_money = money + income * (T - answers.size() + 1);
+    // ==================== Part 3. 山登り法 Part ====================
+    best_money = state.money + state.income * (T - state.answers.size() + 1);
     best_answers = answers;
 
     int iteration = 0, e1, e2, query;
@@ -333,215 +585,93 @@ struct Solver {
     Point next;
 
     int kick_threshold = 1000;
-    int inital_idx = 0;
-
-    int max_block = min(3, (int) station_places.size() / 2);
-    int block_size, start_idx, dest_idx;
-    vector<Point> backup;
+    int start_idx = 0;
+    State pre_state = state;
 
     while (utility::mytm.elapsed() < TIME_LIMIT) {
       // Todo 近傍 : 1 点を選択して最も income が増加する点に変更
-      e1 = rand_int() % station_places.size();
-      e2 = rand_int() % station_places.size();
-      while (e1 == e2)
-        e2 = rand_int() % station_places.size();
+      e1 = rand_int() % (station_places.size() - 2) + 2;
+      e2 = rand_int() % (station_places.size() - 2) + 2;
+      while (e1 == e2 && min(e1, e2) > state.histories.size()) 
+        e2 = rand_int() % (station_places.size() - 2) + 2;
       swap(station_places[e1], station_places[e2]);
-
-      // 初期化
-      money = start_money;
-      answers = start_answers;
-      setted = start_setted;
-      income = start_income;
-      near_station = start_near_station;
+      
+      int pre_size1 = state.histories.size();
+      // pre_state = state;
 
       bool updated = false;
-      int renzoku_non_update = 0;
-      for (int i = 0; i < station_places.size(); i++) {
-        if (answers.size() > T - 50)
-          break;
-        if (setted[station_places[i].x][station_places[i].y] != LineType::NONE)
-          continue;
+      while(!state.histories.empty() && state.histories.size() >= min(e1, e2)) {
+        // min(e1, e2) まで rollback
+        state.rollback(house_idx, work_idx, house_points, work_points);
+      }
+      int pre_size2 = state.histories.size();
 
-        if (calc_route(station_places[i])) {
-          int cand_money = money + income * (T - answers.size() + 1);
-          // 山登り法
-          if (cand_money > best_money) {
-            updated = true;
-            best_money = cand_money;
-            best_answers = answers;
-            renzoku_non_update = 0;
-          } else {
-            // Best 更新後に連続で更新がなかったら終了
-            renzoku_non_update++;
-            if (renzoku_non_update > 3 && updated)
-              break;
-          }
-        }
-        if (renzoku_non_update > 3 && updated)
+      int start = state.histories.size();
+      int renzoku_non_update = 0;
+      for(int i = start; i < station_places.size(); i++) {
+        if (state.answers.size() > T - 50)
           break;
+        
+        state.next(station_places[i], planned_station, house_idx, work_idx, house_points, work_points);
+
+        int cand_money = state.money + state.income * (T - state.answers.size() + 1);
+        // 山登り法
+        if (cand_money > best_money) {
+          updated = true;
+          best_money = cand_money;
+          best_answers = state.answers;
+          renzoku_non_update = 0;
+        } else {
+          renzoku_non_update++;
+          if(renzoku_non_update > 5 && updated) break;
+        }
+        if(renzoku_non_update > 5 && updated) break;
       }
 
       if (!updated) {
         kick_cnt++;
+
+        // state = pre_state;
+        while(state.histories.size() > pre_size2) {
+          state.rollback(house_idx, work_idx, house_points, work_points);
+        }
         swap(station_places[e1], station_places[e2]);
+        while(state.histories.size() < pre_size1) {
+          state.next(station_places[state.histories.size()], planned_station, house_idx, work_idx, house_points, work_points);
+        }
 
-        // 一定以上更新がなかったら Kick (初期駅を変更)
-        if (kick_cnt > kick_threshold) {
-          money = K;
-          answers.clear();
-          setted.assign(N, vector<int>(N, LineType::NONE));
-          income = 0;
-          near_station.assign(N, vector<int>(N, 0));
-
-          auto [_, __, next_point1, next_point2] = start_cand[++inital_idx % 3];
-          set_station(next_point1);
-          calc_route(next_point2);
-          start_money = money;
-          start_income = income;
-          start_answers = answers;
-          start_setted = setted;
-          start_near_station = near_station;
-
-          if (final_money < best_money) {
+        if(kick_cnt > 3000) {
+          state = State();
+          auto [_, next_point1, next_point2] = start_cand[++start_idx % 3];
+          state.next(next_point1, planned_station, house_idx, work_idx, house_points, work_points);
+          state.next(next_point2, planned_station, house_idx, work_idx, house_points, work_points);
+          
+          if(final_money < best_money) {
             final_money = best_money;
             final_answers = best_answers;
           }
-          best_money = money + income * (T - answers.size() + 1);
+          best_money = state.money + state.income * (T - state.answers.size() + 1);
           best_answers = answers;
           kick_cnt = 0;
-          if(log_flag) {
-            cerr << "========== Kick Apply ==========" << '\n';
-          }
+          // cerr << "Kick Apply" << '\n';
         }
       } else {
         if(log_flag) {
           cerr << "Updated: " << best_money << '\n';
           // cerr << "Query: " << (query == 1 ? "Insertion" : "Swap") << '\n';
         }
-        kick_cnt = max(0, kick_cnt - 100); // Kick の閾値を下げる
+        kick_cnt -= 10;
       }
-
       iteration++;
     }
-    if (final_money < best_money) {
+    if(final_money < best_money) {
       final_money = best_money;
       final_answers = best_answers;
     }
 
     cerr << "Iteration: " << iteration << '\n';
     cerr << "Final Money: " << final_money << '\n';
-    return;
-  }
 
-  // BFS + 復元で Point(x, y) に駅設置 + 他の駅に連結させる関数
-  inline bool calc_route(Point start) {
-    // 条件 : Start は更地であること
-    // assert(setted[start.x][start.y] == LineType::NONE);
-
-    current_time++;
-    visit_time[start.x * N + start.y] = current_time;
-    que = queue<Point>();
-    que.push(start);
-
-    bool arrived = false;
-    Point goal = Point(-1, -1);
-
-    while (!que.empty()) {
-      Point current = que.front();
-      que.pop();
-
-      rep(i, DIR_NUM) {
-        Point next = current + delta[i];
-        if (out_field(next))
-          continue;
-
-        // 行先が駅であれば終了
-        if (setted[next.x][next.y] == LineType::STATION) {
-          arrived = true;
-          prev[next.x][next.y] = current;
-          goal = next;
-          break;
-        }
-
-        if (visit_time[next.x * N + next.y] == current_time ||
-            setted[next.x][next.y] != LineType::NONE ||
-            (income != 0 && planned_station[next.x][next.y]))
-          continue;
-        visit_time[next.x * N + next.y] = current_time;
-        prev[next.x][next.y] = current;
-        que.push(next);
-      }
-      if (arrived)
-        break; // ゴール到達可能であれば終了
-    }
-    if (!arrived)
-      return false; // 駅に到達不可能
-    if (goal == Point(-1, -1))
-      return false; // 他の駅に到達不可能
-
-    // 経路復元 + 操作列生成 (駅設置込み)
-    vector<Point> route;
-    Point current = goal;
-    do {
-      route.emplace_back(current);
-      current = prev[current.x][current.y];
-    } while (current != start);
-    route.emplace_back(start);
-    reverse(route.begin(), route.end());
-    for (int i = 1; i < route.size() - 1; i++) {
-      set_line(route[i - 1], route[i], route[i + 1]);
-    }
-    set_station(start);
-    return true;
-  }
-
-  inline void set_station(Point &p) {
-    assert(setted[p.x][p.y] == LineType::NONE);
-    assert(!(income == 0 && money < STATION_COST));
-
-    // お金が足りない場合は待機
-    while (money + income < STATION_COST) {
-      money += income;
-      answers.emplace_back(-1, -1, -1);
-    }
-
-    answers.emplace_back(LineType::STATION, p.x, p.y);
-    setted[p.x][p.y] = LineType::STATION;
-    money -= STATION_COST;
-    money += income;
-
-    // 駅設置によるインカム更新
-    for (auto &[dx, dy] : delta_less2) {
-      Point next = p + Point(dx, dy);
-      if (out_field(next))
-        continue;
-      if (near_station[next.x][next.y] == 0) {
-        for (auto &another : another_side[next.x][next.y]) {
-          if (!near_station[another.x][another.y])
-            continue;
-          income += abs(next.x - another.x) + abs(next.y - another.y);
-        }
-      }
-      near_station[next.x][next.y]++;
-    }
-    return;
-  }
-
-  inline void set_line(Point &from, Point &now, Point &to) {
-    assert(setted[now.x][now.y] == LineType::NONE);
-    assert(!(income == 0 && money < LINE_COST));
-
-    // お金が足りない場合は待機
-    while (money + income < LINE_COST) {
-      money += income;
-      answers.emplace_back(-1, -1, -1);
-    }
-
-    LineType line_type = get_line_type(from, now, to);
-    answers.emplace_back(line_type, now.x, now.y);
-    setted[now.x][now.y] = line_type;
-    money -= LINE_COST;
-    money += income;
     return;
   }
 };
