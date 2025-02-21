@@ -588,6 +588,8 @@ struct Solver {
     int start_idx = 0;
     State pre_state = state;
 
+    vector<Point> best_station_places, final_station_places;
+
     while (utility::mytm.elapsed() < TIME_LIMIT) {
       // Todo 近傍 : 1 点を選択して最も income が増加する点に変更
       e1 = rand_int() % (station_places.size() - 2) + 2;
@@ -620,6 +622,7 @@ struct Solver {
           updated = true;
           best_money = cand_money;
           best_answers = state.answers;
+          best_station_places = station_places;
           renzoku_non_update = 0;
         } else {
           renzoku_non_update++;
@@ -649,6 +652,7 @@ struct Solver {
           if(final_money < best_money) {
             final_money = best_money;
             final_answers = best_answers;
+            final_station_places = best_station_places;
           }
           best_money = state.money + state.income * (T - state.answers.size() + 1);
           best_answers = answers;
@@ -671,6 +675,10 @@ struct Solver {
 
     cerr << "Iteration: " << iteration << '\n';
     cerr << "Final Money: " << final_money << '\n';
+
+    rep(i, final_station_places.size()) {
+      cerr << final_station_places[i].x << " " << final_station_places[i].y << '\n';
+    }
 
     return;
   }
