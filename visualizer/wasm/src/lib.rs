@@ -238,6 +238,8 @@ pub fn vis(_input: String, _output: String, turn: usize) -> Ret {
     }
     let colors = get_colors(kinds.len());
     let mut color_map = HashMap::new();
+    let mut kinds = kinds.into_iter().collect::<Vec<_>>();
+    kinds.sort();
     for (i, k) in kinds.iter().enumerate() {
         color_map.insert(*k, colors[i]);
     }
