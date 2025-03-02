@@ -4,7 +4,7 @@ use original::{
     DIJ, DIR,
 };
 use std::collections::{HashMap, HashSet};
-use svg::node::element::{Circle, Group, Line, Rectangle, Text};
+use svg::node::element::{Circle, Group, Line, Rectangle, Text, Title};
 use wasm_bindgen::prelude::*;
 use web_sys::console;
 
@@ -326,6 +326,22 @@ pub fn vis(_input: String, _output: String, turn: usize) -> Ret {
                     .set("stroke-width", 2);
                 group = group.add(circle);
             }
+            // 最後にタイトルを描画。
+            let x = i * cell_width;
+            let y = j * cell_height;
+            // 透明なrectを描画
+            let rect = Rectangle::new()
+                .set("x", x)
+                .set("y", y)
+                .set("width", cell_width)
+                .set("height", cell_height)
+                .set("fill", "transparent")
+                .set("stroke", "transparent")
+                .set("stroke-width", 1);
+            let rect_with_title = Group::new()
+                .add(rect)
+                .add(Title::new(format!("({}, {})", i, j)));
+            group = group.add(rect_with_title);
         }
     }
 
