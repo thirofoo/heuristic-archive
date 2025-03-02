@@ -340,7 +340,7 @@ pub fn vis(_input: String, _output: String, turn: usize) -> Ret {
                 .set("stroke-width", 1);
             let rect_with_title = Group::new()
                 .add(rect)
-                .add(Title::new(format!("({}, {})", i, j)));
+                .add(Title::new(format!("({}, {})", j, i)));
             group = group.add(rect_with_title);
         }
     }
