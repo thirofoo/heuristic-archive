@@ -88,12 +88,15 @@ impl MapState {
         }
     }
 
-    fn update(&mut self, act: Action, input: &original::Input) {
+    fn update(&mut self, act: Action, input: &original::Input) -> Result<(), String> {
         match act {
             Action::Move(d) => {
                 let (di, dj) = DIJ[d];
                 self.current.0 += di;
                 self.current.1 += dj;
+                if self.current.0 >= input.N || self.current.1 >= input.N {
+                    return Err("out of range".to_string());
+                }
             }
             Action::Carry(d) => {
                 let (di, dj) = DIJ[d];
@@ -101,11 +104,11 @@ impl MapState {
                 let rock = self.rocks.contains(&(self.current.0, self.current.1));
                 // 宝石も岩の現在地にない場合は何も運べない
                 if jewel.is_none() && !rock {
-                    return;
+                    return Err("nothing to carry".to_string());
                 }
                 // 外側への運搬はできない
                 if self.current.0 + di >= input.N || self.current.1 + dj >= input.N {
-                    return;
+                    return Err("out of range".to_string());
                 }
                 // 移動さきに岩か宝石がある場合は何も運べない
                 if self
@@ -115,7 +118,7 @@ impl MapState {
                         .juwels
                         .contains_key(&(self.current.0 + di, self.current.1 + dj))
                 {
-                    return;
+                    return Err("cannot carry".to_string());
                 }
                 // 移動させる
                 let res = self.juwels.remove(&(self.current.0, self.current.1));
@@ -148,7 +151,7 @@ impl MapState {
                 let rock = self.rocks.contains(&(self.current.0, self.current.1));
                 // 宝石も岩の現在地にない場合は何も運べない
                 if jewel.is_none() && !rock {
-                    return;
+                    return Err("nothing to carry".to_string());
                 }
                 let mut cur_i = self.current.0;
                 let mut cur_j = self.current.1;
@@ -182,6 +185,7 @@ impl MapState {
                 }
             }
         }
+        Ok(())
     }
 }
 
@@ -243,9 +247,15 @@ pub fn vis(_input: String, _output: String, turn: usize) -> Ret {
     for (i, k) in kinds.iter().enumerate() {
         color_map.insert(*k, colors[i]);
     }
+    let mut err = String::new();
     for act in &truncated.out {
-        map_state.update(*act, &input);
+        let res = map_state.update(*act, &input);
+        if res.is_err() {
+            err = res.unwrap_err();
+            break;
+        }
     }
+
     for i in 0..input.N {
         for j in 0..input.N {
             // 穴の位置を描画。
@@ -326,7 +336,7 @@ pub fn vis(_input: String, _output: String, turn: usize) -> Ret {
 
     Ret {
         score: res.0,
-        err: "".to_string(),
+        err: err.to_string(),
         svg: svg.to_string(),
     }
 }
