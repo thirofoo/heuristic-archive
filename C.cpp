@@ -107,18 +107,57 @@ struct Solver {
   }
 
   void solve() {
-		// BFS で最も近い鉱石 or 岩を穴に運ぶ
+		vector<vector<int>> dist;
+		vector<vector<Point>> prev_p;
+		queue<pair<Point, int>> que;
+		deque<pair<Point, int>> dq;
+		
 		Point hole;
 		rep(i, N) rep(j, N) {
 			if(field[i][j] != 'A') continue;
 			hole = Point(i, j);
 			break;
 		}
-		vector<vector<int>> dist;
-		vector<vector<Point>> prev_p;
-		queue<pair<Point, int>> que;
-		int carried_cnt = 0;
 
+		// 初めに動かす鉱石 or 岩を決め打ち part
+		// ※ 01BFS で岩の上を通る時にコスト + 1 する
+		vector<vector<bool>> use_rock_flag(N, vector<bool>(N, false));
+		rep(i, N) rep(j, N) {
+			if(field[i][j] != 'a') continue;
+			Point goal = Point(i, j);
+			dist.assign(N, vector<int>(N, INF));
+			prev_p.assign(N, vector<Point>(N, Point(-1, -1)));
+			dq = deque<pair<Point, int>>();
+			dq.push_back({hole, 0});
+			dist[hole.x][hole.y] = 0;
+
+			while(!dq.empty()) {
+				auto [cur, d] = dq.front();
+				dq.pop_front();
+				if(cur == goal) break;
+
+				rep(i, DIR_NUM) {
+					Point next = cur + delta[i];
+					if(outField(next) || dist[next.x][next.y] != INF) continue;
+					if(field[next.x][next.y] == '@') {
+						dq.push_back({next, d + 1});
+						dist[next.x][next.y] = d + 1;
+						prev_p[next.x][next.y] = cur;
+					} else {
+						dq.push_front({next, d});
+						dist[next.x][next.y] = d;
+						prev_p[next.x][next.y] = cur;
+					}
+				}
+			}
+
+			for(Point cur = goal; cur != hole; cur = prev_p[cur.x][cur.y]) {
+				use_rock_flag[cur.x][cur.y] = true;
+			}
+		}
+		
+		// BFS で最も近い鉱石 or 岩を穴に運ぶ part
+		int carried_cnt = 0;
 		while(carried_cnt < 2 * N) {
 			dist.assign(N, vector<int>(N, INF));
 			prev_p.assign(N, vector<Point>(N, Point(-1, -1)));
@@ -134,11 +173,9 @@ struct Solver {
 				que.pop();
 				if(field[cur.x][cur.y] != '.' && field[cur.x][cur.y] != 'A') {
 					if(field[cur.x][cur.y] == 'a' && goal_koseki == Point(-1, -1)) goal_koseki = cur;
-					if(field[cur.x][cur.y] == '@' && goal_iwa == Point(-1, -1)) goal_iwa = cur;
-					// break;
+					if(field[cur.x][cur.y] == '@' && goal_iwa == Point(-1, -1) && use_rock_flag[cur.x][cur.y]) goal_iwa = cur;
 					continue;
 				}
-				// cerr << cur.x << ' ' << cur.y << ' ' << d << '\n';
 				rep(i, DIR_NUM) {
 					Point next = cur + delta[i];
 					if(outField(next) || dist[next.x][next.y] != INF) continue;
