@@ -169,7 +169,7 @@ struct Solver {
 				rep(i, DIR_NUM) {
 					Point next = cur + delta[i];
 					if(outField(next) || dist[next.x][next.y] != INF) continue;
-					if(field[next.x][next.y] == '@') {
+					if(field[next.x][next.y] == '@' && !use_rock_flag[next.x][next.y]) {
 						dq.push_back({next, d + 1});
 						dist[next.x][next.y] = d + 1;
 						prev_p[next.x][next.y] = cur;
@@ -183,13 +183,6 @@ struct Solver {
 			for(Point cur = goal; cur != hole; cur = prev_p[cur.x][cur.y]) {
 				if(field[cur.x][cur.y] == '@') use_rock_flag[cur.x][cur.y] = true;
 			}
-		}
-
-		rep(i, N) {
-			rep(j, N) {
-				cerr << (use_rock_flag[i][j] ? 'o' : 'x');
-			}
-			cerr << '\n';
 		}
 
 
