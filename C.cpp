@@ -137,9 +137,21 @@ struct Solver {
 			break;
 		}
 
+		vector<vector<bool>> use_rock_flag(N, vector<bool>(N, false));
+		// 穴の上下左右の岩も対象
+		rep(d, DIR_NUM) {
+			Point now = hole;
+			while(true) {
+				Point next = now + delta[d];
+				if(outField(next)) break;
+				if(field[next.x][next.y] == '@') {
+					use_rock_flag[next.x][next.y] = true;
+				}
+				now = next;
+			}
+		}
 		// 初めに動かす鉱石 or 岩を決め打ち part
 		// ※ 01BFS で岩の上を通る時にコスト + 1 する
-		vector<vector<bool>> use_rock_flag(N, vector<bool>(N, false));
 		rep(i, N) rep(j, N) {
 			if(field[i][j] != 'a') continue;
 			Point goal = Point(i, j);
@@ -168,16 +180,40 @@ struct Solver {
 					}
 				}
 			}
-
 			for(Point cur = goal; cur != hole; cur = prev_p[cur.x][cur.y]) {
-				use_rock_flag[cur.x][cur.y] = true;
+				if(field[cur.x][cur.y] == '@') use_rock_flag[cur.x][cur.y] = true;
 			}
 		}
+
+		rep(i, N) {
+			rep(j, N) {
+				cerr << (use_rock_flag[i][j] ? 'o' : 'x');
+			}
+			cerr << '\n';
+		}
+
+
 		
 		// BFS で最も近い鉱石 or 岩を穴に運ぶ part
 		int carried_cnt = 0;
 		Point now_start = hole;
+		vector<vector<bool>> hole_surround;
 		while(carried_cnt < 2 * N) {
+			hole_surround.assign(N, vector<bool>(N, false));
+			rep(d, DIR_NUM) {
+				Point now = hole;
+				while(true) {
+					Point next = now + delta[d];
+					if(outField(next)) break;
+					if(field[next.x][next.y] != '.') {
+						hole_surround[next.x][next.y] = true;
+						break;
+					}
+					hole_surround[next.x][next.y] = true;
+					now = next;
+				}
+			}
+
 			dist.assign(N, vector<int>(N, INF));
 			prev_p.assign(N, vector<Point>(N, Point(-1, -1)));
 
@@ -186,25 +222,24 @@ struct Solver {
 			que.push({now_start, 0});
 			dist[now_start.x][now_start.y] = 0;
 
-			Point goal_koseki = Point(-1, -1), goal_iwa = Point(-1, -1);
+			Point goal = Point(-1, -1);
 			while(!que.empty()) {
 				auto [cur, d] = que.front();
 				que.pop();
-				if(field[cur.x][cur.y] != '.' && field[cur.x][cur.y] != 'A') {
-					if(field[cur.x][cur.y] == 'a' && goal_koseki == Point(-1, -1)) goal_koseki = cur;
-					if(field[cur.x][cur.y] == '@' && goal_iwa == Point(-1, -1) && use_rock_flag[cur.x][cur.y]) goal_iwa = cur;
-					continue;
+				if(field[cur.x][cur.y] != '.' && (field[cur.x][cur.y] == 'a' || use_rock_flag[cur.x][cur.y])) {
+					goal = cur;
+					break;
 				}
 				rep(i, DIR_NUM) {
 					Point next = cur + delta[i];
-					if(outField(next) || dist[next.x][next.y] != INF) continue;
+					if(outField(next) || dist[next.x][next.y] != INF || (!use_rock_flag[next.x][next.y] && field[next.x][next.y] == '@')) continue;
 					dist[next.x][next.y] = d + 1;
 					prev_p[next.x][next.y] = cur;
 					que.push({next, d + 1});
 				}
 			}
+			// cerr << "goal: " << goal.x << ' ' << goal.y << '\n';
 			
-			Point goal = (goal_koseki != Point(-1, -1) ? goal_koseki : goal_iwa);
 			vector<Point> route;
 			for(Point cur = goal; cur != now_start; cur = prev_p[cur.x][cur.y]) {
 				route.push_back(cur);
@@ -226,11 +261,16 @@ struct Solver {
 			que = queue<pair<Point, int>>();
 			que.push({goal, 0});
 			dist[goal.x][goal.y] = 0;
-
+			Point next_goal;
+			
 			while(!que.empty()) {
 				auto [cur, d] = que.front();
 				que.pop();
-				if(cur == hole) break;
+				if(hole_surround[cur.x][cur.y]) {
+					next_goal = cur;
+					break;
+				}
+
 				rep(i, DIR_NUM) {
 					Point next = cur + delta[i];
 					if(outField(next) || dist[next.x][next.y] != INF || (field[next.x][next.y] != '.' && field[next.x][next.y] != 'A')) continue;
@@ -240,7 +280,7 @@ struct Solver {
 				}
 			}
 			route.clear();
-			for(Point cur = hole; cur != goal; cur = prev_p[cur.x][cur.y]) {
+			for(Point cur = next_goal; cur != goal; cur = prev_p[cur.x][cur.y]) {
 				route.push_back(cur);
 			}
 			route.push_back(goal);
@@ -251,19 +291,22 @@ struct Solver {
 				char d = getDir(route[i], route[i + 1]);
 				ops.push_back({2, d});
 			}
-			// 最後の運搬は最後から同じ方向が連続する箇所は操作 3 で転がす
-			char last_op = ops.back().second;
-			now_start = hole;
-			while(!ops.empty()) {
-				if(ops.back().second != last_op) break;
-				now_start = now_start - delta[dir_to_int(ops.back().second)];
-				ops.pop_back();
-			}
+			char last_op;
+			Point delta_p = hole - route[route.size() - 1];
+			if(delta_p.x < 0) last_op = 'U';
+			if(delta_p.x > 0) last_op = 'D';
+			if(delta_p.y < 0) last_op = 'L';
+			if(delta_p.y > 0) last_op = 'R';
 			ops.push_back({3, last_op});
 
-			// rep(i, ops.size()) cerr << ops[i].first << ' ' << ops[i].second << '\n';
-			// cerr << "carried_cnt: " << carried_cnt << '\n';
 			// cerr << "now_start: " << now_start.x << ' ' << now_start.y << '\n';
+			// cerr << "goal: " << goal.x << ' ' << goal.y << '\n';
+			// cerr << "next_goal: " << next_goal.x << ' ' << next_goal.y << '\n';
+			now_start = next_goal;
+
+			// rep(i, ops.size()) cerr << ops[i].first << ' ' << ops[i].second << '\n';
+			// cerr << '\n';
+			// cerr << "carried_cnt: " << carried_cnt << '\n';
 
 			// field から鉱石 or 岩を消す
 			carried_cnt += (field[goal.x][goal.y] == 'a' ? 1 : 0);
