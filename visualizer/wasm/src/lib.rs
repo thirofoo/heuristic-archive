@@ -97,12 +97,6 @@ impl MapState {
             }
             Action::Carry(d) => {
                 let (di, dj) = DIJ[d];
-                // if (cs[self.current.0][self.current.1] < 'a'
-                //     || cs[self.current.0][self.current.1] > 'z')
-                //     && cs[self.current.0][self.current.1] != '@'
-                // {
-                //     return (0, format!("No item to carry (turn {t})"), ());
-                // }
                 let jewel = self.juwels.get(&(self.current.0, self.current.1));
                 let rock = self.rocks.contains(&(self.current.0, self.current.1));
                 // 宝石も岩の現在地にない場合は何も運べない
@@ -148,36 +142,45 @@ impl MapState {
                 self.current.0 += di;
                 self.current.1 += dj;
             }
-            // Action::Roll(d) => {
-            //     let (di, dj) = DIJ[d];
-            //     if (cs[self.current.0][self.current.1] < 'a'
-            //         || cs[self.current.0][self.current.1] > 'z')
-            //         && cs[self.current.0][self.current.1] != '@'
-            //     {
-            //         return (0, format!("No item to roll (turn {t})"), ());
-            //     }
-            //     let c = cs[self.current.0][self.current.1];
-            //     cs[self.current.0][self.current.1] = '.';
-            //     let mut crt = pos;
-            //     loop {
-            //         let next = (crt.0 + di, crt.1 + dj);
-            //         if next.0 >= input.N
-            //             || next.1 >= input.N
-            //             || matches!(cs[next.0][next.1], '@' | 'a'..='z')
-            //         {
-            //             cs[crt.0][crt.1] = c;
-            //             break;
-            //         } else if matches!(cs[next.0][next.1], 'A'..='Z') {
-            //             if cs[next.0][next.1].to_ascii_lowercase() == c {
-            //                 A += 1;
-            //             }
-            //             break;
-            //         } else {
-            //             crt = next;
-            //         }
-            //     }
-            // }
-            _ => {}
+            Action::Roll(d) => {
+                let (di, dj) = DIJ[d];
+                let jewel = self.juwels.get(&(self.current.0, self.current.1));
+                let rock = self.rocks.contains(&(self.current.0, self.current.1));
+                // 宝石も岩の現在地にない場合は何も運べない
+                if jewel.is_none() && !rock {
+                    return;
+                }
+                let mut cur_i = self.current.0;
+                let mut cur_j = self.current.1;
+                let mut next_i = cur_i;
+                let mut next_j = cur_j;
+                while next_i < input.N && next_j < input.N {
+                    cur_i = next_i;
+                    cur_j = next_j;
+                    next_i += di;
+                    next_j += dj;
+                    if self.rocks.contains(&(next_i, next_j))
+                        || self.juwels.contains_key(&(next_i, next_j))
+                        || matches!(input.cs[cur_i][cur_j], 'A'..='Z')
+                    {
+                        break;
+                    }
+                }
+                // その位置へ移動させる
+                let res = self.juwels.remove(&(self.current.0, self.current.1));
+                if let Some(j) = res {
+                    self.juwels.insert((cur_i, cur_j), j);
+                }
+                let res = self.rocks.remove(&(self.current.0, self.current.1));
+                if res {
+                    self.rocks.insert((cur_i, cur_j));
+                }
+                // 運んだ先に穴があれば消す
+                if matches!(input.cs[cur_i][cur_j], 'A'..='Z') {
+                    self.rocks.remove(&(cur_i, cur_j));
+                    self.juwels.remove(&(cur_i, cur_j));
+                }
+            }
         }
     }
 }
