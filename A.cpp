@@ -104,7 +104,7 @@ inline bool outField(const Point &p) {
 struct Solver {
 	int _dummy, M;
 	vector<string> field;
-	vector<pair<int, char>> ops;
+	vector<pair<int, char>> ops, best_ops;
 
   Solver() {
     this->input();
@@ -119,193 +119,252 @@ struct Solver {
   }
 
   void output() {
-		assert(ops.size() <= 10000);
-		rep(i, ops.size()) cout << ops[i].first << ' ' << ops[i].second << '\n';
+		assert(best_ops.size() <= 10000);
+		rep(i, best_ops.size()) cout << best_ops[i].first << ' ' << best_ops[i].second << '\n';
     return;
   }
 
   void solve() {
-		vector<vector<int>> dist;
-		vector<vector<Point>> prev_p;
-		queue<pair<Point, int>> que;
-		deque<pair<Point, int>> dq;
-		
-		Point hole;
-		rep(i, N) rep(j, N) {
-			if(field[i][j] != 'A') continue;
-			hole = Point(i, j);
-			break;
-		}
 
-		vector<vector<bool>> use_rock_flag(N, vector<bool>(N, false));
-		// 穴の上下左右の岩も対象
-		rep(d, DIR_NUM) {
-			Point now = hole;
-			while(true) {
-				Point next = now + delta[d];
-				if(outField(next)) break;
-				if(field[next.x][next.y] == '@') {
-					use_rock_flag[next.x][next.y] = true;
-				}
-				now = next;
+		int best_size = INF;
+		vector<string> init_field = field;
+
+		rep(lrud, (1LL << DIR_NUM)) {
+			field = init_field;
+
+			vector<vector<int>> dist;
+			vector<vector<Point>> prev_p;
+			queue<pair<Point, int>> que;
+			deque<pair<Point, int>> dq;
+			
+			Point hole;
+			rep(i, N) rep(j, N) {
+				if(field[i][j] != 'A') continue;
+				hole = Point(i, j);
+				break;
 			}
-		}
-		// 初めに動かす鉱石 or 岩を決め打ち part
-		// ※ 01BFS で岩の上を通る時にコスト + 1 する
-		rep(i, N) rep(j, N) {
-			if(field[i][j] != 'a') continue;
-			Point goal = Point(i, j);
-			dist.assign(N, vector<int>(N, INF));
-			prev_p.assign(N, vector<Point>(N, Point(-1, -1)));
-			dq = deque<pair<Point, int>>();
-			dq.push_back({hole, 0});
-			dist[hole.x][hole.y] = 0;
 
-			while(!dq.empty()) {
-				auto [cur, d] = dq.front();
-				dq.pop_front();
-				if(cur == goal) break;
-
-				rep(i, DIR_NUM) {
-					Point next = cur + delta[i];
-					if(outField(next) || dist[next.x][next.y] != INF) continue;
-					if(field[next.x][next.y] == '@' && !use_rock_flag[next.x][next.y]) {
-						dq.push_back({next, d + 1});
-						dist[next.x][next.y] = d + 1;
-						prev_p[next.x][next.y] = cur;
-					} else {
-						dq.push_front({next, d});
-						dist[next.x][next.y] = d;
-						prev_p[next.x][next.y] = cur;
-					}
-				}
-			}
-			for(Point cur = goal; cur != hole; cur = prev_p[cur.x][cur.y]) {
-				if(field[cur.x][cur.y] == '@') use_rock_flag[cur.x][cur.y] = true;
-			}
-		}
-
-
-		
-		// BFS で最も近い鉱石 or 岩を穴に運ぶ part
-		int carried_cnt = 0;
-		Point now_start = hole;
-		vector<vector<bool>> hole_surround;
-		while(carried_cnt < 2 * N) {
-			hole_surround.assign(N, vector<bool>(N, false));
+			vector<vector<bool>> use_rock_flag(N, vector<bool>(N, false));
+			// 穴の上下左右の岩も対象
 			rep(d, DIR_NUM) {
+				if((lrud >> d) & 1) continue;
 				Point now = hole;
 				while(true) {
 					Point next = now + delta[d];
 					if(outField(next)) break;
-					if(field[next.x][next.y] != '.') {
-						hole_surround[next.x][next.y] = true;
-						break;
+					if(field[next.x][next.y] == '@') {
+						use_rock_flag[next.x][next.y] = true;
 					}
-					hole_surround[next.x][next.y] = true;
 					now = next;
 				}
 			}
+			// 初めに動かす鉱石 or 岩を決め打ち part
+			// ※ 01BFS で岩の上を通る時にコスト + 1 する
+			rep(i, N) rep(j, N) {
+				if(field[i][j] != 'a') continue;
+				Point goal = Point(i, j);
+				dist.assign(N, vector<int>(N, INF));
+				prev_p.assign(N, vector<Point>(N, Point(-1, -1)));
+				dq = deque<pair<Point, int>>();
+				dq.push_back({hole, 0});
+				dist[hole.x][hole.y] = 0;
 
-			dist.assign(N, vector<int>(N, INF));
-			prev_p.assign(N, vector<Point>(N, Point(-1, -1)));
+				while(!dq.empty()) {
+					auto [cur, d] = dq.front();
+					dq.pop_front();
+					if(cur == goal) break;
 
-			// ※ 仕様上必ず最初は hole になる
-			que = queue<pair<Point, int>>();
-			que.push({now_start, 0});
-			dist[now_start.x][now_start.y] = 0;
-
-			Point goal = Point(-1, -1);
-			while(!que.empty()) {
-				auto [cur, d] = que.front();
-				que.pop();
-				if(field[cur.x][cur.y] != '.' && (field[cur.x][cur.y] == 'a' || use_rock_flag[cur.x][cur.y])) {
-					goal = cur;
-					break;
+					rep(i, DIR_NUM) {
+						Point next = cur + delta[i];
+						if(outField(next) || dist[next.x][next.y] != INF) continue;
+						if(field[next.x][next.y] == '@' && !use_rock_flag[next.x][next.y]) {
+							dq.push_back({next, d + 1});
+							dist[next.x][next.y] = d + 1;
+							prev_p[next.x][next.y] = cur;
+						} else {
+							dq.push_front({next, d});
+							dist[next.x][next.y] = d;
+							prev_p[next.x][next.y] = cur;
+						}
+					}
 				}
-				rep(i, DIR_NUM) {
-					Point next = cur + delta[i];
-					if(outField(next) || dist[next.x][next.y] != INF || (!use_rock_flag[next.x][next.y] && field[next.x][next.y] == '@')) continue;
-					dist[next.x][next.y] = d + 1;
-					prev_p[next.x][next.y] = cur;
-					que.push({next, d + 1});
-				}
-			}
-			// cerr << "goal: " << goal.x << ' ' << goal.y << '\n';
-			
-			vector<Point> route;
-			for(Point cur = goal; cur != now_start; cur = prev_p[cur.x][cur.y]) {
-				route.push_back(cur);
-			}
-			route.push_back(now_start);
-			reverse(route.begin(), route.end());
-			rep(i, route.size() - 1) {
-				// 移動 part
-				Point next = route[i + 1];
-				char d = getDir(route[i], next);
-				ops.push_back({1, d});
-			}
-
-
-
-			// もう一回 goal → hole に向かって BFS
-			dist.assign(N, vector<int>(N, INF));
-			prev_p.assign(N, vector<Point>(N, Point(-1, -1)));
-			que = queue<pair<Point, int>>();
-			que.push({goal, 0});
-			dist[goal.x][goal.y] = 0;
-			Point next_goal;
-			
-			while(!que.empty()) {
-				auto [cur, d] = que.front();
-				que.pop();
-				if(hole_surround[cur.x][cur.y]) {
-					next_goal = cur;
-					break;
-				}
-
-				rep(i, DIR_NUM) {
-					Point next = cur + delta[i];
-					if(outField(next) || dist[next.x][next.y] != INF || (field[next.x][next.y] != '.' && field[next.x][next.y] != 'A')) continue;
-					dist[next.x][next.y] = d + 1;
-					prev_p[next.x][next.y] = cur;
-					que.push({next, d + 1});
+				for(Point cur = goal; cur != hole; cur = prev_p[cur.x][cur.y]) {
+					if(field[cur.x][cur.y] == '@') use_rock_flag[cur.x][cur.y] = true;
 				}
 			}
-			route.clear();
-			for(Point cur = next_goal; cur != goal; cur = prev_p[cur.x][cur.y]) {
-				route.push_back(cur);
+
+
+
+			// BFS で最も近い鉱石 or 岩を穴に運ぶ part
+			int carried_cnt = 0;
+			Point now_start = hole;
+			vector<vector<bool>> hole_surround;
+
+			while(carried_cnt < 2 * N) {
+				hole_surround.assign(N, vector<bool>(N, false));
+				rep(d, DIR_NUM) {
+					Point now = hole;
+					while(true) {
+						Point next = now + delta[d];
+						if(outField(next)) break;
+						if(field[next.x][next.y] != '.') {
+							hole_surround[next.x][next.y] = true;
+							break;
+						}
+						hole_surround[next.x][next.y] = true;
+						now = next;
+					}
+				}
+
+
+				// どこの点に次に行くべきかの指標を計算
+				Point goal = Point(-1, -1);
+				int best_score = -INF;
+				rep(i, N) rep(j, N) {
+					bool ng = true;
+					// BFS をして穴に到達可能か
+					vector<vector<bool>> visited(N, vector<bool>(N, false));
+					que = queue<pair<Point, int>>();
+					que.push({Point(i, j), 0});
+					visited[i][j] = true;
+					while(!que.empty()) {
+						auto [cur, d] = que.front();
+						que.pop();
+						if(hole_surround[cur.x][cur.y]) {
+							ng = false;
+							break;
+						}
+						rep(k, DIR_NUM) {
+							Point next = cur + delta[k];
+							if(outField(next) || visited[next.x][next.y] || field[next.x][next.y] != '.') continue;
+							visited[next.x][next.y] = true;
+							que.push({next, d + 1});
+						}
+					}
+					if(ng) continue;
+
+					if(field[i][j] == 'a' || (field[i][j] == '@' && use_rock_flag[i][j])) {
+						// その点と、他の転がすべき点の距離総和 * 今の点との距離
+						int sum_dist = 0;
+						rep(k, N) rep(l, N) {
+							if(field[k][l] == 'a' || (field[k][l] == '@' && use_rock_flag[k][l])) {
+								sum_dist += abs(i - k) + abs(j - l);
+							}
+						}
+						sum_dist /= abs(i - now_start.x) + abs(j - now_start.y);	
+						if(sum_dist > best_score) {
+							best_score = sum_dist;
+							goal = Point(i, j);
+						}
+					}
+				}
+
+				dist.assign(N, vector<int>(N, INF));
+				prev_p.assign(N, vector<Point>(N, Point(-1, -1)));
+
+				// ※ 仕様上必ず最初は hole になる
+				que = queue<pair<Point, int>>();
+				que.push({now_start, 0});
+				dist[now_start.x][now_start.y] = 0;
+
+				bool unreachable_flag = true;
+				while(!que.empty()) {
+					auto [cur, d] = que.front();
+					que.pop();
+					if(cur == goal) break;
+
+					rep(i, DIR_NUM) {
+						Point next = cur + delta[i];
+						if(outField(next) || dist[next.x][next.y] != INF || (!use_rock_flag[next.x][next.y] && field[next.x][next.y] == '@')) continue;
+						dist[next.x][next.y] = d + 1;
+						prev_p[next.x][next.y] = cur;
+						que.push({next, d + 1});
+					}
+				}
+
+				vector<Point> route;
+				for(Point cur = goal; cur != now_start; cur = prev_p[cur.x][cur.y]) {
+					route.push_back(cur);
+				}
+				route.push_back(now_start);
+				reverse(route.begin(), route.end());
+				rep(i, route.size() - 1) {
+					// 移動 part
+					Point next = route[i + 1];
+					char d = getDir(route[i], next);
+					ops.push_back({1, d});
+				}
+
+
+
+				// もう一回 goal → hole に向かって BFS
+				dist.assign(N, vector<int>(N, INF));
+				prev_p.assign(N, vector<Point>(N, Point(-1, -1)));
+				que = queue<pair<Point, int>>();
+				que.push({goal, 0});
+				dist[goal.x][goal.y] = 0;
+				Point next_goal;
+
+				while(!que.empty()) {
+					auto [cur, d] = que.front();
+					que.pop();
+					if(hole_surround[cur.x][cur.y]) {
+						next_goal = cur;
+						break;
+					}
+
+					rep(i, DIR_NUM) {
+						Point next = cur + delta[i];
+						if(outField(next) || dist[next.x][next.y] != INF || (field[next.x][next.y] != '.' && field[next.x][next.y] != 'A')) continue;
+						dist[next.x][next.y] = d + 1;
+						prev_p[next.x][next.y] = cur;
+						que.push({next, d + 1});
+					}
+				}
+				route.clear();
+				for(Point cur = next_goal; cur != goal; cur = prev_p[cur.x][cur.y]) {
+					route.push_back(cur);
+				}
+				route.push_back(goal);
+				reverse(route.begin(), route.end());
+
+				rep(i, route.size() - 1) {
+					// 運搬 part
+					char d = getDir(route[i], route[i + 1]);
+					ops.push_back({2, d});
+				}
+				char last_op;
+				Point delta_p = hole - route[route.size() - 1];
+				if(delta_p.x < 0) last_op = 'U';
+				if(delta_p.x > 0) last_op = 'D';
+				if(delta_p.y < 0) last_op = 'L';
+				if(delta_p.y > 0) last_op = 'R';
+				ops.push_back({3, last_op});
+
+				// cerr << "now_start: " << now_start.x << ' ' << now_start.y << '\n';
+				// cerr << "goal: " << goal.x << ' ' << goal.y << '\n';
+				// cerr << "next_goal: " << next_goal.x << ' ' << next_goal.y << '\n';
+				now_start = next_goal;
+
+				// rep(i, ops.size()) cerr << ops[i].first << ' ' << ops[i].second << '\n';
+				// cerr << '\n';
+				// cerr << '\n';
+				// cerr << '\n';
+				// cerr << "carried_cnt: " << carried_cnt << '\n';
+
+				// field から鉱石 or 岩を消す
+				carried_cnt += (field[goal.x][goal.y] == 'a' ? 1 : 0);
+				field[goal.x][goal.y] = '.';
 			}
-			route.push_back(goal);
-			reverse(route.begin(), route.end());
 
-			rep(i, route.size() - 1) {
-				// 運搬 part
-				char d = getDir(route[i], route[i + 1]);
-				ops.push_back({2, d});
+			if(ops.size() < best_size) {
+				best_size = ops.size();
+				best_ops = ops;
+				cerr << "best_size: " << best_size << '\n';
 			}
-			char last_op;
-			Point delta_p = hole - route[route.size() - 1];
-			if(delta_p.x < 0) last_op = 'U';
-			if(delta_p.x > 0) last_op = 'D';
-			if(delta_p.y < 0) last_op = 'L';
-			if(delta_p.y > 0) last_op = 'R';
-			ops.push_back({3, last_op});
-
-			// cerr << "now_start: " << now_start.x << ' ' << now_start.y << '\n';
-			// cerr << "goal: " << goal.x << ' ' << goal.y << '\n';
-			// cerr << "next_goal: " << next_goal.x << ' ' << next_goal.y << '\n';
-			now_start = next_goal;
-
-			// rep(i, ops.size()) cerr << ops[i].first << ' ' << ops[i].second << '\n';
-			// cerr << '\n';
-			// cerr << "carried_cnt: " << carried_cnt << '\n';
-
-			// field から鉱石 or 岩を消す
-			carried_cnt += (field[goal.x][goal.y] == 'a' ? 1 : 0);
-			field[goal.x][goal.y] = '.';
+			ops.clear();
 		}
-    return;
+		return;
   }
 };
 
