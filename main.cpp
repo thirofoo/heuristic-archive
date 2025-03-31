@@ -6,16 +6,16 @@ using namespace atcoder;
 
 namespace utility {
   struct timer {
-  chrono::system_clock::time_point start;
-  // 開始時間を記録
-  void CodeStart() {
-    start = chrono::system_clock::now();
-  }
-  // 経過時間 (ms) を返す
-  double elapsed() const {
-    using namespace std::chrono;
-    return (double) duration_cast<milliseconds>(system_clock::now() - start).count();
-  }
+  	chrono::system_clock::time_point start;
+  	// 開始時間を記録
+  	void CodeStart() {
+  	  start = chrono::system_clock::now();
+  	}
+  	// 経過時間 (ms) を返す
+  	double elapsed() const {
+  	  using namespace std::chrono;
+  	  return (double) duration_cast<milliseconds>(system_clock::now() - start).count();
+  	}
   } mytm;
 }
 
@@ -26,21 +26,7 @@ inline unsigned int rand_int() {
   return (tw = (tw ^ (tw >> 19)) ^ (tt ^ (tt >> 8)));
 }
 
-inline double rand_double() {
-  return (double) (rand_int() % (int) 1e9) / 1e9;
-}
-
-// 温度関数
 #define TIME_LIMIT 1900
-inline double temp(double start) {
-  double start_temp = 1000, end_temp = 1;
-  return start_temp + (end_temp - start_temp) * ((utility::mytm.elapsed() - start) / TIME_LIMIT);
-}
-
-// 焼きなましの採用確率
-inline double prob(int best, int now, int start) {
-  return exp((double) (now - best) / temp(start));
-}
 //-----------------以下から実装部分-----------------//
 
 using P = pair<int, int>;
@@ -92,8 +78,10 @@ struct Solver {
 
   Solver() {
     this->input();
+		utility::mytm.CodeStart();
+
 		ans_group.assign(M, vector<int>{});
-		len_upper.resize(N * N, -1e9);
+		len_upper.resize(N * N,    0);
 		len_lower.resize(N * N,  1e9);
 		rep(i, N) for(int j = i + 1; j < N; j++) {
 			for(auto &r1 : rects[i].points) for(auto &r2 : rects[j].points) {
@@ -119,102 +107,58 @@ struct Solver {
       cin >> x1 >> x2 >> y1 >> y2;
       rects.emplace_back(Rect(x1, x2, y1, y2));
     }
+		utility::mytm.CodeStart();
     return;
   }
 
-  void output() {
-		// ans_group ごとに最小全域木を作成して出力
-		dsu uf(N);
-		cout << "!" << '\n';
-		rep(i, M) {
-			rep(j, ans_group[i].size()) cout << ans_group[i][j] << ' ';
-			cout << '\n' << flush;
-
-			vector<int> edges;
-			rep(j, ans_group[i].size()) rep(k, ans_group[i].size()) {
-				if(j >= k) continue;
-				int nj = ans_group[i][j], nk = ans_group[i][k];
-				edges.emplace_back(min(nj, nk) * N + max(nj, nk));
-			}
-			sort(edges.begin(), edges.end(), [&](int e1, int e2) {
-				if(len_sort.count(P(e1, e2)) > 0) return true;
-				if(len_sort.count(P(e2, e1)) > 0) return false;
-				return len_upper[e1] + len_lower[e1] < len_upper[e2] + len_lower[e2];
-			});
-			for(auto idx : edges) {
-				auto [v1, v2] = P(idx / N, idx % N);
-				if(uf.same(v1, v2)) continue;
-				cout << v1 << ' ' << v2 << '\n';
-				uf.merge(v1, v2);
+	pair<int, vector<P>> compute_mst(const vector<int>& group) {
+		vector<tuple<int, int, int>> edges;
+		int sz = group.size();
+		for(int i = 0; i < sz; i++) {
+			for(int j = i + 1; j < sz; j++) {
+				int u = group[i], v = group[j];
+				int idx = min(u, v) * N + max(u, v);
+				int cost = len_upper[idx] + len_lower[idx];
+				edges.emplace_back(cost, u, v);
 			}
 		}
-    return;
-  }
-
-  void solve() {
-    // 1. 占いにより辺の長さの制約を削る
-		vector<int> group;
-		rep(_, Q) {
-			group.clear();
-			vector<bool> used(N, false);
-			while(group.size() < L) {
-				int idx = rand_int() % N;
-				if(used[idx]) continue;
-				group.emplace_back(idx);
-				used[idx] = true;
-			}
-			bind_edge(group);
-		}
-		cerr << "len_sort.size() = " << len_sort.size() << '\n';
-
-    // 2. 貪欲でグループ分け
-		vector<int> vertex(N);
-		iota(vertex.begin(), vertex.end(), 0);
-		sort(vertex.begin(), vertex.end(), [&](int i, int j) {
-			int e1 = rects[i].x1 + rects[i].x2 + rects[i].y1 + rects[i].y2;
-			int e2 = rects[j].x1 + rects[j].x2 + rects[j].y1 + rects[j].y2;
-			return e1 < e2;
+		sort(edges.begin(), edges.end(), [&](auto a, auto b) {
+			return get<0>(a) < get<0>(b);
 		});
-
-		vector<bool> used(N, false);
-		vector<int> cand_edges;
-		int group_idx = 0;
-		rep(i, N) {
-			if(used[vertex[i]]) continue;
-			used[vertex[i]] = true;
-			ans_group[group_idx].emplace_back(vertex[i]);
-			cand_edges.clear();
-			rep(j, N) {
-				if(used[j]) continue;
-				cand_edges.emplace_back(min(vertex[i], j) * N + max(vertex[i], j));
-			}
-			sort(cand_edges.begin(), cand_edges.end(), [&](int e1, int e2) {
-				if(len_sort.count(P(e1, e2)) > 0) return true;
-				if(len_sort.count(P(e2, e1)) > 0) return false;
-				return len_upper[e1] + len_lower[e1] < len_upper[e2] + len_lower[e2];
-			});
-			rep(j, G[group_idx] - 1) {
-				auto [v1, v2] = P(cand_edges[j] / N, cand_edges[j] % N);
-				int idx = (v1 == vertex[i]) ? v2 : v1;
-				used[idx] = true;
-				ans_group[group_idx].emplace_back(idx);
-			}
-			group_idx++;
+		dsu uf(N);
+		vector<P> mst_edges;
+		int total_cost = 0;
+		for(auto &edge : edges) {
+			auto [cost, u, v] = edge;
+			if(uf.same(u, v)) continue;
+			uf.merge(u, v);
+			int delta_x = abs(rects[u].x1 - rects[v].x1);
+			int delta_y = abs(rects[u].y1 - rects[v].y1);
+			int dist = ceil(sqrt(delta_x * delta_x + delta_y * delta_y));
+			total_cost += dist;
+			mst_edges.emplace_back(u, v);
 		}
-    return;
-  }
+		return { total_cost, mst_edges };
+	}
 
-	// 占いをする関数
+	// 占いをする関数 (※ 占い回数上限に達したら compute_mst を呼ぶ)
+	int divination_cnt = 0;
 	inline vector<P> divination(const vector<int> &group) {
+		assert(1 < group.size() && group.size() <= L);
+		if(divination_cnt >= Q) {
+			auto [cost, mst_edges] = compute_mst(group);
+			return mst_edges;
+		}
 		cout << "? " << group.size() << ' ';
 		for(auto &g : group) cout << g << ' ';
-		cout << '\n' << flush;
+		cout << "\n" << flush;
 		vector<P> res;
 		rep(i, group.size() - 1) {
 			int a, b;
 			cin >> a >> b;
 			res.emplace_back(a, b);
 		}
+		divination_cnt++;
 		return res;
 	}
 
@@ -234,8 +178,9 @@ struct Solver {
 			visited.assign(N, false);
 			que.push(di);
 			visited[di] = true;
-			while(!que.empty()) {
-				int now = que.front(); que.pop();
+			while (!que.empty()) {
+				int now = que.front();
+				que.pop();
 				for(auto &next : graph[now]) {
 					if(visited[next] || next == dj) continue;
 					visited[next] = true;
@@ -244,11 +189,115 @@ struct Solver {
 			}
 			rep(j, group.size()) rep(k, group.size()) {
 				if(visited[group[j]] == visited[group[k]]) continue;
-				int e1 = min(di, di) * N + max(di, dj);
+				int e1 = min(di, dj) * N + max(di, dj);
 				int e2 = min(group[j], group[k]) * N + max(group[j], group[k]);
 				len_sort.insert(P(e1, e2));
 			}
 		}
+		return;
+	}
+
+	// 占いによる MST 構築を行う別関数
+	vector<P> build_mst_with_divination(const vector<int>& group) {
+		vector<P> total_edges;
+		int n = group.size();
+		if(n == 1) {
+			// 何もしない
+		} else if(n == 2) {
+			// MST は一意に決まるので、そのまま辺を採用
+			total_edges.emplace_back(group[0], group[1]);
+		} else {
+			const int step = L - 1;
+			int start = 0;
+			while(start < n - 1) {
+				int remaining = n - start;
+				if(remaining >= L) {
+					vector<int> sub_group(group.begin() + start, group.begin() + start + L);
+					auto sub_edges = divination(sub_group);
+					total_edges.insert(total_edges.end(), sub_edges.begin(), sub_edges.end());
+				} else if(remaining > 2) {
+					vector<int> sub_group(group.begin() + n - min(L, n), group.end());
+					auto sub_edges = divination(sub_group);
+					total_edges.insert(total_edges.end(), sub_edges.begin(), sub_edges.end());
+				} else {
+					// 残りが 2 つの場合は、MST は一意に決まる
+					total_edges.emplace_back(group[start], group[start + 1]);
+				}
+				start += step;
+			}
+		}
+		dsu uf(N);
+		vector<P> mst_edges;
+		sort(total_edges.begin(), total_edges.end(), [&](auto a, auto b) {
+			int a_idx = min(a.first, a.second) * N + max(a.first, a.second);
+			int b_idx = min(b.first, b.second) * N + max(b.first, b.second);
+			return len_upper[a_idx] + len_lower[a_idx] < len_upper[b_idx] + len_lower[b_idx];
+		});
+		for(auto &edge : total_edges) {
+			auto [u, v] = edge;
+			if(uf.same(u, v)) continue;
+			uf.merge(u, v);
+			int delta_x = abs(rects[u].x1 - rects[v].x1);
+			int delta_y = abs(rects[u].y1 - rects[v].y1);
+			int dist = ceil(sqrt(delta_x * delta_x + delta_y * delta_y));
+			mst_edges.emplace_back(u, v);
+		}
+		return mst_edges;
+	}
+
+	void output() {
+		vector<pair<vector<int>, vector<P>>> answers;
+		for(auto &group : ans_group) {
+			vector<P> mst_edges = build_mst_with_divination(group);
+			answers.emplace_back(group, mst_edges);
+		}
+		cout << "!" << "\n";
+		for(auto &p : answers) {
+			auto [group, mst_edges] = p;
+			for(auto id : group) cout << id << " ";
+			cout << "\n" << flush;
+			for(auto &[u, v] : mst_edges) cout << u << " " << v << "\n" << flush;
+		}
+		return;
+	}
+
+	void solve() {
+		vector<int> init_rects(N);
+		iota(init_rects.begin(), init_rects.end(), 0);
+		int cell_width = 1000;
+		map<int, vector<int>> groups_by_col;
+		for(auto idx : init_rects) {
+			int cx = (rects[idx].x1 + rects[idx].x2) / 2;
+			int col = cx / cell_width;
+			groups_by_col[col].push_back(idx);
+		}
+		vector<int> snake;
+		for(auto &p : groups_by_col) {
+			auto vec = p.second;
+			sort(vec.begin(), vec.end(), [&](int a, int b) {
+				int cy_a = (rects[a].y1 + rects[a].y2) / 2;
+				int cy_b = (rects[b].y1 + rects[b].y2) / 2;
+				return cy_a < cy_b;
+			});
+			if(p.first % 2 == 1) reverse(vec.begin(), vec.end());
+			for(auto id : vec) snake.push_back(id);
+		}
+		vector<int> snake_order = snake;
+		reverse(snake_order.begin(), snake_order.end());
+		
+		auto build_full_groups = [&](const vector<int>& group_sizes) -> vector<vector<int>> {
+			vector<vector<int>> group_list(M);
+			vector<int> prefix(M + 1, 0);
+			for(int i = 0; i < M; i++) prefix[i + 1] = prefix[i] + group_sizes[i];
+			for(int i = 0; i < M; i++) {
+				int start = prefix[i];
+				int sz = group_sizes[i];
+				vector<int> group(snake_order.begin() + start, snake_order.begin() + start + sz);
+				group_list[i] = group;
+			}
+			return group_list;
+		};
+		ans_group = build_full_groups(G);
 		return;
 	}
 };
