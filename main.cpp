@@ -5,8 +5,8 @@ using namespace atcoder;
 
 #define rep(i, n) for (int i = 0; i < (n); i++)
 
-constexpr int TIME_LIMIT = 1800;
-constexpr int GRID = 500;
+constexpr int TIME_LIMIT = 19000;
+constexpr int GRID = 250;
 constexpr int FIELD_SIZE = 10000;
 
 namespace utility {
@@ -141,6 +141,7 @@ struct Solver {
 	}
 
 	void input() {
+		utility::timer.startTimer();
 		cin >> N >> M >> Q >> L >> W;
 		G.resize(M);
 		rep(i, M) {
@@ -151,7 +152,7 @@ struct Solver {
 			cin >> x1 >> x2 >> y1 >> y2;
 			rects.emplace_back(x1, x2, y1, y2);
 		}
-		utility::timer.startTimer();
+		return;
 	}
 
 	// divination：グループ内の2点間の関係を問い合わせる
@@ -174,13 +175,17 @@ struct Solver {
 	}
 
 	// 不確かさ（分散）からグループを選択
+	vector<bool> used;
 	vector<int> selectGroup() {
+		if(used.empty()) used.resize(N, false);
 		vector<pair<double, int>> varianceScores;
 		rep(j, N) {
-			varianceScores.push_back({ rects[j].getVariance(), j });
+			if (used[j]) continue;
+			varianceScores.emplace_back(rects[j].getVariance(), j);
 		}
 		sort(varianceScores.rbegin(), varianceScores.rend());
 		int core = (varianceScores.empty() ? rand_int() % N : varianceScores[0].second);
+		used[core] = true;
 		vector<int> group = { core };
 		Point expCore = rects[core].getExpectation();
 
@@ -190,12 +195,12 @@ struct Solver {
 			Point expOther = rects[j].getExpectation();
 			long long dsq = (long long)(expCore.x - expOther.x) * (expCore.x - expOther.x)
 							+ (long long)(expCore.y - expOther.y) * (expCore.y - expOther.y);
-			neighbors.push_back({ dsq, j });
+			neighbors.emplace_back(dsq, j);
 		}
 		sort(neighbors.begin(), neighbors.end());
 		for (const auto &[dsq, nb] : neighbors) {
 			if (group.size() >= (size_t)L) break;
-			group.push_back(nb);
+			group.emplace_back(nb);
 		}
 		return group;
 	}
@@ -215,7 +220,7 @@ struct Solver {
 		vector<P> compEdges;
 		for (const auto &edge : mstEdges) {
 			int cu = comp[edge.first], cv = comp[edge.second];
-			compEdges.push_back({ cu, cv });
+			compEdges.emplace_back(cu, cv);
 		}
 		// 各MST辺に対して，その辺を除いた連結成分に対して確率更新
 		for (const auto &edge : compEdges) {
@@ -256,12 +261,12 @@ struct Solver {
 	vector<vector<int>> buildGroups() {
 		vector<int> perm(N);
 		iota(perm.begin(), perm.end(), 0);
-		int cellWidth = 1000;
+		int cellWidth = 10000 / 10;
 		map<int, vector<int>> groupsByCol;
 		for (int id : perm) {
 			auto [cx, cy] = rects[id].getExpectation();
 			int col = cx / cellWidth;
-			groupsByCol[col].push_back(id);
+			groupsByCol[col].emplace_back(id);
 		}
 		vector<int> snakeOrder;
 		for (auto &p : groupsByCol) {
@@ -274,7 +279,7 @@ struct Solver {
 			if (p.first % 2 == 1)
 				reverse(vec.begin(), vec.end());
 			for (int id : vec)
-				snakeOrder.push_back(id);
+				snakeOrder.emplace_back(id);
 		}
 		vector<int> snake = snakeOrder;
 		reverse(snake.begin(), snake.end());
@@ -295,6 +300,7 @@ struct Solver {
 	vector<P> buildMSTWithDivination(const vector<int> &group) {
 		vector<P> totalEdges;
 		int n = group.size();
+
 		if (n == 2) {
 			totalEdges.emplace_back(group[0], group[1]);
 		} else if (n > 2) {
@@ -309,22 +315,23 @@ struct Solver {
 					totalEdges.emplace_back(group[start], group[start + 1]);
 					continue;
 				}
+				sort(subGroup.begin(), subGroup.end());
 				auto subEdges = queryDivination(subGroup);
 				totalEdges.insert(totalEdges.end(), subEdges.begin(), subEdges.end());
 			}
 		}
 		dsu uf(N);
-		vector<P> mstEdges;
 		// シンプルな距離比較によりソート（重みは期待値同士の距離の2乗）
 		sort(totalEdges.begin(), totalEdges.end(), [&](const P &a, const P &b) {
 			auto [ax, ay] = rects[a.first].getExpectation();
 			auto [bx, by] = rects[a.second].getExpectation();
 			auto [cx, cy] = rects[b.first].getExpectation();
 			auto [dx, dy] = rects[b.second].getExpectation();
-			long long da = (long long)(ax - ay) * (ax - ay) + (long long)(ay - by) * (ay - by);
+			long long da = (long long)(ax - bx) * (ax - bx) + (long long)(ay - by) * (ay - by);
 			long long db = (long long)(cx - dx) * (cx - dx) + (long long)(cy - dy) * (cy - dy);
 			return da < db;
 		});
+		vector<P> mstEdges;
 		for (auto &[u, v] : totalEdges) {
 			if (uf.same(u, v)) continue;
 			uf.merge(u, v);
@@ -334,27 +341,31 @@ struct Solver {
 	}
 
 	void solve() {
-		// 残りdivination回数の計算
-		int maxDivinations = Q;
+		int maxDivinations = Q - 1;
 		rep(i, M) {
-			if (G[i] >= 2 && G[i] <= L)
-				maxDivinations--;
-			else if (G[i] > L)
-				maxDivinations -= (int)ceil((double)(G[i] - 1) / (L - 1));
+			if (G[i] > 2 && G[i] <= L) maxDivinations--;
+			else if (G[i] > L) {
+				maxDivinations -= (int)((double)(G[i] - 1) / (L - 1));
+				// 端数分が <= 2 なら無し、それ以外は 1 回
+				int rest = G[i] - (int)((double)(G[i] - 1) / (L - 1)) * (L - 1);
+				if (rest >= 3) maxDivinations--;
+			}
 		}
 		maxDivinations = max(0, maxDivinations);
 
 		// 時間制限を意識して divination を繰り返す
+		cerr << "maxDivinations: " << maxDivinations << "\n";
 		rep(i, maxDivinations) {
 			if (utility::timer.elapsed() > TIME_LIMIT)
 				break;
 			auto group = selectGroup();
-			if (group.size() < 2) continue;
 			auto mstEdges = queryDivination(group);
 			if (mstEdges.empty()) continue;
 			processMSTEdges(mstEdges, group);
 		}
 		ansGroup = buildGroups();
+		cerr << "Code End Time: " << utility::timer.elapsed() << "ms" << "\n";
+		return;
 	}
 
 	void output() {
@@ -372,6 +383,7 @@ struct Solver {
 			for (auto &[u, v] : mstEdges)
 				cout << u << " " << v << "\n" << flush;
 		}
+		return;
 	}
 };
 
