@@ -216,14 +216,22 @@ struct Solver {
 		return res;
 	}
 
+	int sigma_threshold = 100;
 	vector<int> selectGroup() {
-		if (used.empty()) used.resize(N, false);
+		if (used.empty()) used.assign(N, false);
+		if (divinationCount % sigma_threshold == 0) {
+			// cerr << "===== Divination count: " << divinationCount << " =====" << endl;
+			used.assign(N, false);
+		}
 		vector<pair<double, int>> varianceScores;
 		rep(j, N) {
+			double sigma = sqrt(rects[j].getVariance());
 			if (used[j]) continue;
-			varianceScores.emplace_back(rects[j].getVariance(), j);
+			varianceScores.emplace_back(sigma, j);
 		}
 		sort(varianceScores.rbegin(), varianceScores.rend());
+		// cerr << "Max variance: " << varianceScores[0].first << endl;
+
 		int core = (varianceScores.empty() ? rand_int() % N : varianceScores[0].second);
 		used[core] = true;
 		vector<int> group = { core };
@@ -233,7 +241,7 @@ struct Solver {
 			if (j == core) continue;
 			Point expOther = rects[j].getExpectation();
 			long long dsq = sqrt((long long)(expCore.x - expOther.x) * (expCore.x - expOther.x) + (long long)(expCore.y - expOther.y) * (expCore.y - expOther.y));
-			dsq += sqrt(rects[j].getVariance()) ;
+			dsq += sqrt(rects[j].getVariance());
 			neighbors.emplace_back(dsq, j);
 		}
 		sort(neighbors.begin(), neighbors.end());
@@ -347,9 +355,11 @@ struct Solver {
 		vector<vector<int>> groupsAssign(M);
 		long long final_mcf_cost = -1;
 		for (int iter = 0; iter < FIXED_ITERATIONS; iter++) {
-			if (utility::timer.elapsed() > TIME_LIMIT - 50)
+			if (utility::timer.elapsed() > TIME_LIMIT - 50) {
 				cerr << "Time limit reached during fixed MCF iteration " << iter + 1 << endl;
-			atcoder::mcf_graph<int, long long> mcf(N + M + 2);
+				break;
+			}
+			mcf_graph<int, long long> mcf(N + M + 2);
 			int s = N + M, t = N + M + 1;
 			for (int i = 0; i < N; i++) mcf.add_edge(s, i, 1, 0);
 			for (int j = 0; j < M; j++) if (G[j] > 0) mcf.add_edge(N + j, t, G[j], 0);
@@ -416,7 +426,7 @@ struct Solver {
 				auto subEdges = queryDivination(subGroup);
 				totalEdges.insert(totalEdges.end(), subEdges.begin(), subEdges.end());
 				// update the probabilities of the rectangles
-				processMSTEdges(subEdges, subGroup);
+				if(utility::timer.elapsed() <= TIME_LIMIT) processMSTEdges(subEdges, subGroup);
 			}
 		}
 		dsu uf(N);
@@ -493,8 +503,10 @@ struct Solver {
 			}
 		}
 		maxDivinations = max(0, maxDivinations);
+		cerr << "maxDivinations: " << maxDivinations << endl;
 
 		rep(i, maxDivinations) {
+			cerr << "Divination " << i + 1 << "/" << maxDivinations << endl;
 			if (utility::timer.elapsed() > TIME_LIMIT * 0.9)
 				break;
 			auto group = selectGroup();
