@@ -87,8 +87,9 @@ struct Rect {
 		return expPt;
 	}
 
-	void updateProb(const Rect &r2, const Rect &r3) {
-		map<Point, double> newProb;
+	vector<T> newProb;
+	void updateProb(Rect &r2, Rect &r3) {
+		newProb.clear();
 		double totalNewProb = 0.0;
 		for (const auto &[x1, y1, prob1] : existProb) {
 			double condProb = 0.0;
@@ -101,14 +102,64 @@ struct Rect {
 				}
 			double updated = prob1 * condProb;
 			if (updated > 1e-12) {
-				newProb[Point(x1, y1)] += updated;
+				newProb.emplace_back(x1, y1, updated);
 				totalNewProb += updated;
 			}
 		}
-		if (totalNewProb < 1e-12) return;
-		existProb.clear();
-		for (const auto &[pt, prob] : newProb)
-			existProb.emplace_back(pt.x, pt.y, prob / totalNewProb);
+		if (totalNewProb >= 1e-12) {
+			existProb.clear();
+			for (const auto &[x, y, prob] : newProb)
+				existProb.emplace_back(x, y, prob / totalNewProb);
+		}
+
+		// r2 phase
+		newProb.clear();
+		totalNewProb = 0.0;
+		for (const auto &[x2, y2, prob2] : r2.existProb) {
+			double condProb = 0.0;
+			for (const auto &[x1, y1, prob1] : existProb)
+				for (const auto &[x3, y3, prob3] : r3.existProb) {
+					long long d1 = (long long)(x1 - x2) * (x1 - x2) + (long long)(y1 - y2) * (y1 - y2);
+					long long d2 = (long long)(x1 - x3) * (x1 - x3) + (long long)(y1 - y3) * (y1 - y3);
+					if (d1 <= d2)
+						condProb += prob1 * prob3;
+				}
+			double updated = prob2 * condProb;
+			if (updated > 1e-12) {
+				newProb.emplace_back(x2, y2, updated);
+				totalNewProb += updated;
+			}
+		}
+		if (totalNewProb >= 1e-12) {
+			r2.existProb.clear();
+			for (const auto &[x, y, prob] : newProb)
+				r2.existProb.emplace_back(x, y, prob / totalNewProb);
+		}
+
+		// r3 phase
+		newProb.clear();
+		totalNewProb = 0.0;
+		for (const auto &[x3, y3, prob3] : r3.existProb) {
+			double condProb = 0.0;
+			for (const auto &[x1, y1, prob1] : existProb)
+				for (const auto &[x2, y2, prob2] : r2.existProb) {
+					long long d1 = (long long)(x1 - x2) * (x1 - x2) + (long long)(y1 - y2) * (y1 - y2);
+					long long d2 = (long long)(x1 - x3) * (x1 - x3) + (long long)(y1 - y3) * (y1 - y3);
+					if (d1 <= d2)
+						condProb += prob1 * prob2;
+				}
+			double updated = prob3 * condProb;
+			if (updated > 1e-12) {
+				newProb.emplace_back(x3, y3, updated);
+				totalNewProb += updated;
+			}
+		}
+		if (totalNewProb >= 1e-12) {
+			r3.existProb.clear();
+			for (const auto &[x, y, prob] : newProb)
+				r3.existProb.emplace_back(x, y, prob / totalNewProb);
+		}
+		return;
 	}
 
 	double getVariance() const {
@@ -181,8 +232,8 @@ struct Solver {
 		rep(j, N) {
 			if (j == core) continue;
 			Point expOther = rects[j].getExpectation();
-			long long dsq = (long long)(expCore.x - expOther.x) * (expCore.x - expOther.x)
-				+ (long long)(expCore.y - expOther.y) * (expCore.y - expOther.y);
+			long long dsq = sqrt((long long)(expCore.x - expOther.x) * (expCore.x - expOther.x) + (long long)(expCore.y - expOther.y) * (expCore.y - expOther.y));
+			dsq += sqrt(rects[j].getVariance()) ;
 			neighbors.emplace_back(dsq, j);
 		}
 		sort(neighbors.begin(), neighbors.end());
@@ -257,134 +308,90 @@ struct Solver {
 	}
 
 	vector<vector<int>> buildGroups() {
-		if (M <= 100) {
-			vector<int> perm(N);
-			iota(perm.begin(), perm.end(), 0);
-			int cellWidth = FIELD_SIZE / 10;
-			map<int, vector<int>> groupsByCol;
-			for (int id : perm) {
-				auto [cx, cy] = rects[id].getExpectation();
-				groupsByCol[cx / cellWidth].push_back(id);
-			}
-			vector<int> snakeOrder;
-			for (auto &p : groupsByCol) {
-				auto vec = p.second;
-				sort(vec.begin(), vec.end(), [&](int a, int b) {
-					auto [ax, ay] = rects[a].getExpectation();
-					auto [bx, by] = rects[b].getExpectation();
-					return ay < by;
-				});
-				if (p.first % 2 == 1)
-					reverse(vec.begin(), vec.end());
-				snakeOrder.insert(snakeOrder.end(), vec.begin(), vec.end());
-			}
-			vector<int> snake = snakeOrder;
-			reverse(snake.begin(), snake.end());
-			vector<vector<int>> groups(M);
-			vector<int> prefix(M + 1, 0);
-			rep(i, M)
-				prefix[i + 1] = prefix[i] + G[i];
-			rep(i, M)
-				groups[i] = vector<int>(snake.begin() + prefix[i], snake.begin() + prefix[i + 1]);
-			return groups;
-		}
-
-		vector<vector<int>> groups(M);
 		vector<Point> expectations(N);
-		rep(i, N)
-			expectations[i] = rects[i].getExpectation();
+		rep(i, N) expectations[i] = rects[i].getExpectation();
 
-		const int MAX_ITERATIONS = 3;
-		mt19937 engine(rand_int());
 		vector<Point> centroids(M);
-		vector<double> min_dist_sq(N, numeric_limits<double>::max());
 		if (N > 0) {
-			int first_centroid_idx = rand_int() % N;
-			centroids[0] = expectations[first_centroid_idx];
-			for (int j = 1; j < M; ++j) {
-				double dist_sq_sum = 0.0;
-				for (int i = 0; i < N; ++i) {
-					long long dx = expectations[i].x - centroids[j - 1].x;
-					long long dy = expectations[i].y - centroids[j - 1].y;
-					min_dist_sq[i] = min(min_dist_sq[i], (double)dx * dx + dy * dy);
-					dist_sq_sum += min_dist_sq[i] + 1e-9;
+			vector<int> hilbert_order(N);
+			iota(hilbert_order.begin(), hilbert_order.end(), 0);
+			sort(hilbert_order.begin(), hilbert_order.end(), [&](int a, int b) {
+				return get_hilbert_order(expectations[a].x, expectations[a].y) < get_hilbert_order(expectations[b].x, expectations[b].y);
+			});
+			vector<int> prefix_sum(M + 1, 0);
+			rep(i, M) prefix_sum[i + 1] = prefix_sum[i] + G[i];
+			rep(j, M) {
+				int start_idx = min(prefix_sum[j], N);
+				int end_idx = min(prefix_sum[j + 1], N);
+				if (start_idx >= end_idx) {
+					centroids[j] = Point(rand_int() % FIELD_SIZE, rand_int() % FIELD_SIZE);
+					continue;
 				}
-				if(dist_sq_sum < 1e-9) {
-					for(int k=j; k<M; ++k)
-						centroids[k] = Point(rand_int()%FIELD_SIZE, rand_int()%FIELD_SIZE);
-					break;
+				long long sum_x = 0, sum_y = 0;
+				for (int k = start_idx; k < end_idx; k++) {
+					int point_id = hilbert_order[k];
+					sum_x += expectations[point_id].x;
+					sum_y += expectations[point_id].y;
 				}
-				uniform_real_distribution<double> dist(0.0, dist_sq_sum);
-				double r = dist(engine);
-				double current_sum = 0.0;
-				int next_centroid_idx = N - 1;
-				for (int i = 0; i < N; ++i) {
-					current_sum += min_dist_sq[i] + 1e-9;
-					if (r <= current_sum) {
-						next_centroid_idx = i;
-						break;
-					}
-				}
-				centroids[j] = expectations[next_centroid_idx];
-				min_dist_sq[next_centroid_idx] = 0;
+				int count = end_idx - start_idx;
+				centroids[j].x = llround((double)sum_x / count);
+				centroids[j].y = llround((double)sum_y / count);
 			}
-		} else {
-			rep(j, M)
-				centroids[j] = Point(FIELD_SIZE/2, FIELD_SIZE/2);
+			cerr << "Initial centroids calculated based on Hilbert order." << endl;
+		}
+		else {
+			rep(j, M) centroids[j] = Point(FIELD_SIZE / 2, FIELD_SIZE / 2);
 		}
 
-		vector<vector<int>> groupsAssign;
-		for (int iter = 0; iter < MAX_ITERATIONS; ++iter) {
-			if (utility::timer.elapsed() > TIME_LIMIT) break;
-			mcf_graph<int, long long> mcf(N + M + 2);
+		const int FIXED_ITERATIONS = 5;
+		vector<vector<int>> groupsAssign(M);
+		long long final_mcf_cost = -1;
+		for (int iter = 0; iter < FIXED_ITERATIONS; iter++) {
+			if (utility::timer.elapsed() > TIME_LIMIT - 50)
+				cerr << "Time limit reached during fixed MCF iteration " << iter + 1 << endl;
+			atcoder::mcf_graph<int, long long> mcf(N + M + 2);
 			int s = N + M, t = N + M + 1;
-			for (int i = 0; i < N; ++i)
-				mcf.add_edge(s, i, 1, 0);
-			for (int j = 0; j < M; ++j)
-				if (G[j] > 0)
-					mcf.add_edge(N + j, t, G[j], 0);
-			for (int i = 0; i < N; ++i) {
-				for (int j = 0; j < M; ++j) {
+			for (int i = 0; i < N; i++) mcf.add_edge(s, i, 1, 0);
+			for (int j = 0; j < M; j++) if (G[j] > 0) mcf.add_edge(N + j, t, G[j], 0);
+			for (int i = 0; i < N; i++) 
+				for (int j = 0; j < M; j++) {
 					if (G[j] == 0) continue;
 					long long dx = expectations[i].x - centroids[j].x;
 					long long dy = expectations[i].y - centroids[j].y;
 					long long cost = dx * dx + dy * dy;
 					mcf.add_edge(i, N + j, 1, cost);
 				}
-			}
 			auto result = mcf.flow(s, t, N);
-			if (result.first < N) break;
-			vector<vector<int>> current_groups(M);
-			vector<mcf_graph<int, long long>::edge> edges = mcf.edges();
-			for (const auto& edge : edges)
+			final_mcf_cost = result.second;
+			vector<vector<int>> current_groups_iter(M);
+			for (auto &edge : mcf.edges())
 				if (edge.from >= 0 && edge.from < N && edge.to >= N && edge.to < N + M && edge.flow == 1)
-					current_groups[edge.to - N].push_back(edge.from);
-			groupsAssign = current_groups;
+					current_groups_iter[edge.to - N].push_back(edge.from);
+			groupsAssign = current_groups_iter;
 			vector<Point> next_centroids(M);
-			for (int j = 0; j < M; ++j) {
-				if (current_groups[j].empty())
-					next_centroids[j] = centroids[j];
+			for (int j = 0; j < M; j++) {
+				if (groupsAssign[j].empty()) next_centroids[j] = centroids[j];
 				else {
 					long long sum_x = 0, sum_y = 0;
-					for (int point_id : current_groups[j]) {
-						sum_x += expectations[point_id].x;
-						sum_y += expectations[point_id].y;
+					for (auto pid : groupsAssign[j]) {
+						sum_x += expectations[pid].x;
+						sum_y += expectations[pid].y;
 					}
-					next_centroids[j].x = llround((double)sum_x / current_groups[j].size());
-					next_centroids[j].y = llround((double)sum_y / current_groups[j].size());
+					next_centroids[j].x = llround((double)sum_x / groupsAssign[j].size());
+					next_centroids[j].y = llround((double)sum_y / groupsAssign[j].size());
 				}
 			}
 			centroids = next_centroids;
+			cerr << " Iter " << iter + 1 << " finished. MCF cost: " << final_mcf_cost << endl;
 		}
 
-		for (auto& group : groupsAssign) {
+		for (auto &group : groupsAssign)
 			if (group.size() > 1)
 				sort(group.begin(), group.end(), [&](int a, int b) {
-					auto p_a = rects[a].getExpectation();
-					auto p_b = rects[b].getExpectation();
-					return get_hilbert_order(p_a.x, p_a.y) < get_hilbert_order(p_b.x, p_b.y);
+					return get_hilbert_order(expectations[a].x, expectations[a].y) < get_hilbert_order(expectations[b].x, expectations[b].y);
 				});
-		}
+		rep(j, M) if (groupsAssign[j].size() != (size_t)G[j])
+			cerr << "Critical Error: Final group size mismatch..." << endl;
 		return groupsAssign;
 	}
 
@@ -408,16 +415,28 @@ struct Solver {
 				sort(subGroup.begin(), subGroup.end());
 				auto subEdges = queryDivination(subGroup);
 				totalEdges.insert(totalEdges.end(), subEdges.begin(), subEdges.end());
+				// update the probabilities of the rectangles
+				processMSTEdges(subEdges, subGroup);
 			}
 		}
 		dsu uf(N);
+		rep(i, group.size()) rep(j, group.size()) {
+			int u = i / (L - 1), v = j / (L - 1);
+			if (u == v) continue;
+			auto [ax, ay] = rects[group[i]].getExpectation();
+			auto [bx, by] = rects[group[j]].getExpectation();
+			long long da = sqrt((long long)(ax - bx) * (ax - bx) + (long long)(ay - by) * (ay - by));
+			da += sqrt(rects[group[j]].getVariance());
+			if (da >= W) continue;
+			totalEdges.emplace_back(group[i], group[j]);
+		}
 		sort(totalEdges.begin(), totalEdges.end(), [&](const P &a, const P &b) {
 			auto [ax, ay] = rects[a.first].getExpectation();
 			auto [bx, by] = rects[a.second].getExpectation();
 			auto [cx, cy] = rects[b.first].getExpectation();
 			auto [dx, dy] = rects[b.second].getExpectation();
-			long long da = (long long)(ax - bx) * (ax - bx) + (long long)(ay - by) * (ay - by);
-			long long db = (long long)(cx - dx) * (cx - dx) + (long long)(cy - dy) * (cy - dy);
+			long long da = sqrt((long long)(ax - bx) * (ax - bx) + (long long)(ay - by) * (ay - by));
+			long long db = sqrt((long long)(cx - dx) * (cx - dx) + (long long)(cy - dy) * (cy - dy));
 			return da < db;
 		});
 		vector<P> mstEdges;
@@ -450,7 +469,7 @@ struct Solver {
 			}
 		}
 		sort(potential_edges.begin(), potential_edges.end());
-		atcoder::dsu uf(N);
+		dsu uf(N);
 		for (const auto& [dsq, u, v] : potential_edges) {
 			if (mst_edges.size() == (size_t)n - 1) break;
 			if (!uf.same(u, v)) {
@@ -474,6 +493,7 @@ struct Solver {
 			}
 		}
 		maxDivinations = max(0, maxDivinations);
+
 		rep(i, maxDivinations) {
 			if (utility::timer.elapsed() > TIME_LIMIT * 0.9)
 				break;
@@ -483,6 +503,7 @@ struct Solver {
 			processMSTEdges(mstEdges, group);
 		}
 		ansGroup = buildGroups();
+		return;
 	}
 
 	void output() {
@@ -500,6 +521,7 @@ struct Solver {
 			for (auto &[u, v] : mstEdges)
 				cout << u << " " << v << "\n" << flush;
 		}
+		cerr << "Code End Time: " << utility::timer.elapsed() << "ms\n";
 	}
 };
 
