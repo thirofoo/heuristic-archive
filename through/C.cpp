@@ -147,7 +147,7 @@ struct Solver {
           return INF_COST;
         costY = 2.0 * dist(py[u], py[v]);
       }
-      total += max(costX, costY);
+      total += costX + costY;
     }
     return total;
   }
@@ -276,14 +276,14 @@ struct Solver {
       cout << "0 0 0 0 0 0 0 0\n";
       return;
     }
-    cout << history[0][0].x << " " << history[0][0].y << " " 
-       << history[0][1].x << " " << history[0][1].y << " " 
-       << history[0][2].x << " " << history[0][2].y << " " 
+    cout << history[0][0].x << " " << history[0][0].y << " "
+       << history[0][1].x << " " << history[0][1].y << " "
+       << history[0][2].x << " " << history[0][2].y << " "
        << history[0][3].x << " " << history[0][3].y << "\n";
     for (size_t i = 1; i < history.size(); i++) {
-      cout << history[i][0].x << " " << history[i][0].y << " " 
-         << history[i][1].x << " " << history[i][1].y << " " 
-         << history[i][2].x << " " << history[i][2].y << " " 
+      cout << history[i][0].x << " " << history[i][0].y << " "
+         << history[i][1].x << " " << history[i][1].y << " "
+         << history[i][2].x << " " << history[i][2].y << " "
          << history[i][3].x << " " << history[i][3].y << "\n";
     }
   }
