@@ -112,7 +112,7 @@ fn dist2(p: (i64, i64), q: (i64, i64)) -> i64 {
     dx * dx + dy * dy
 }
 
-fn dist(p: (i64, i64), q: (i64, i64)) -> f64 {
+pub fn dist(p: (i64, i64), q: (i64, i64)) -> f64 {
     (dist2(p, q) as f64).sqrt()
 }
 
@@ -122,7 +122,7 @@ fn orient(a: (i64, i64), b: (i64, i64), p: (i64, i64)) -> i64 {
     dx1 * dy2 - dy1 * dx2
 }
 
-fn contains(p: (i64, i64), a: (i64, i64), b: (i64, i64), c: (i64, i64)) -> bool {
+pub fn contains(p: (i64, i64), a: (i64, i64), b: (i64, i64), c: (i64, i64)) -> bool {
     if orient(a, b, c) == 0 {
         if orient(a, b, p) != 0 || orient(a, c, p) != 0 {
             return false;
@@ -209,7 +209,7 @@ pub fn gen(seed: u64, problem: &str) -> Input {
 }
 
 pub fn compute_score(input: &Input, out: &Output) -> (i64, String) {
-    let (mut score, err, _) = compute_score_details(input, &out.out);
+    let (mut score, err, _, _) = compute_score_details(input, &out.out);
     if err.len() > 0 {
         score = 0;
     }
@@ -219,11 +219,21 @@ pub fn compute_score(input: &Input, out: &Output) -> (i64, String) {
 pub fn compute_score_details(
     input: &Input,
     out: &[((i64, i64), (i64, i64), (i64, i64), (i64, i64))],
-) -> (i64, String, (f64, Vec<bool>)) {
+) -> (
+    i64,
+    String,
+    (f64, Vec<bool>),
+    ((i64, i64), (i64, i64), (i64, i64), (i64, i64)),
+) {
     let mut done = vec![false; input.X + input.Y + input.Z];
     let mut sum = input.Z;
     if out.len() == 0 {
-        return (0, "Empty output".to_owned(), (0.0, done));
+        return (
+            0,
+            "Empty output".to_owned(),
+            (0.0, done),
+            ((0, 0), (0, 0), (0, 0), (0, 0)),
+        );
     }
     let (mut p1, mut q1, mut p2, mut q2) = out[0];
     let mut T = 0.0;
@@ -263,5 +273,5 @@ pub fn compute_score_details(
     } else {
         (1e6 * sum as f64 / (input.X + input.Y + input.Z) as f64).round() as i64
     };
-    (score, String::new(), (T, done))
+    (score, String::new(), (T, done), (p1, q1, p2, q2))
 }

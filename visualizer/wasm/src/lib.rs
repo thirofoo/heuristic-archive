@@ -1,9 +1,10 @@
 pub mod original;
 use original::{
-    compute_score, compute_score_details, parse_input, parse_output, Output, SetMinMax,
+    compute_score, compute_score_details, contains, dist, parse_input, parse_output, Output,
+    SetMinMax,
 };
 use std::collections::{HashMap, HashSet};
-use svg::node::element::{Circle, Group, Line, Rectangle, Text, Title};
+use svg::node::element::{Circle, Group, Line, Path, Rectangle, Text, Title};
 use wasm_bindgen::prelude::*;
 use web_sys::console;
 
@@ -72,6 +73,22 @@ fn get_colors(cnt: usize) -> Vec<HslaColor> {
     colors
 }
 
+fn create_triangle_svg(path: Vec<(f64, f64)>, color: &str) -> Path {
+    let mut path_str = String::new();
+    path_str.push('M');
+    path_str.push_str(&format!("{},{}", path[0].0, path[0].1));
+    for (x, y) in &path[1..] {
+        path_str.push_str(&format!(" L{},{}", x, y));
+    }
+    path_str.push_str(" Z");
+
+    Path::new()
+        .set("d", path_str)
+        .set("fill", format!("{}80", color))
+        .set("stroke", color)
+        .set("stroke-width", 1)
+}
+
 const BOARD_SIZE: usize = 1000000;
 
 #[wasm_bindgen]
@@ -89,7 +106,10 @@ pub fn vis(_input: String, _output: String, turn: usize) -> Ret {
     let truncated = Output {
         out: output.out[..turn].to_vec(),
     };
-    let res = compute_score(&input, &truncated);
+    let (mut score, err, _, (p1, q1, p2, q2)) = compute_score_details(&input, &truncated.out);
+    if err.len() > 0 {
+        score = 0;
+    }
 
     let mut group = Group::new();
 
@@ -129,13 +149,42 @@ pub fn vis(_input: String, _output: String, turn: usize) -> Ret {
         group = group.add(circle);
     }
 
+    let resized_p1 = (
+        (p1.0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64,
+        (p1.1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64,
+    );
+    let resized_q1 = (
+        (q1.0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64,
+        (q1.1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64,
+    );
+    let resized_p2 = (
+        (p2.0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64,
+        (p2.1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64,
+    );
+    let resized_q2 = (
+        (q2.0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64,
+        (q2.1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64,
+    );
+
+    // 三角形 p1, q1, p2を表示
+    group = group.add(create_triangle_svg(
+        vec![resized_p1, resized_q1, resized_p2],
+        "#ff0000",
+    ));
+
+    // 三角形 q1, p2, q2を表示
+    group = group.add(create_triangle_svg(
+        vec![resized_q1, resized_p2, resized_q2],
+        "#00ff00",
+    ));
+
     let svg = svg::Document::new()
         .set("width", SVG_WIDTH)
         .set("height", SVG_HEIGHT)
         .add(group);
 
     Ret {
-        score: res.0,
+        score,
         err: "".to_string(),
         svg: svg.to_string(),
     }
