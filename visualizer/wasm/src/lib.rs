@@ -162,36 +162,64 @@ pub fn vis(_input: String, _output: String, turn: usize) -> Ret {
         group = group.add(circle);
     }
 
-    let resized_p1 = (
-        (p1.0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64,
-        (p1.1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64,
-    );
-    let resized_q1 = (
-        (q1.0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64,
-        (q1.1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64,
-    );
-    let resized_p2 = (
-        (p2.0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64,
-        (p2.1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64,
-    );
-    let resized_q2 = (
-        (q2.0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64,
-        (q2.1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64,
-    );
+    if 0 < turn && turn < output.out.len() {
+        let resized_ta_l1 = (
+            (output.out[turn - 1].0 .0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64,
+            (output.out[turn - 1].0 .1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64,
+        );
+        let resized_ta_r1 = (
+            (output.out[turn - 1].1 .0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64,
+            (output.out[turn - 1].1 .1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64,
+        );
+        let resized_ao_l1 = (
+            (output.out[turn - 1].2 .0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64,
+            (output.out[turn - 1].2 .1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64,
+        );
+        let resized_ao_r1 = (
+            (output.out[turn - 1].3 .0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64,
+            (output.out[turn - 1].3 .1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64,
+        );
+        let resized_ta_l2 = (
+            (output.out[turn].0 .0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64,
+            (output.out[turn].0 .1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64,
+        );
+        let resized_ta_r2 = (
+            (output.out[turn].1 .0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64,
+            (output.out[turn].1 .1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64,
+        );
+        let resized_ao_l2 = (
+            (output.out[turn].2 .0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64,
+            (output.out[turn].2 .1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64,
+        );
+        let resized_ao_r2 = (
+            (output.out[turn].3 .0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64,
+            (output.out[turn].3 .1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64,
+        );
 
-    // 三角形 p1, q1, p2を表示
-    group = group.add(create_triangle_svg(
-        vec![resized_p1, resized_q1, resized_p2],
-        "#ff0000",
-    ));
+        // takahashi 三角形 p q p'
+        group = group.add(create_triangle_svg(
+            vec![resized_ta_l1, resized_ta_r1, resized_ta_l2],
+            &encode_to_hsla(colors[0]),
+        ));
+        // takahashi 三角形 p' q q'
+        group = group.add(create_triangle_svg(
+            vec![resized_ta_l2, resized_ta_r1, resized_ta_r2],
+            &encode_to_hsla(colors[0]),
+        ));
 
-    // 三角形 q1, p2, q2を表示
-    group = group.add(create_triangle_svg(
-        vec![resized_q1, resized_p2, resized_q2],
-        "#00ff00",
-    ));
+        // aoki 三角形 p q p'
+        group = group.add(create_triangle_svg(
+            vec![resized_ao_l1, resized_ao_r1, resized_ao_l2],
+            &encode_to_hsla(colors[1]),
+        ));
+        // aoki 三角形 p' q q'
+        group = group.add(create_triangle_svg(
+            vec![resized_ao_l2, resized_ao_r1, resized_ao_r2],
+            &encode_to_hsla(colors[1]),
+        ));
+    }
 
-    // 右上にtimeを表示
+    // 左下にtimeを表示
     let text = Text::new(format!("Time: {:.2}", time))
         .set("x", 0)
         .set("y", SVG_HEIGHT - 20)
