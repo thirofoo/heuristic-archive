@@ -1,0 +1,17 @@
+[package]
+name = "solver"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[dependencies]
+ac-library-rs = "0.1.1"
+fixedbitset = "0.5.7"
+itertools = "0.13.0"
+proconio = "0.5.0"
+rand = "0.8.5"
+rand_pcg = "0.3.1"
+rustc-hash = "2.0.0"
+
+[build-dependencies]
+rustsourcebundler = { git = "https://github.com/sor4chi/rust-sourcebundler" }

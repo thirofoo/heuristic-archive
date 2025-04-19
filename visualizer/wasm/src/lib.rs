@@ -73,20 +73,50 @@ fn get_colors(cnt: usize) -> Vec<HslaColor> {
     colors
 }
 
-fn create_triangle_svg(path: Vec<(f64, f64)>, color: &str) -> Path {
+fn create_triangle_svg(path: Vec<(i64, i64)>, color: &str) -> Group {
+    let normalized_path = path
+        .iter()
+        .map(|&(x, y)| {
+            (
+                (x as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64,
+                (y as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64,
+            )
+        })
+        .collect::<Vec<_>>();
     let mut path_str = String::new();
     path_str.push('M');
-    path_str.push_str(&format!("{},{}", path[0].0, path[0].1));
-    for (x, y) in &path[1..] {
+    path_str.push_str(&format!(
+        "{},{}",
+        normalized_path[0].0, normalized_path[0].1
+    ));
+    for (x, y) in &normalized_path[1..] {
         path_str.push_str(&format!(" L{},{}", x, y));
     }
     path_str.push_str(" Z");
 
-    Path::new()
-        .set("d", path_str)
-        .set("fill", format!("{}30", color))
-        .set("stroke", format!("{}cc", color))
-        .set("stroke-width", 1)
+    let mut group = Group::new();
+    group = group.add(
+        Path::new()
+            .set("d", path_str)
+            .set("fill", format!("{}30", color))
+            .set("stroke", format!("{}cc", color))
+            .set("stroke-width", 1),
+    );
+    // 各頂点に円を描画
+    for i in 0..normalized_path.len() {
+        let (x, y) = normalized_path[i];
+        let (real_x, real_y) = path[i];
+        let circle = Circle::new()
+            .set("cx", x)
+            .set("cy", y)
+            .set("r", 5)
+            .set("fill", color);
+        let title = Title::new(format!("({:.2}, {:.2})", real_x, real_y));
+        let mut circle_group = Group::new();
+        circle_group = circle_group.add(circle).add(title);
+        group = group.add(circle_group);
+    }
+    group
 }
 
 const BOARD_SIZE: usize = 1000000;
@@ -163,38 +193,14 @@ pub fn vis(_input: String, _output: String, turn: usize) -> Ret {
     }
 
     if 0 < turn && turn < output.out.len() {
-        let resized_ta_l1 = (
-            (output.out[turn - 1].0 .0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64,
-            (output.out[turn - 1].0 .1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64,
-        );
-        let resized_ta_r1 = (
-            (output.out[turn - 1].1 .0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64,
-            (output.out[turn - 1].1 .1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64,
-        );
-        let resized_ao_l1 = (
-            (output.out[turn - 1].2 .0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64,
-            (output.out[turn - 1].2 .1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64,
-        );
-        let resized_ao_r1 = (
-            (output.out[turn - 1].3 .0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64,
-            (output.out[turn - 1].3 .1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64,
-        );
-        let resized_ta_l2 = (
-            (output.out[turn].0 .0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64,
-            (output.out[turn].0 .1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64,
-        );
-        let resized_ta_r2 = (
-            (output.out[turn].1 .0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64,
-            (output.out[turn].1 .1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64,
-        );
-        let resized_ao_l2 = (
-            (output.out[turn].2 .0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64,
-            (output.out[turn].2 .1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64,
-        );
-        let resized_ao_r2 = (
-            (output.out[turn].3 .0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64,
-            (output.out[turn].3 .1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64,
-        );
+        let resized_ta_l1 = (output.out[turn - 1].0 .0, output.out[turn - 1].0 .1);
+        let resized_ta_r1 = (output.out[turn - 1].1 .0, output.out[turn - 1].1 .1);
+        let resized_ao_l1 = (output.out[turn - 1].2 .0, output.out[turn - 1].2 .1);
+        let resized_ao_r1 = (output.out[turn - 1].3 .0, output.out[turn - 1].3 .1);
+        let resized_ta_l2 = (output.out[turn].0 .0, output.out[turn].0 .1);
+        let resized_ta_r2 = (output.out[turn].1 .0, output.out[turn].1 .1);
+        let resized_ao_l2 = (output.out[turn].2 .0, output.out[turn].2 .1);
+        let resized_ao_r2 = (output.out[turn].3 .0, output.out[turn].3 .1);
 
         // takahashi 三角形 p q p'
         group = group.add(create_triangle_svg(
