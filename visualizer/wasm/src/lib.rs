@@ -106,7 +106,8 @@ pub fn vis(_input: String, _output: String, turn: usize) -> Ret {
     let truncated = Output {
         out: output.out[..turn].to_vec(),
     };
-    let (mut score, err, _, (p1, q1, p2, q2)) = compute_score_details(&input, &truncated.out);
+    let (mut score, err, (time, done), (p1, q1, p2, q2)) =
+        compute_score_details(&input, &truncated.out);
     if err.len() > 0 {
         score = 0;
     }
@@ -116,6 +117,10 @@ pub fn vis(_input: String, _output: String, turn: usize) -> Ret {
     // X, Y, Zをそれぞれ表示
     let colors = get_colors(3);
     for i in 0..input.X {
+        let idx = i as usize;
+        if done[idx] {
+            continue;
+        }
         let x = (input.ps[i].0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64;
         let y = (input.ps[i].1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64;
         let color = encode_to_hsla(colors[0]);
@@ -127,8 +132,12 @@ pub fn vis(_input: String, _output: String, turn: usize) -> Ret {
         group = group.add(circle);
     }
     for i in 0..input.Y {
-        let x = (input.ps[input.X + i].0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64;
-        let y = (input.ps[input.X + i].1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64;
+        let idx = (input.X + i) as usize;
+        if done[idx] {
+            continue;
+        }
+        let x = (input.ps[idx].0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64;
+        let y = (input.ps[idx].1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64;
         let color = encode_to_hsla(colors[1]);
         let circle = Circle::new()
             .set("cx", x)
@@ -138,8 +147,12 @@ pub fn vis(_input: String, _output: String, turn: usize) -> Ret {
         group = group.add(circle);
     }
     for i in 0..input.Z {
-        let x = (input.ps[input.X + input.Y + i].0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64;
-        let y = (input.ps[input.X + input.Y + i].1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64;
+        let idx = (input.X + input.Y + i) as usize;
+        if done[idx] {
+            continue;
+        }
+        let x = (input.ps[idx].0 as f64) * SVG_WIDTH as f64 / BOARD_SIZE as f64;
+        let y = (input.ps[idx].1 as f64) * SVG_HEIGHT as f64 / BOARD_SIZE as f64;
         let color = encode_to_hsla(colors[2]);
         let circle = Circle::new()
             .set("cx", x)
@@ -177,6 +190,14 @@ pub fn vis(_input: String, _output: String, turn: usize) -> Ret {
         vec![resized_q1, resized_p2, resized_q2],
         "#00ff00",
     ));
+
+    // 右上にtimeを表示
+    let text = Text::new(format!("Time: {:.2}", time))
+        .set("x", 0)
+        .set("y", SVG_HEIGHT - 20)
+        .set("font-size", 16)
+        .set("fill", "black");
+    group = group.add(text);
 
     let svg = svg::Document::new()
         .set("width", SVG_WIDTH)
