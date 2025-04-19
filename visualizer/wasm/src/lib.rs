@@ -23,8 +23,8 @@ pub struct Ret {
 
 const SVG_WIDTH: usize = 800;
 const SVG_HEIGHT: usize = 800;
-const COLOR_HOTTEST_HSLA: &str = "hsl(349, 100%, 56%, 0.8)"; // #ff1e46 * 0.8
-const COLOR_COOLEST_HSLA: &str = "hsl(210, 100%, 56%, 0.8)"; // #1e90ff * 0.8
+const COLOR_HOTTEST_HSLA: &str = "hsl(349, 100%, 40%, 0.8)"; // #ff1e46 * 0.8
+const COLOR_COOLEST_HSLA: &str = "hsl(210, 100%, 40%, 0.8)"; // #1e90ff * 0.8
 
 #[derive(Debug, Clone, Copy)]
 struct HslaColor {
