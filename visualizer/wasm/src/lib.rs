@@ -84,8 +84,8 @@ fn create_triangle_svg(path: Vec<(f64, f64)>, color: &str) -> Path {
 
     Path::new()
         .set("d", path_str)
-        .set("fill", format!("{}80", color))
-        .set("stroke", color)
+        .set("fill", format!("{}30", color))
+        .set("stroke", format!("{}cc", color))
         .set("stroke-width", 1)
 }
 
@@ -199,23 +199,23 @@ pub fn vis(_input: String, _output: String, turn: usize) -> Ret {
         // takahashi 三角形 p q p'
         group = group.add(create_triangle_svg(
             vec![resized_ta_l1, resized_ta_r1, resized_ta_l2],
-            &encode_to_hsla(colors[0]),
+            "#ff1e46",
         ));
         // takahashi 三角形 p' q q'
         group = group.add(create_triangle_svg(
             vec![resized_ta_l2, resized_ta_r1, resized_ta_r2],
-            &encode_to_hsla(colors[0]),
+            "#ff1e46",
         ));
 
         // aoki 三角形 p q p'
         group = group.add(create_triangle_svg(
             vec![resized_ao_l1, resized_ao_r1, resized_ao_l2],
-            &encode_to_hsla(colors[1]),
+            "#1e90ff",
         ));
         // aoki 三角形 p' q q'
         group = group.add(create_triangle_svg(
             vec![resized_ao_l2, resized_ao_r1, resized_ao_r2],
-            &encode_to_hsla(colors[1]),
+            "#1e90ff",
         ));
     }
 
