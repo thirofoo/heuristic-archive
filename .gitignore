@@ -1,0 +1,7 @@
+/tools/*
+_in
+_out
+_err
+main
+local_visualizer
+venv
