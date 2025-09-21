@@ -196,47 +196,60 @@ struct Solver {
     return;
   }
 
-  inline bool can_place_C(int x, int y, const vector<P>& ng_positions) {
+  queue<P> que;
+  inline bool can_place_C(int x, int y, const vector<P>& ng_positions, const vector<P>& ok_positions) {
     for(const auto& [dx, dy] : ng_positions) {
       int nx = x + dx, ny = y + dy;
       if(outField(P(nx, ny), N, N) || initial_board[nx][ny] != '.') return false;
     }
-    return true;
+
+    // (x, y) ⇔ (0, (N + 1) / 2) 間に道があるかどうか
+    que.push(P(0, (N + 1) / 2));
+    vector<vector<bool>> visited(N, vector<bool>(N, false));
+    while(!que.empty()) {
+      auto [now_x, now_y] = que.front(); que.pop();
+      if(visited[now_x][now_y]) continue;
+      visited[now_x][now_y] = true;
+      for(const auto& [dx, dy] : arr4) {
+        int nx = now_x + dx, ny = now_y + dy;
+        bool ng = outField(P(nx, ny), N, N) || initial_board[nx][ny] != '.' || visited[nx][ny];
+        for(const auto& [ddx, ddy] : ok_positions) {
+          if(nx == x + ddx && ny == y + ddy) ng = true;
+        }
+        if(ng) continue;
+        que.push(P(nx, ny));
+      }
+    }
+    return visited[x][y];
   }
 
   void solve() {
     // まず花の周りに C を配置する
     auto [fx, fy] = flower_pos;
     for(const auto& pos : C_positions) {
-      if(!can_place_C(fx, fy, pos.ng_positions)) continue;
+      if(!can_place_C(fx, fy, pos.ng_positions, pos.ok_positions)) continue;
       for(const auto& [dx, dy] : pos.ok_positions) {
         int ni = fx + dx, nj = fy + dy;
         if(outField(P(ni, nj), N, N) || initial_board[ni][nj] != '.') continue;
         initial_board[ni][nj] = 'C';
       }
-
-      queue<P> que;
-      que.push(P(0, (N + 1) / 2));
-      vector<vector<bool>> visited(N, vector<bool>(N, false));
-      while(!que.empty()) {
-        auto [x, y] = que.front(); que.pop();
-        if(visited[x][y]) continue;
-        visited[x][y] = true;
-        for(const auto& [dx, dy] : arr4) {
-          int nx = x + dx, ny = y + dy;
-          if(outField(P(nx, ny), N, N) || initial_board[nx][ny] != '.') continue;
-          que.push(P(nx, ny));
-        }
-      }
-      if(!visited[flower_pos.first][flower_pos.second]) {
-        for(const auto& [dx, dy] : pos.ok_positions) {
-          int ni = fx + dx, nj = fy + dy;
-          if(outField(P(ni, nj), N, N) || initial_board[ni][nj] != 'C') continue;
-          initial_board[ni][nj] = '.';
-        }
-        continue;
-      }
       break;
+    }
+
+    // 他の場所に出来るだけ C を配置する
+    rep(i, N) {
+      rep(j, N) {
+        if(initial_board[i][j] != '.') continue;
+        for(const auto& pos : C_positions) {
+          if(!can_place_C(i, j, pos.ng_positions, pos.ok_positions)) continue;
+          for(const auto& [dx, dy] : pos.ok_positions) {
+            int ni = i + dx, nj = j + dy;
+            if(outField(P(ni, nj), N, N) || initial_board[ni][nj] != '.') continue;
+            initial_board[ni][nj] = 'C';
+          }
+          break;
+        }
+      }
     }
     return;
   }
