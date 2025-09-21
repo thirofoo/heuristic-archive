@@ -30,13 +30,6 @@ inline double rand_double() {
   return (double) (rand_int() % (int) 1e9) / 1e9;
 }
 
-inline double gaussian(double mean, double stddev) {
-  // 標準正規分布からの乱数生成（Box-Muller変換
-  double z0 = sqrt(-2.0 * log(rand_double())) * cos(2.0 * M_PI * rand_double());
-  // 平均と標準偏差の変換
-  return mean + z0 * stddev;
-}
-
 // 温度関数
 #define TIME_LIMIT 2950
 inline double temp(double start) {
@@ -65,13 +58,13 @@ struct C_shape {
 static vector<C_shape> C_positions = {
   /*
       .#.
+      ..#
       #x#
-      #..
       .#.
   */
   C_shape{
-    .ok_positions = {P(-1, 0), P(0, -1), P(0, 1), P(1, -1), P(2, 0)},
-    .ng_positions = {P(0, 0), P(1, 0), P(1, 1)}
+    .ok_positions = {P(-2, 0), P(-1, 1), P(0, -1), P(0, 1), P(1, 0)},
+    .ng_positions = {P(-1, 0), P(0, 0), P(-1, -1)}
   },
 
   /*
@@ -85,15 +78,6 @@ static vector<C_shape> C_positions = {
     .ng_positions = {P(0, 0), P(1, 0), P(1, -1)}
   },
 
-  /*
-      .#..
-      #x.#
-      .##.
-  */
-  C_shape{
-    .ok_positions = {P(-1, 0), P(0, -1), P(0, 2), P(1, 0), P(1, 1)},
-    .ng_positions = {P(0, 0), P(0, 1), P(-1, 1)}
-  },
 
   /*
       .##.
@@ -116,27 +100,6 @@ static vector<C_shape> C_positions = {
   },
 
   /*
-      ..#.
-      #.x#
-      .##.
-  */
-  C_shape{
-    .ok_positions = {P(1, -1), P(-1, 0), P(0, -2), P(0, 1), P(1, 0)},
-    .ng_positions = {P(0, 0), P(0, -1), P(-1, -1)}
-  },
-  
-  /*
-      .#.
-      ..#
-      #x#
-      .#.
-  */
-  C_shape{
-    .ok_positions = {P(-2, 0), P(-1, 1), P(0, -1), P(0, 1), P(1, 0)},
-    .ng_positions = {P(-1, 0), P(0, 0), P(-1, -1)}
-  },
-
-  /*
       .#.
       #..
       #x#
@@ -145,7 +108,39 @@ static vector<C_shape> C_positions = {
   C_shape{
     .ok_positions = {P(-2, 0), P(-1, -1), P(0, -1), P(0, 1), P(1, 0)},
     .ng_positions = {P(-1, 0), P(0, 0), P(-1, 1)}
-  }
+  },
+
+  /*
+      .#.
+      #x#
+      #..
+      .#.
+  */
+  C_shape{
+    .ok_positions = {P(-1, 0), P(0, -1), P(0, 1), P(1, -1), P(2, 0)},
+    .ng_positions = {P(0, 0), P(1, 0), P(1, 1)}
+  },
+
+
+  /*
+      .#..
+      #x.#
+      .##.
+  */
+  C_shape{
+    .ok_positions = {P(-1, 0), P(0, -1), P(0, 2), P(1, 0), P(1, 1)},
+    .ng_positions = {P(0, 0), P(0, 1), P(-1, 1)}
+  },
+
+  /*
+      ..#.
+      #.x#
+      .##.
+  */
+  C_shape{
+    .ok_positions = {P(1, -1), P(-1, 0), P(0, -2), P(0, 1), P(1, 0)},
+    .ng_positions = {P(0, 0), P(0, -1), P(-1, -1)}
+  },
 };
 
 inline bool outField(P now, int h, int w) {
@@ -197,36 +192,63 @@ struct Solver {
   }
 
   queue<P> que;
+  vector<P> visitable_positions;
   inline bool can_place_C(int x, int y, const vector<P>& ng_positions, const vector<P>& ok_positions) {
+    // 通り道を塞がれていない判定
     for(const auto& [dx, dy] : ng_positions) {
       int nx = x + dx, ny = y + dy;
       if(outField(P(nx, ny), N, N) || initial_board[nx][ny] != '.') return false;
     }
 
-    // (x, y) ⇔ (0, (N + 1) / 2) 間に道があるかどうか
-    que.push(P(0, (N + 1) / 2));
-    vector<vector<bool>> visited(N, vector<bool>(N, false));
-    while(!que.empty()) {
-      auto [now_x, now_y] = que.front(); que.pop();
-      if(visited[now_x][now_y]) continue;
-      visited[now_x][now_y] = true;
-      for(const auto& [dx, dy] : arr4) {
-        int nx = now_x + dx, ny = now_y + dy;
-        bool ng = outField(P(nx, ny), N, N) || initial_board[nx][ny] != '.' || visited[nx][ny];
-        for(const auto& [ddx, ddy] : ok_positions) {
-          if(nx == x + ddx && ny == y + ddy) ng = true;
+    // 花の位置 or start 位置は避ける判定
+    for(const auto& [dx, dy] : ok_positions) {
+      int nx = x + dx, ny = y + dy;
+      if(nx == flower_pos.first && ny == flower_pos.second) return false;
+      if(nx == 0 && ny == N / 2) return false;
+    }
+
+    // visitable_positions ⇔ (0, N / 2) 間に道がある判定
+    visitable_positions.push_back(P(x, y));
+    dsu uf(N * N);
+    bool ng;
+    rep(i, N) {
+      rep(j, N) {
+        if(initial_board[i][j] != '.') continue;
+        ng = false;
+        for(const auto& [dx, dy] : ok_positions) {
+          if(i == x + dx && j == y + dy) ng = true;
         }
         if(ng) continue;
-        que.push(P(nx, ny));
+
+        for(const auto& [dx, dy] : arr4) {
+          int ni = i + dx, nj = j + dy;
+          ng = outField(P(ni, nj), N, N) || initial_board[ni][nj] != '.';
+          for(const auto& [odx, ody] : ok_positions) {
+            if(ni == x + odx && nj == y + ody) ng = true;
+          }
+          if(ng) continue;
+          uf.merge(i * N + j, ni * N + nj);
+        }
       }
     }
-    return visited[x][y];
+    for(const auto& [vx, vy] : visitable_positions) {
+      if(uf.same(vx * N + vy, 0 * N + N / 2)) continue;
+      visitable_positions.pop_back();
+      return false;
+    }
+    return true;
   }
 
   void solve() {
     // まず花の周りに C を配置する
     auto [fx, fy] = flower_pos;
-    for(const auto& pos : C_positions) {
+
+    int initial_start_idx;
+    if(fy < N / 2) initial_start_idx = 0;
+    else initial_start_idx = 4;
+
+    rep(i, POS_SIZE) {
+      const auto& pos = C_positions[(initial_start_idx + i) % POS_SIZE];
       if(!can_place_C(fx, fy, pos.ng_positions, pos.ok_positions)) continue;
       for(const auto& [dx, dy] : pos.ok_positions) {
         int ni = fx + dx, nj = fy + dy;
@@ -240,7 +262,13 @@ struct Solver {
     rep(i, N) {
       rep(j, N) {
         if(initial_board[i][j] != '.') continue;
-        for(const auto& pos : C_positions) {
+
+        int start_idx;
+        if(j < N / 2) start_idx = 0;
+        else start_idx = 4;
+
+        rep(k, POS_SIZE) {
+          const auto& pos = C_positions[(start_idx + k) % POS_SIZE];
           if(!can_place_C(i, j, pos.ng_positions, pos.ok_positions)) continue;
           for(const auto& [dx, dy] : pos.ok_positions) {
             int ni = i + dx, nj = j + dy;
