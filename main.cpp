@@ -45,9 +45,9 @@ inline double prob(int best, int now, int start) {
 //-----------------以下から実装部分-----------------//
 using P = pair<int, int>;
 
-// up | down | left | right
+// right | down | left | up
 #define DIR_NUM 4
-vector<P> arr4 = {P(-1, 0), P(1, 0), P(0, -1), P(0, 1)};
+vector<P> arr4 = {P(0, 1), P(1, 0), P(0, -1), P(-1, 0)};
 
 // C 型配置全列挙
 static int POS_SIZE = 8;
@@ -56,16 +56,6 @@ struct C_shape {
 };
 
 static vector<C_shape> C_positions = {
-  /*
-      ..#.
-      #.x#
-      .##.
-  */
-  C_shape{
-    .ok_positions = {P(1, -1), P(-1, 0), P(0, -2), P(0, 1), P(1, 0)},
-    .ng_positions = {P(0, 0), P(0, -1), P(-1, -1)}
-  },
-
   /*
       .#.
       ..#
@@ -86,6 +76,17 @@ static vector<C_shape> C_positions = {
   C_shape{
     .ok_positions = {P(-1, 0), P(0, -1), P(0, 1), P(1, 1), P(2, 0)},
     .ng_positions = {P(0, 0), P(1, 0), P(1, -1)}
+  },
+
+
+  /*
+      .##.
+      #x.#
+      .#..
+  */
+  C_shape{
+    .ok_positions = {P(-1, 0), P(0, -1), P(0, 2), P(1, 0), P(-1, 1)},
+    .ng_positions = {P(0, 0), P(0, 1), P(1, 1)}
   },
 
   /*
@@ -109,6 +110,17 @@ static vector<C_shape> C_positions = {
     .ng_positions = {P(-1, 0), P(0, 0), P(-1, 1)}
   },
 
+  /*
+      .#.
+      #x#
+      #..
+      .#.
+  */
+  C_shape{
+    .ok_positions = {P(-1, 0), P(0, -1), P(0, 1), P(1, -1), P(2, 0)},
+    .ng_positions = {P(0, 0), P(1, 0), P(1, 1)}
+  },
+
 
   /*
       .#..
@@ -121,24 +133,13 @@ static vector<C_shape> C_positions = {
   },
 
   /*
+      ..#.
+      #.x#
       .##.
-      #x.#
-      .#..
   */
   C_shape{
-    .ok_positions = {P(-1, 0), P(0, -1), P(0, 2), P(1, 0), P(-1, 1)},
-    .ng_positions = {P(0, 0), P(0, 1), P(1, 1)}
-  },
-
-  /*
-      .#.
-      #x#
-      #..
-      .#.
-  */
-  C_shape{
-    .ok_positions = {P(-1, 0), P(0, -1), P(0, 1), P(1, -1), P(2, 0)},
-    .ng_positions = {P(0, 0), P(1, 0), P(1, 1)}
+    .ok_positions = {P(1, -1), P(-1, 0), P(0, -2), P(0, 1), P(1, 0)},
+    .ng_positions = {P(0, 0), P(0, -1), P(-1, -1)}
   },
 };
 
@@ -150,7 +151,7 @@ inline bool outField(P now, int h, int w) {
 
 struct Solver {
   int N;
-  vector<string> initial_board, final_board, now_board;
+  vector<string> initial_board;
   P flower_pos;
 
   Solver() {
@@ -170,7 +171,7 @@ struct Solver {
     vector<P> C_list;
     rep(i, N) {
       rep(j, N) {
-        if(final_board[i][j] == 'C') {
+        if(initial_board[i][j] == 'C') {
           C_list.emplace_back(i, j);
         }
       }
@@ -192,17 +193,11 @@ struct Solver {
 
   queue<P> que;
   vector<P> visitable_positions;
-  inline bool can_place_C(
-    int x,
-    int y,
-    const vector<P>& ng_positions,
-    const vector<P>& ok_positions,
-    const vector<string>& board
-  ) {
+  inline bool can_place_C(int x, int y, const vector<P>& ng_positions, const vector<P>& ok_positions) {
     // 通り道を塞がれていない判定
     for(const auto& [dx, dy] : ng_positions) {
       int nx = x + dx, ny = y + dy;
-      if(outField(P(nx, ny), N, N) || board[nx][ny] != '.') return false;
+      if(outField(P(nx, ny), N, N) || initial_board[nx][ny] != '.') return false;
     }
 
     // 花の位置 or start 位置は避ける判定
@@ -213,12 +208,20 @@ struct Solver {
     }
 
     // visitable_positions ⇔ (0, N / 2) 間に道がある判定
+    if(visitable_positions.empty()) {
+      // 四隅と花を追加
+      if(initial_board[0][0] == '.') visitable_positions.push_back(P(0, 0));
+      if(initial_board[0][N - 1] == '.') visitable_positions.push_back(P(0, N - 1));
+      if(initial_board[N - 1][0] == '.') visitable_positions.push_back(P(N - 1, 0));
+      if(initial_board[N - 1][N - 1] == '.') visitable_positions.push_back(P(N - 1, N - 1));
+      visitable_positions.push_back(flower_pos);
+    }
     visitable_positions.push_back(P(x, y));
     dsu uf(N * N);
     bool ng;
     rep(i, N) {
       rep(j, N) {
-        if(board[i][j] != '.') continue;
+        if(initial_board[i][j] != '.') continue;
         ng = false;
         for(const auto& [dx, dy] : ok_positions) {
           if(i == x + dx && j == y + dy) ng = true;
@@ -227,7 +230,7 @@ struct Solver {
 
         for(const auto& [dx, dy] : arr4) {
           int ni = i + dx, nj = j + dy;
-          ng = outField(P(ni, nj), N, N) || board[ni][nj] != '.';
+          ng = outField(P(ni, nj), N, N) || initial_board[ni][nj] != '.';
           for(const auto& [odx, ody] : ok_positions) {
             if(ni == x + odx && nj == y + ody) ng = true;
           }
@@ -245,69 +248,70 @@ struct Solver {
   }
 
   void solve() {
-    int final_score = 0;
+    // まず花の周りに C を配置する
+    auto [fx, fy] = flower_pos;
 
-    for(int initial_start_idx = 0; initial_start_idx < POS_SIZE; initial_start_idx++) {
-      now_board = initial_board;
+    int initial_start_idx;
+    if(fy < N / 2) initial_start_idx = 0;
+    else initial_start_idx = 4;
 
-      // まず花の周りに C を配置する
-      auto [fx, fy] = flower_pos;
-  
-      rep(i, POS_SIZE) {
-        const auto& pos = C_positions[(initial_start_idx + i) % POS_SIZE];
-        if(!can_place_C(fx, fy, pos.ng_positions, pos.ok_positions, now_board)) continue;
-        for(const auto& [dx, dy] : pos.ok_positions) {
-          int ni = fx + dx, nj = fy + dy;
-          if(outField(P(ni, nj), N, N) || now_board[ni][nj] != '.') continue;
-          now_board[ni][nj] = 'C';
-        }
-        break;
+    rep(i, POS_SIZE) {
+      const auto& pos = C_positions[(initial_start_idx + i) % POS_SIZE];
+      if(!can_place_C(fx, fy, pos.ng_positions, pos.ok_positions)) continue;
+      for(const auto& [dx, dy] : pos.ok_positions) {
+        int ni = fx + dx, nj = fy + dy;
+        if(outField(P(ni, nj), N, N) || initial_board[ni][nj] != '.') continue;
+        initial_board[ni][nj] = 'C';
       }
-  
-      // 他の場所に出来るだけ C を配置する
-      rep(i, N) {
-        rep(j, N) {
-          if(now_board[i][j] != '.') continue;
-  
-          int start_idx;
-          if(j < N / 2) start_idx = 0;
-          else start_idx = 4;
-  
-          rep(k, POS_SIZE) {
-            const auto& pos = C_positions[(start_idx + k) % POS_SIZE];
-            if(!can_place_C(i, j, pos.ng_positions, pos.ok_positions, now_board)) continue;
-            for(const auto& [dx, dy] : pos.ok_positions) {
-              int ni = i + dx, nj = j + dy;
-              if(outField(P(ni, nj), N, N) || now_board[ni][nj] != '.') continue;
-              now_board[ni][nj] = 'C';
-            }
-            break;
+      break;
+    }
+
+    // 次にスネーク上かつ連結になるように木を配置する (幅 5 マスから)
+    dsu tmp_uf(N * N);
+    for(int j = 4; j < N - 4; j += 5) {
+      if(abs((j / 5) - (fy / 5)) <= 0) continue;
+      for(int i = (j % 2 == 0 ? 0 : N - 1); (j % 2 == 0 ? i < N : i >= 0); (j % 2 == 0 ? i++ : i--)) {
+        if(initial_board[i][j] != '.') continue;
+        if(i == flower_pos.first && j == flower_pos.second) continue;
+        if(i == 0 && j == N / 2) continue;
+
+        tmp_uf = dsu(N * N);
+        rep(x, N) rep(y, N) {
+          if(initial_board[x][y] != '.' || (x == i && y == j)) continue;
+          rep(d, DIR_NUM) {
+            int nx = x + arr4[d].first, ny = y + arr4[d].second;
+            if(outField(P(nx, ny), N, N) || initial_board[nx][ny] != '.' || (nx == i && ny == j)) continue;
+            tmp_uf.merge(x * N + y, nx * N + ny);
           }
         }
+        if(initial_board[0][0] == '.' && !tmp_uf.same(0 * N + 0, 0 * N + N / 2)) continue;
+        if(initial_board[0][N - 1] == '.' && !tmp_uf.same(0 * N + (N - 1), 0 * N + N / 2)) continue;
+        if(initial_board[N - 1][0] == '.' && !tmp_uf.same((N - 1) * N + 0, 0 * N + N / 2)) continue;
+        if(initial_board[N - 1][N - 1] == '.' && !tmp_uf.same((N - 1) * N + (N - 1), 0 * N + N / 2)) continue;
+        if(!tmp_uf.same(flower_pos.first * N + flower_pos.second, 0 * N + N / 2)) continue;
+        initial_board[i][j] = 'C';
       }
+    }
 
-      // now_board のうち、(0, N / 2) ⇔ flower_pos の最短距離が最も長いものを final_board とする
-      int cand_score = -1;
-      auto dfs = [&](auto&& f, P now, int dist, vector<vector<bool>>& visited) -> void {
-        auto [x, y] = now;
-        visited[x][y] = true;
-        if(now == flower_pos) {
-          cand_score = dist;
-          return;
+    // 他の場所に出来るだけ C を配置する
+    rep(i, N) {
+      rep(j, N) {
+        if(initial_board[i][j] != '.') continue;
+
+        int start_idx;
+        if(j < N / 2) start_idx = 0;
+        else start_idx = 4;
+
+        rep(k, POS_SIZE) {
+          const auto& pos = C_positions[(start_idx + k) % POS_SIZE];
+          if(!can_place_C(i, j, pos.ng_positions, pos.ok_positions)) continue;
+          for(const auto& [dx, dy] : pos.ok_positions) {
+            int ni = i + dx, nj = j + dy;
+            if(outField(P(ni, nj), N, N) || initial_board[ni][nj] != '.') continue;
+            initial_board[ni][nj] = 'C';
+          }
+          break;
         }
-        for(const auto& [dx, dy] : arr4) {
-          int nx = x + dx, ny = y + dy;
-          if(outField(P(nx, ny), N, N) || visited[nx][ny] || now_board[nx][ny] != '.') continue;
-          f(f, P(nx, ny), dist + 1, visited);
-          if(cand_score != -1) return;
-        }
-        return;
-      };
-      vector<vector<bool>> visited(N, vector<bool>(N, false));
-      dfs(dfs, P(0, N / 2), 0, visited);
-      if(cand_score > final_score) {
-        final_score = cand_score;
-        final_board = now_board;
       }
     }
     return;
