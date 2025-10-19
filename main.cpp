@@ -77,6 +77,9 @@ struct Solver {
   vector<int> C;
   vector<vector<int>> A;
   vector<pair<int, int>> plan; // 実行する攻撃の計画
+  vector<int> chest_max_damage;
+  vector<long long> chest_sum_damage;
+  vector<vector<int>> weapon_targets;
 
   Solver() {
     this->input();
@@ -90,6 +93,27 @@ struct Solver {
     rep(i, N) cin >> H[i];
     rep(i, N) cin >> C[i];
     rep(i, N) rep(j, N) cin >> A[i][j];
+
+    chest_max_damage.assign(N, 0);
+    chest_sum_damage.assign(N, 0);
+    weapon_targets.assign(N, vector<int>(N));
+    rep(i, N) {
+      int mx = 0;
+      long long sum = 0;
+      vector<int> ids(N);
+      iota(ids.begin(), ids.end(), 0);
+      sort(ids.begin(), ids.end(), [&](int lhs, int rhs) {
+        if (A[i][lhs] != A[i][rhs]) return A[i][lhs] > A[i][rhs];
+        return lhs < rhs;
+      });
+      weapon_targets[i] = ids;
+      rep(j, N) {
+        mx = max(mx, A[i][j]);
+        sum += A[i][j];
+      }
+      chest_max_damage[i] = mx;
+      chest_sum_damage[i] = sum;
+    }
   }
 
   void output() {
@@ -166,7 +190,7 @@ struct Solver {
     return attacks;
   }
 
-  long long simulate_with_priority(const vector<int>& priority_raw, vector<pair<int, int>>* out_plan) const {
+  long long simulate_with_priority(const vector<int>& priority_raw, vector<pair<int, int>>* out_plan, long long cutoff = (long long) 4e18) const {
     vector<int> order;
     order.reserve(N);
     vector<char> used(N, 0);
@@ -191,6 +215,7 @@ struct Solver {
     if (out_plan) local_plan.reserve(accumulate(H.begin(), H.end(), 0LL));
 
     int order_ptr = 0;
+    vector<int> weapon_ptr(N, 0);
 
     auto next_target = [&](vector<char>& opened_flags) -> int {
       while (order_ptr < N) {
@@ -212,30 +237,44 @@ struct Solver {
     int opened_count = 0;
 
     while (opened_count < N) {
+      if (!out_plan && attacks >= cutoff) {
+        return cutoff + 1;
+      }
+
       int best_w = -1;
       int best_b = -1;
       int max_power = 1;
 
       rep(w, N) {
         if (!is_opened[w] || current_C[w] <= 0) continue;
-        rep(b, N) {
-          if (is_opened[b]) continue;
-          int damage = A[w][b];
-          if (damage > max_power) {
-            max_power = damage;
+        int ptr = weapon_ptr[w];
+        const auto& targets = weapon_targets[w];
+        while (ptr < N) {
+          int cand = targets[ptr];
+          if (!is_opened[cand] && A[w][cand] > 1) break;
+          ptr++;
+        }
+        weapon_ptr[w] = ptr;
+        if (ptr >= N) continue;
+        int cand = targets[ptr];
+        int damage = A[w][cand];
+        if (damage > max_power) {
+          max_power = damage;
+          best_w = w;
+          best_b = cand;
+        } else if (damage == max_power && damage > 1 && best_b != -1) {
+          if (rank[cand] < rank[best_b]) {
             best_w = w;
-            best_b = b;
-          } else if (damage == max_power && damage > 1 && best_b != -1) {
-            if (rank[b] < rank[best_b]) {
-              best_w = w;
-              best_b = b;
-            }
+            best_b = cand;
           }
         }
       }
 
       if (best_w != -1) {
         attacks++;
+        if (!out_plan && attacks >= cutoff) {
+          return cutoff + 1;
+        }
         if (out_plan) local_plan.emplace_back(best_w, best_b);
         current_H[best_b] -= A[best_w][best_b];
         current_C[best_w]--;
@@ -247,6 +286,9 @@ struct Solver {
         int target = next_target(is_opened);
         if (target == -1) break;
         long long hits = max(0LL, current_H[target]);
+        if (!out_plan && attacks + hits >= cutoff) {
+          return cutoff + 1;
+        }
         attacks += hits;
         if (out_plan) {
           for (long long k = 0; k < hits; k++) {
@@ -279,7 +321,8 @@ struct Solver {
     long long best_priority_attacks = simulate_with_priority(base_order, nullptr);
 
     auto consider_order = [&](const vector<int>& order) {
-      long long attacks = simulate_with_priority(order, nullptr);
+      long long cutoff = best_priority_attacks > 0 ? best_priority_attacks - 1 : 0;
+      long long attacks = simulate_with_priority(order, nullptr, cutoff);
       if (attacks < best_priority_attacks) {
         best_priority_attacks = attacks;
         best_priority = order;
@@ -303,15 +346,11 @@ struct Solver {
     vector<int> order_by_ratio = base_order;
     vector<double> value_ratio(N);
     rep(i, N) {
-      int max_damage = 0;
-      long long total_damage = 0;
-      rep(j, N) {
-        max_damage = max(max_damage, A[i][j]);
-        total_damage += A[i][j];
-      }
-      value_ratio[i] = (max_damage == 0 ? 1.0 : (double) H[i] / (double) max_damage);
+      int max_damage = chest_max_damage[i];
+      long long total_damage = chest_sum_damage[i];
+      value_ratio[i] = (max_damage == 0 ? 1.0 : (double) H[i] / (double) max(1, max_damage));
       if (total_damage == 0) value_ratio[i] += 1e6;
-    };
+    }
     sort(order_by_ratio.begin(), order_by_ratio.end(), [&](int lhs, int rhs) {
       if (value_ratio[lhs] != value_ratio[rhs]) return value_ratio[lhs] < value_ratio[rhs];
       return lhs < rhs;
@@ -321,12 +360,8 @@ struct Solver {
     vector<int> order_by_strength = base_order;
     vector<long long> strength(N, 0);
     rep(i, N) {
-      long long max_damage = 0;
-      long long sum_damage = 0;
-      rep(j, N) {
-        max_damage = max<long long>(max_damage, A[i][j]);
-        sum_damage += A[i][j];
-      }
+      long long max_damage = chest_max_damage[i];
+      long long sum_damage = chest_sum_damage[i];
       strength[i] = max_damage * 1000 + sum_damage;
     }
     sort(order_by_strength.begin(), order_by_strength.end(), [&](int lhs, int rhs) {
@@ -355,7 +390,7 @@ struct Solver {
     if (current_attacks < (long long) 4e18) {
       while (utility::mytm.elapsed() < TIME_LIMIT - 5) {
         vector<int> next_order = current_order;
-        int move_type = rand_int() % 3;
+        int move_type = rand_int() % 4;
         if (move_type == 0) {
           int i = rand_int() % N;
           int j = rand_int() % N;
@@ -365,13 +400,23 @@ struct Solver {
           int r = rand_int() % N;
           if (l > r) swap(l, r);
           reverse(next_order.begin() + l, next_order.begin() + r + 1);
-        } else {
+        } else if (move_type == 2) {
           int from = rand_int() % N;
           int to = rand_int() % N;
           if (from != to) {
             int val = next_order[from];
             next_order.erase(next_order.begin() + from);
             next_order.insert(next_order.begin() + to, val);
+          }
+        } else {
+          if (N >= 3) {
+            int l = rand_int() % N;
+            int len = 2 + rand_int() % min(5, N);
+            int r = min(N - 1, l + len);
+            if (l < r) {
+              int shift = 1 + rand_int() % (r - l);
+              rotate(next_order.begin() + l, next_order.begin() + l + shift, next_order.begin() + r + 1);
+            }
           }
         }
 
