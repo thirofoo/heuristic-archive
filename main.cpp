@@ -46,7 +46,8 @@ enum MoveType {
     MOVE_REVERSE = 1,
     MOVE_INSERT = 2,
     MOVE_BLOCK = 3,
-    MOVE_REPARENT = 4
+    MOVE_REPARENT = 4,
+    MOVE_LABEL_SWAP = 5
 };
 
 struct Move {
@@ -375,12 +376,27 @@ static bool is_descendant(const Tree &tr, int node, int potential_parent) {
     return false;
 }
 
-static bool apply_random_move(Tree &tr, XorShift64 &rng, Move &mv) {
+static bool apply_random_move(Tree &tr, XorShift64 &rng, Move &mv,
+                              vector<array<Pos, 2>> &pos) {
     int M = tr.M;
     int roll = rng.next_int(0, 99);
     const bool enable_insert_block = false;
+    const int LABEL_SWAP_RATE = 80;
 
-    if (roll < 40) { // swap siblings
+    if (roll < 40) { // swap siblings or labels
+        if (rng.next_int(0, 99) < LABEL_SWAP_RATE) {
+            for (int tries = 0; tries < 8; ++tries) {
+                int a = rng.next_int(0, M - 1);
+                int b = rng.next_int(0, M - 1);
+                if (a == b) continue;
+                swap(pos[a], pos[b]);
+                swap(center2[a], center2[b]);
+                mv.type = MOVE_LABEL_SWAP;
+                mv.p = a;
+                mv.v = b;
+                return true;
+            }
+        }
         for (int tries = 0; tries < 8; ++tries) {
             int p = rng.next_int(0, M); // include root
             if (tr.children[p].size() < 2) continue;
@@ -509,7 +525,7 @@ static bool apply_random_move(Tree &tr, XorShift64 &rng, Move &mv) {
     return true;
 }
 
-static void undo_move(Tree &tr, const Move &mv) {
+static void undo_move(Tree &tr, const Move &mv, vector<array<Pos, 2>> &pos) {
     if (mv.type == MOVE_SWAP) {
         swap(tr.children[mv.p][mv.i], tr.children[mv.p][mv.j]);
         return;
@@ -539,6 +555,11 @@ static void undo_move(Tree &tr, const Move &mv) {
         auto &old_ch = tr.children[mv.old_parent];
         old_ch.insert(old_ch.begin() + mv.old_index, mv.v);
         tr.parent[mv.v] = mv.old_parent;
+        return;
+    }
+    if (mv.type == MOVE_LABEL_SWAP) {
+        swap(pos[mv.p], pos[mv.v]);
+        swap(center2[mv.p], center2[mv.v]);
     }
 }
 
@@ -775,6 +796,7 @@ int main(int argc, char **argv) {
 
     Tree cur = build_initial_tree(M, pos);
     Tree best = cur;
+    vector<array<Pos, 2>> best_pos = pos;
 
     vector<array<long long, 2>> cost;
     long long cur_cost = evaluate_tree(cur, pos, cost);
@@ -812,15 +834,15 @@ int main(int argc, char **argv) {
     long long valid_moves = 0;
     long long accepted_moves = 0;
     long long improved_moves = 0;
-    array<long long, 5> type_valid{};
-    array<long long, 5> type_accepted{};
-    array<long long, 5> type_improved{};
+    array<long long, 6> type_valid{};
+    array<long long, 6> type_accepted{};
+    array<long long, 6> type_improved{};
     while (timer.sec() < TIME_LIMIT) {
         ++total_iters;
         Move mv;
-        if (!apply_random_move(cur, rng, mv)) continue;
+        if (!apply_random_move(cur, rng, mv, pos)) continue;
         ++valid_moves;
-        if (mv.type >= 0 && mv.type < 5) {
+        if (mv.type >= 0 && mv.type < 6) {
             ++type_valid[mv.type];
         }
         int p1 = -1;
@@ -828,6 +850,9 @@ int main(int argc, char **argv) {
         if (mv.type == MOVE_REPARENT) {
             p1 = mv.old_parent;
             p2 = mv.new_parent;
+        } else if (mv.type == MOVE_LABEL_SWAP) {
+            p1 = mv.p;
+            p2 = mv.v;
         } else {
             p1 = mv.p;
         }
@@ -876,19 +901,20 @@ int main(int argc, char **argv) {
             cur_cost = cand_cost;
             cur_obj = cand_obj;
             ++accepted_moves;
-            if (mv.type >= 0 && mv.type < 5) {
+            if (mv.type >= 0 && mv.type < 6) {
                 ++type_accepted[mv.type];
             }
             if (cur_cost < best_cost) {
                 best_cost = cur_cost;
                 best = cur;
+                best_pos = pos;
                 ++improved_moves;
-                if (mv.type >= 0 && mv.type < 5) {
+                if (mv.type >= 0 && mv.type < 6) {
                     ++type_improved[mv.type];
                 }
             }
         } else {
-            undo_move(cur, mv);
+            undo_move(cur, mv, pos);
             top1 = -1;
             top2 = -1;
             if (p1 != -1) top1 = recompute_path(cur, pos, cost, p1);
@@ -921,15 +947,15 @@ int main(int argc, char **argv) {
              << " accepted=" << accepted_moves << " improved=" << improved_moves << "\n";
         cerr << "accept_rate=" << fixed << setprecision(2) << rate(accepted_moves, valid_moves) << "% "
              << "improve_rate=" << rate(improved_moves, valid_moves) << "%\n";
-        const char *names[5] = {"swap", "reverse", "insert", "block", "reparent"};
-        for (int t = 0; t < 5; ++t) {
+        const char *names[6] = {"swap", "reverse", "insert", "block", "reparent", "lswap"};
+        for (int t = 0; t < 6; ++t) {
             cerr << names[t] << ": valid=" << type_valid[t]
                  << " accepted=" << type_accepted[t]
                  << " improved=" << type_improved[t] << "\n";
         }
     }
 
-    string ops = build_solution(best, pos);
+    string ops = build_solution(best, best_pos);
     for (char ch : ops) {
         cout << ch << '\n';
     }
