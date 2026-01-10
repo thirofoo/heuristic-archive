@@ -44,7 +44,9 @@ struct Tree {
 enum MoveType {
     MOVE_SWAP = 0,
     MOVE_REVERSE = 1,
-    MOVE_REPARENT = 2
+    MOVE_INSERT = 2,
+    MOVE_BLOCK = 3,
+    MOVE_REPARENT = 4
 };
 
 struct Move {
@@ -54,12 +56,16 @@ struct Move {
     int j = -1;
     int l = -1;
     int r = -1;
+    int k = -1;
     int v = -1;
     int old_parent = -1;
     int old_index = -1;
     int new_parent = -1;
     int new_index = -1;
 };
+
+static vector<Pos> center2;
+static Pos root_center2;
 
 struct SegNode {
     Pos entry[2];
@@ -345,6 +351,21 @@ static int recompute_path(const Tree &tr, const vector<array<Pos, 2>> &pos,
     return last;
 }
 
+static int apply_depth_delta(const Tree &tr, vector<int> &depth, int v, int delta) {
+    if (delta == 0) return 0;
+    int cnt = 0;
+    vector<int> stack;
+    stack.push_back(v);
+    while (!stack.empty()) {
+        int u = stack.back();
+        stack.pop_back();
+        depth[u] += delta;
+        ++cnt;
+        for (int c : tr.children[u]) stack.push_back(c);
+    }
+    return cnt;
+}
+
 static bool is_descendant(const Tree &tr, int node, int potential_parent) {
     int cur = potential_parent;
     while (cur != tr.root) {
@@ -356,9 +377,10 @@ static bool is_descendant(const Tree &tr, int node, int potential_parent) {
 
 static bool apply_random_move(Tree &tr, XorShift64 &rng, Move &mv) {
     int M = tr.M;
-    int move_type = rng.next_int(0, 2);
+    int roll = rng.next_int(0, 99);
+    const bool enable_insert_block = false;
 
-    if (move_type == 0) { // swap siblings
+    if (roll < 40) { // swap siblings
         for (int tries = 0; tries < 8; ++tries) {
             int p = rng.next_int(0, M); // include root
             if (tr.children[p].size() < 2) continue;
@@ -376,7 +398,7 @@ static bool apply_random_move(Tree &tr, XorShift64 &rng, Move &mv) {
         return false;
     }
 
-    if (move_type == 1) { // reverse segment
+    if (false && roll < 80) { // reverse segment
         for (int tries = 0; tries < 8; ++tries) {
             int p = rng.next_int(0, M);
             int n = (int)tr.children[p].size();
@@ -395,14 +417,74 @@ static bool apply_random_move(Tree &tr, XorShift64 &rng, Move &mv) {
         return false;
     }
 
+    if (enable_insert_block && roll < 90) { // insert within siblings
+        for (int tries = 0; tries < 8; ++tries) {
+            int p = rng.next_int(0, M);
+            int n = (int)tr.children[p].size();
+            if (n < 2) continue;
+            int from = rng.next_int(0, n - 1);
+            int to = rng.next_int(0, n - 1);
+            if (from == to) continue;
+            int to_adj = to;
+            if (to_adj > from) --to_adj;
+            if (to_adj == from) continue;
+            auto &ch = tr.children[p];
+            int v = ch[from];
+            ch.erase(ch.begin() + from);
+            ch.insert(ch.begin() + to_adj, v);
+            mv.type = MOVE_INSERT;
+            mv.p = p;
+            mv.i = from;
+            mv.j = to_adj;
+            return true;
+        }
+        return false;
+    }
+
+    if (enable_insert_block && roll < 100) { // block move within siblings
+        for (int tries = 0; tries < 8; ++tries) {
+            int p = rng.next_int(0, M);
+            int n = (int)tr.children[p].size();
+            if (n < 3) continue;
+            int l = rng.next_int(0, n - 2);
+            int r = rng.next_int(l + 1, n - 1);
+            int len = r - l + 1;
+            int n2 = n - len;
+            int k = rng.next_int(0, n2);
+            if (k == l) continue;
+            auto &ch = tr.children[p];
+            vector<int> block(ch.begin() + l, ch.begin() + r + 1);
+            ch.erase(ch.begin() + l, ch.begin() + r + 1);
+            ch.insert(ch.begin() + k, block.begin(), block.end());
+            mv.type = MOVE_BLOCK;
+            mv.p = p;
+            mv.l = l;
+            mv.r = r;
+            mv.k = k;
+            return true;
+        }
+        return false;
+    }
+
     // move subtree
     int v = rng.next_int(0, M - 1);
-    int new_parent = rng.next_int(0, M);
-    if (new_parent == v) return false;
-    if (is_descendant(tr, v, new_parent)) return false;
-
     int old_parent = tr.parent[v];
-    if (old_parent == new_parent) return false;
+    int best_parent = -1;
+    int best_dist = INT_MAX;
+    for (int tries = 0; tries < 12; ++tries) {
+        int cand = rng.next_int(0, M);
+        if (cand == v || cand == old_parent) continue;
+        if (is_descendant(tr, v, cand)) continue;
+        Pos ca = center2[v];
+        Pos cb = (cand == tr.root) ? root_center2 : center2[cand];
+        int d = abs(ca.r - cb.r) + abs(ca.c - cb.c);
+        if (d < best_dist) {
+            best_dist = d;
+            best_parent = cand;
+        }
+    }
+    if (best_parent == -1) return false;
+    int new_parent = best_parent;
     auto &old_ch = tr.children[old_parent];
     int idx = -1;
     for (int i = 0; i < (int)old_ch.size(); ++i) {
@@ -434,6 +516,21 @@ static void undo_move(Tree &tr, const Move &mv) {
     }
     if (mv.type == MOVE_REVERSE) {
         reverse(tr.children[mv.p].begin() + mv.l, tr.children[mv.p].begin() + mv.r + 1);
+        return;
+    }
+    if (mv.type == MOVE_INSERT) {
+        auto &ch = tr.children[mv.p];
+        int v = ch[mv.j];
+        ch.erase(ch.begin() + mv.j);
+        ch.insert(ch.begin() + mv.i, v);
+        return;
+    }
+    if (mv.type == MOVE_BLOCK) {
+        auto &ch = tr.children[mv.p];
+        int len = mv.r - mv.l + 1;
+        vector<int> block(ch.begin() + mv.k, ch.begin() + mv.k + len);
+        ch.erase(ch.begin() + mv.k, ch.begin() + mv.k + len);
+        ch.insert(ch.begin() + mv.l, block.begin(), block.end());
         return;
     }
     if (mv.type == MOVE_REPARENT) {
@@ -670,6 +767,11 @@ int main(int argc, char **argv) {
             if (k < 2) pos[v][k] = {r, c};
         }
     }
+    center2.assign(M, {});
+    for (int i = 0; i < M; ++i) {
+        center2[i] = {pos[i][0].r + pos[i][1].r, pos[i][0].c + pos[i][1].c};
+    }
+    root_center2 = {N - 1, N - 1};
 
     Tree cur = build_initial_tree(M, pos);
     Tree best = cur;
@@ -679,26 +781,46 @@ int main(int argc, char **argv) {
     long long best_cost = cur_cost;
     RootSegTree root_seg;
     root_seg.build(cur.children[cur.root], pos, cost);
+    vector<int> depth(M, 0);
+    long long sum_depth = 0;
+    {
+        vector<int> stack;
+        for (int child : cur.children[cur.root]) {
+            depth[child] = 1;
+            stack.push_back(child);
+        }
+        while (!stack.empty()) {
+            int v = stack.back();
+            stack.pop_back();
+            sum_depth += depth[v];
+            for (int c : cur.children[v]) {
+                depth[c] = depth[v] + 1;
+                stack.push_back(c);
+            }
+        }
+    }
 
     Timer timer;
     XorShift64 rng;
     const double TIME_LIMIT = 1.95;
     const double T0 = 10.0;
     const double T1 = 0.05;
+    const double DEPTH_WEIGHT = 0.05;
+    double cur_obj = cur_cost + DEPTH_WEIGHT * (double)sum_depth;
 
     long long total_iters = 0;
     long long valid_moves = 0;
     long long accepted_moves = 0;
     long long improved_moves = 0;
-    array<long long, 3> type_valid{};
-    array<long long, 3> type_accepted{};
-    array<long long, 3> type_improved{};
+    array<long long, 5> type_valid{};
+    array<long long, 5> type_accepted{};
+    array<long long, 5> type_improved{};
     while (timer.sec() < TIME_LIMIT) {
         ++total_iters;
         Move mv;
         if (!apply_random_move(cur, rng, mv)) continue;
         ++valid_moves;
-        if (mv.type >= 0 && mv.type < 3) {
+        if (mv.type >= 0 && mv.type < 5) {
             ++type_valid[mv.type];
         }
         int p1 = -1;
@@ -710,7 +832,7 @@ int main(int argc, char **argv) {
             p1 = mv.p;
         }
         bool root_changed = false;
-        if (mv.type == MOVE_SWAP || mv.type == MOVE_REVERSE) {
+        if (mv.type == MOVE_SWAP || mv.type == MOVE_REVERSE || mv.type == MOVE_INSERT || mv.type == MOVE_BLOCK) {
             root_changed = (mv.p == cur.root);
         } else if (mv.type == MOVE_REPARENT) {
             root_changed = (mv.old_parent == cur.root || mv.new_parent == cur.root);
@@ -728,14 +850,23 @@ int main(int argc, char **argv) {
             if (top2 != -1 && top2 != top1) root_seg.update_child(top2, pos, cost);
         }
         long long cand_cost = root_seg.total_cost();
+        if (mv.type == MOVE_REPARENT) {
+            int new_depth = depth[mv.new_parent] + 1;
+            int delta = new_depth - depth[mv.v];
+            if (delta != 0) {
+                int cnt = apply_depth_delta(cur, depth, mv.v, delta);
+                sum_depth += 1LL * delta * cnt;
+            }
+        }
+        double cand_obj = cand_cost + DEPTH_WEIGHT * (double)sum_depth;
 
         bool accept = false;
-        if (cand_cost <= cur_cost) {
+        if (cand_obj <= cur_obj) {
             accept = true;
         } else {
             double t = timer.sec() / TIME_LIMIT;
             double temp = T0 * pow(T1 / T0, t);
-            double prob = exp((double)(cur_cost - cand_cost) / temp);
+            double prob = exp((cur_obj - cand_obj) / temp);
             if (rng.next_double() < prob) accept = true;
         }
 
@@ -743,15 +874,16 @@ int main(int argc, char **argv) {
             // cerr << "Iter " << iter << ": Cost " << cand_cost << ", Best Cost " << best_cost << "\n";
             // cerr << "Best Update? : " << (cand_cost < best_cost ? "Yes" : "No") << "\n";
             cur_cost = cand_cost;
+            cur_obj = cand_obj;
             ++accepted_moves;
-            if (mv.type >= 0 && mv.type < 3) {
+            if (mv.type >= 0 && mv.type < 5) {
                 ++type_accepted[mv.type];
             }
             if (cur_cost < best_cost) {
                 best_cost = cur_cost;
                 best = cur;
                 ++improved_moves;
-                if (mv.type >= 0 && mv.type < 3) {
+                if (mv.type >= 0 && mv.type < 5) {
                     ++type_improved[mv.type];
                 }
             }
@@ -768,6 +900,15 @@ int main(int argc, char **argv) {
                 if (top2 != -1 && top2 != top1) root_seg.update_child(top2, pos, cost);
             }
             cur_cost = root_seg.total_cost();
+            if (mv.type == MOVE_REPARENT) {
+                int target_depth = depth[mv.old_parent] + 1;
+                int delta = target_depth - depth[mv.v];
+                if (delta != 0) {
+                    int cnt = apply_depth_delta(cur, depth, mv.v, delta);
+                    sum_depth += 1LL * delta * cnt;
+                }
+            }
+            cur_obj = cur_cost + DEPTH_WEIGHT * (double)sum_depth;
         }
     }
 
@@ -780,8 +921,8 @@ int main(int argc, char **argv) {
              << " accepted=" << accepted_moves << " improved=" << improved_moves << "\n";
         cerr << "accept_rate=" << fixed << setprecision(2) << rate(accepted_moves, valid_moves) << "% "
              << "improve_rate=" << rate(improved_moves, valid_moves) << "%\n";
-        const char *names[3] = {"swap", "reverse", "reparent"};
-        for (int t = 0; t < 3; ++t) {
+        const char *names[5] = {"swap", "reverse", "insert", "block", "reparent"};
+        for (int t = 0; t < 5; ++t) {
             cerr << names[t] << ": valid=" << type_valid[t]
                  << " accepted=" << type_accepted[t]
                  << " improved=" << type_improved[t] << "\n";
