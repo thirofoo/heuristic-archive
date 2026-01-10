@@ -1,112 +1,127 @@
-Goal
-- Solve AHC059 A (Stack to Match Pairs) with a high-score strategy that leverages the stack (LIFO) by creating nested “open/close” structure, and optimize that structure with Simulated Annealing (SA).
-- Key idea: “stack accumulation + return-phase elimination” is equivalent to a DFS call stack, i.e., a tree / properly nested parentheses structure.
+Objective
+- Solve AHC059 A (Stack to Match Pairs) with a high-score approach based on:
+  (1) an ordered rooted tree that enforces LIFO-friendly nesting,
+  (2) per-node orientation (which of the two card cells is visited on entry),
+  (3) deterministic shortest-path tie-breaking so the final action string is uniquely generated,
+  (4) simulated annealing (SA) over tree order/orientation (and optionally structure).
 
-High-level Insight
-- If you always clear a pair immediately (visit both copies consecutively), the stack stays empty and the problem becomes a pair-routing problem. This is a strong baseline but often not enough for top ranks.
-- To beat it, you must intentionally “open” many cards (take the first copy) and “close” them later (take the second copy) in LIFO-compatible order. The best-case pattern is nested:
-    open a
-      open b
-        close b
-      close a
-  This nesting matches LIFO and avoids stack pollution.
+Key Concept: Nested Intervals = Stack-Friendly
+- Each value v appears twice at positions A[v], B[v].
+- If the “open” (first Z) and “close” (second Z) of values are properly nested (no crossings),
+  then the stack behaves like a DFS call stack: open on preorder, close on postorder.
+- Use an ordered rooted tree over values as the nesting plan:
+    - preorder visit => take the 1st copy of v (Z)
+    - postorder exit => take the 2nd copy of v (Z)
+  This guarantees LIFO alignment by construction.
 
-Representation (Tree as the Main Plan)
-Option A (recommended first): Region Tree
-- Partition the 20x20 board into small blocks (e.g., 4x4 or 5x5 regions).
-- A node represents “enter a region, do all work you can inside, then exit”.
-- Child nodes represent sub-regions (or sub-tours) visited while inside.
-- This naturally enforces “deep then backtrack” behavior that matches LIFO.
+State Representation (Plan)
+- Ordered rooted tree over nodes = values v (0..199):
+    parent[v], and children[v] is an ordered list.
+    Choose a root (or a dummy root containing all nodes).
+- Orientation bit per node:
+    orient[v] ∈ {0,1}
+    If orient[v]=0: preorder takes A[v], postorder takes B[v]
+    If orient[v]=1: preorder takes B[v], postorder takes A[v]
+- Deterministic shortest path rule (tie-break):
+    e.g., always move vertically first (U/D), then horizontally (L/R).
+  This makes the move sequence deterministic given any (from,to).
 
-Option B: Pair Tree
-- Each node corresponds to a value v (a pair).
-- The interval between taking the first copy and taking the second copy contains a subtree of other intervals.
-- This directly models nested open/close, but can be harder to initialize robustly.
+Compilation: Plan -> Concrete Action String (Deterministic)
+Input: ordered tree + orient[] + tie-break rule.
+Process:
+1) Do a DFS over the ordered tree.
+2) On preorder of v:
+    target = (orient[v]==0 ? A[v] : B[v])
+    move current position to target by deterministic Manhattan shortest path
+    output 'Z'
+3) Recurse children in their stored order.
+4) On postorder of v:
+    target = (orient[v]==0 ? B[v] : A[v])
+    move to target with the same deterministic shortest path
+    output 'Z' (this closes v; top two match -> vanish)
+5) Ensure total ops <= 16000 (moves + Z + possible X); Z is ~400.
 
-Plan Execution (producing an action string)
-- Maintain current position (start at (0,0)).
-- Follow the tree traversal:
-    - When “opening” a task (region/pair), move to the chosen target cell(s) and apply Z to take the card.
-    - While the card’s pair is not closed, traverse its children (nested work).
-    - When “closing”, move to the second copy and apply Z; the top two match => they vanish.
-- Moves are U/D/L/R along Manhattan shortest paths; Z is used to take a card.
-- Use X sparingly as a “local parking” operation (see below).
+Notes:
+- The DFS (pre/post) defines the Z-order uniquely if the tree is ordered.
+- The action string becomes unique because:
+    (i) ordered children => unique traversal order,
+    (ii) orient[v] => unique choice of which copy is visited in preorder,
+    (iii) fixed tie-break => unique UDLR path between any two cells.
 
-Scoring Objective
-- Minimize the number of move steps K (U/D/L/R). Z/X count toward operation limit but not score.
-- Operation limit is large (2*N^3 = 16000 for N=20), so spending extra Z/X is OK if it reduces K.
+Simulated Annealing (Main Optimizer)
+Goal: minimize move count K (UDLR only). Z/X do not affect score.
+Evaluate a plan by compiling it and counting moves, or by a faster cost model + occasional full validation.
 
-Core Optimization: SA over Tree Structure
-- Treat the tree as the main combinational object to optimize.
-- Evaluate a tree by computing the total move cost of the resulting traversal, plus internal costs (e.g., within-region routing).
-- Use SA moves (neighborhoods) that modify the tree while preserving feasibility.
+Neighborhood Moves (Must-have)
+1) Orientation Flip (per-node):
+    - Pick v, set orient[v] ^= 1
+    - Keeps nesting valid; often reduces travel by changing entry/exit endpoints.
 
-Neighborhood Moves (Tree SA)
-1) Sibling Swap / Rotate
-- Within one parent node, swap two child subtrees or rotate a subsequence.
+2) Sibling Swap (local reorder):
+    - Pick a parent p and two indices i<j, swap children[p][i], children[p][j]
+    - Alters preorder/postorder sequences and thus travel cost.
 
-2) Subtree Graft (Cut & Paste)
-- Cut a subtree and reattach it under another node (or different position among siblings).
+3) Sibling Segment Reverse / 2-opt on siblings:
+    - Pick parent p and segment [l..r], reverse children[p][l..r]
+    - Stronger than swaps; helps escape local minima.
 
-3) Subtree Order Reversal
-- Reverse the order of children within a node (changes return-phase ordering).
+Optional but powerful (structure-changing)
+4) Graft / Relocate subtree:
+    - Cut a subtree rooted at x and reattach it as a child of some y (or another position among y’s children)
+    - Requires cycle checks; changes nesting structure globally.
+    - Use sparingly unless you implement fast delta evaluation.
 
-4) Local Orientation Flip (for nodes with two endpoints)
-- If a node corresponds to an interval/pair or an “enter/exit” choice, flip which endpoint is used as entry/exit.
+Evaluation / Speed
+- Naive: compile full action string and count moves every time (works but limits SA iterations).
+- Better: maintain an Euler tour list of visitation events and update locally for swap/reverse,
+  then compute delta move cost by only recomputing affected adjacent edges.
+  (Preorder/postorder events produce a sequence of targets; move cost is sum of dist between consecutive targets.)
+- Dist is Manhattan: dist((x1,y1),(x2,y2)) = |x1-x2|+|y1-y2|.
 
-Evaluation Acceleration (critical)
-- Cache a DP summary per subtree so that after a local change you only recompute affected parts.
+Practical evaluation approach:
+- Represent the compiled “target sequence” as an array T of positions:
+    T = [pre(v1), pre(v2), ..., post(v2), ..., post(v1), ...] following DFS.
+- Move cost K = sum dist(T[i], T[i+1]) over i.
+- For local changes (flip or swap/reverse within a parent), only a small contiguous portion of T changes,
+  so update K by subtracting old boundary edges and adding new ones.
+- Keep the best plan found; periodically recompile and validate.
 
-Recommended DP pattern:
-- Each subtree returns a small cost table “enter at state s_in -> minimal cost to exit at state s_out”.
-- Keep the state space tiny (2–8 states) by defining a small set of candidate entry/exit points:
-    - For a region node: a few boundary representative points (e.g., closest corner to parent entry, or 4 corners).
-    - For a pair node: the two card positions (A,B), i.e., 2 states.
-- Merging children is then a small DP convolution over sibling order.
+Initialization (Important)
+- Build an initial ordered tree that matches geometry:
+  - Option 1: hierarchical clustering of values by center[v] = (A[v]+B[v])/2 to create a nested grouping tree.
+  - Option 2: region-based partition (e.g., 4x4 blocks), group values by region and build a region hierarchy,
+    then place values as leaves under region nodes.
+- Initialize children order by a simple nearest-neighbor heuristic using representative points (A/B centers).
+- Initialize orient[v] by choosing the preorder endpoint closer to the expected entry position (greedy).
 
-Example: Pair-sequence DP (2-state)
-- For a fixed sequence of pairs (v1..vM), compute best orientation (which copy first) with 2-state DP:
-    dp[i][end_side] = minimal cost after finishing pair i, ending at copy side end_side.
-- This can be reused as a building block inside nodes.
+Deterministic Path (UDLR tie-break)
+- Implement move(from,to) as:
+    if from.x < to.x: output 'D' (to.x-from.x times)
+    else output 'U'
+    then if from.y < to.y: output 'R'
+    else output 'L'
+  (Or any fixed priority order you choose, but keep it consistent.)
 
-Initialization (build a reasonable starting tree)
-Region Tree initialization (robust):
-- Choose a scanning order of regions (snake / Hilbert-like).
-- Inside each region:
-    - Immediately clear “internal pairs” (both copies within the region) with short paths.
-    - For cross-region values, “open” the first copy when encountered but postpone closing until later, aiming to keep opens nested by region traversal (DFS).
-- Build the region hierarchy by recursively subdividing the board or by grouping adjacent regions visited consecutively.
+Why This Works
+- Proper nesting (tree DFS) guarantees stack compatibility (LIFO) without needing complex runtime stack management.
+- SA explores:
+  - “which endpoint first” (orient flip)
+  - “in which sibling order” (swap/reverse)
+  - optionally “which subtree under which parent” (graft)
+- Deterministic compilation makes evaluation stable and reproducible.
 
-Feasibility and Stack Discipline
-- During execution, avoid “opening” too many unrelated values that cannot be closed soon, because they block the stack top.
-- Prefer nested opens induced by DFS: open in outer node -> solve inner nodes -> close outer.
+Extensions (If Needed for Top-tier)
+- Add a light penalty term during SA to discourage huge travel or undesirable patterns, but primary objective is K.
+- After SA, optionally add a post-processing stage with very local X-parking:
+  - Keep 1–2 nearby empty cells; if a desired close is blocked by stack top, temporarily X-place the top card locally,
+    perform the close with Z, then recover.
+  - Keep this strictly local to avoid increasing moves.
+  (Implement as a second-stage improvement; do NOT include X as a main SA variable to avoid state explosion.)
 
-Add-on: Local Parking with X (small exception to pure nesting)
-- Pure nesting can be too restrictive; top solutions often use X as a “parking lot”:
-    - Maintain 2–6 empty cells near the current area as temporary storage.
-    - If the stack top blocks a desired close, temporarily place the top card to a nearby empty cell (X),
-      perform the intended Z close(s), then optionally recover.
-- Since X doesn’t affect score, this can significantly reduce moves if parking is local.
-- Implement as a post-processing or a second-stage local improvement:
-    - Given a traversal, detect “blocked closes” and resolve them with minimal local park/unpark.
-
-Annealing Schedule (practical)
-- Time limit 2 sec; keep evaluation cheap.
-- Use typical SA:
-    - Start temperature so that ~50–80% of worse moves are accepted.
-    - Cool down exponentially to near zero acceptance at the end.
-- Always keep the best found tree and output its action sequence.
-
-Deliverable Expectations
-- Implement:
-    1) Data parsing and positions of each value’s two cards.
-    2) Region partitioning and initial tree builder.
-    3) Tree DP evaluator with cached subtree summaries.
-    4) SA loop with the above neighborhoods.
-    5) Compiler from final tree traversal into move+Z(+optional X) action string.
-- Start simple (region tree + sibling swaps + 4-corner entry/exit states), then add graft + parking.
-
-Notes
-- N is fixed at 20 in tests, so region sizes can be tuned freely.
-- Ensure the operation count stays below 16000; moves should be a few thousand, Z is ~400 plus extra.
-- Keep the stack mostly small and “clean” by enforcing nesting; use X only locally.
+Implementation Deliverables
+- Data parsing and locating A[v], B[v].
+- Ordered rooted tree structure + orient[].
+- Compiler: tree DFS -> target sequence -> action string.
+- SA loop with time control (2 seconds) and neighborhoods (flip, swap, reverse; optional graft).
+- Fast delta evaluation on the target sequence (recommended).
+- Final validation by simulation (ensure all cards removed and ops <= 16000).

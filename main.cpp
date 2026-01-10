@@ -470,9 +470,9 @@ int main() {
 
     Timer timer;
     XorShift64 rng;
-    const double TIME_LIMIT = 1.85;
-    const double T0 = 50.0;
-    const double T1 = 1.0;
+    const double TIME_LIMIT = 1.95;
+    const double T0 = 10.0;
+    const double T1 = 0.05;
 
     int iter = 0;
     while (timer.sec() < TIME_LIMIT) {
@@ -492,6 +492,8 @@ int main() {
         }
 
         if (accept) {
+            // cerr << "Iter " << iter << ": Cost " << cand_cost << ", Best Cost " << best_cost << "\n";
+            // cerr << "Best Update? : " << (cand_cost < best_cost ? "Yes" : "No") << "\n";
             cur = std::move(cand);
             cur_cost = cand_cost;
             if (cur_cost < best_cost) {
