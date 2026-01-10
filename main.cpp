@@ -43,11 +43,8 @@ struct Tree {
 
 enum MoveType {
     MOVE_SWAP = 0,
-    MOVE_REVERSE = 1,
-    MOVE_INSERT = 2,
-    MOVE_BLOCK = 3,
-    MOVE_REPARENT = 4,
-    MOVE_LABEL_SWAP = 5
+    MOVE_REPARENT = 1,
+    MOVE_LABEL_SWAP = 2
 };
 
 struct Move {
@@ -55,9 +52,6 @@ struct Move {
     int p = -1;
     int i = -1;
     int j = -1;
-    int l = -1;
-    int r = -1;
-    int k = -1;
     int v = -1;
     int old_parent = -1;
     int old_index = -1;
@@ -380,7 +374,6 @@ static bool apply_random_move(Tree &tr, XorShift64 &rng, Move &mv,
                               vector<array<Pos, 2>> &pos) {
     int M = tr.M;
     int roll = rng.next_int(0, 99);
-    const bool enable_insert_block = false;
     const int LABEL_SWAP_RATE = 80;
 
     if (roll < 40) { // swap siblings or labels
@@ -409,74 +402,6 @@ static bool apply_random_move(Tree &tr, XorShift64 &rng, Move &mv,
             mv.p = p;
             mv.i = i;
             mv.j = j;
-            return true;
-        }
-        return false;
-    }
-
-    if (false && roll < 80) { // reverse segment
-        for (int tries = 0; tries < 8; ++tries) {
-            int p = rng.next_int(0, M);
-            int n = (int)tr.children[p].size();
-            if (n < 2) continue;
-            int l = rng.next_int(0, n - 1);
-            int r = rng.next_int(0, n - 1);
-            if (l > r) swap(l, r);
-            if (l == r) continue;
-            reverse(tr.children[p].begin() + l, tr.children[p].begin() + r + 1);
-            mv.type = MOVE_REVERSE;
-            mv.p = p;
-            mv.l = l;
-            mv.r = r;
-            return true;
-        }
-        return false;
-    }
-
-    if (enable_insert_block && roll < 90) { // insert within siblings
-        for (int tries = 0; tries < 8; ++tries) {
-            int p = rng.next_int(0, M);
-            int n = (int)tr.children[p].size();
-            if (n < 2) continue;
-            int from = rng.next_int(0, n - 1);
-            int to = rng.next_int(0, n - 1);
-            if (from == to) continue;
-            int to_adj = to;
-            if (to_adj > from) --to_adj;
-            if (to_adj == from) continue;
-            auto &ch = tr.children[p];
-            int v = ch[from];
-            ch.erase(ch.begin() + from);
-            ch.insert(ch.begin() + to_adj, v);
-            mv.type = MOVE_INSERT;
-            mv.p = p;
-            mv.i = from;
-            mv.j = to_adj;
-            return true;
-        }
-        return false;
-    }
-
-    if (enable_insert_block && roll < 100) { // block move within siblings
-        for (int tries = 0; tries < 8; ++tries) {
-            int p = rng.next_int(0, M);
-            int n = (int)tr.children[p].size();
-            if (n < 3) continue;
-            int l = rng.next_int(0, n - 2);
-            int r = rng.next_int(l + 1, n - 1);
-            int len = r - l + 1;
-            int n2 = n - len;
-            int k = rng.next_int(0, n2);
-            if (k == l) continue;
-            auto &ch = tr.children[p];
-            vector<int> block(ch.begin() + l, ch.begin() + r + 1);
-            ch.erase(ch.begin() + l, ch.begin() + r + 1);
-            ch.insert(ch.begin() + k, block.begin(), block.end());
-            mv.type = MOVE_BLOCK;
-            mv.p = p;
-            mv.l = l;
-            mv.r = r;
-            mv.k = k;
             return true;
         }
         return false;
@@ -528,25 +453,6 @@ static bool apply_random_move(Tree &tr, XorShift64 &rng, Move &mv,
 static void undo_move(Tree &tr, const Move &mv, vector<array<Pos, 2>> &pos) {
     if (mv.type == MOVE_SWAP) {
         swap(tr.children[mv.p][mv.i], tr.children[mv.p][mv.j]);
-        return;
-    }
-    if (mv.type == MOVE_REVERSE) {
-        reverse(tr.children[mv.p].begin() + mv.l, tr.children[mv.p].begin() + mv.r + 1);
-        return;
-    }
-    if (mv.type == MOVE_INSERT) {
-        auto &ch = tr.children[mv.p];
-        int v = ch[mv.j];
-        ch.erase(ch.begin() + mv.j);
-        ch.insert(ch.begin() + mv.i, v);
-        return;
-    }
-    if (mv.type == MOVE_BLOCK) {
-        auto &ch = tr.children[mv.p];
-        int len = mv.r - mv.l + 1;
-        vector<int> block(ch.begin() + mv.k, ch.begin() + mv.k + len);
-        ch.erase(ch.begin() + mv.k, ch.begin() + mv.k + len);
-        ch.insert(ch.begin() + mv.l, block.begin(), block.end());
         return;
     }
     if (mv.type == MOVE_REPARENT) {
@@ -834,15 +740,15 @@ int main(int argc, char **argv) {
     long long valid_moves = 0;
     long long accepted_moves = 0;
     long long improved_moves = 0;
-    array<long long, 6> type_valid{};
-    array<long long, 6> type_accepted{};
-    array<long long, 6> type_improved{};
+    array<long long, 3> type_valid{};
+    array<long long, 3> type_accepted{};
+    array<long long, 3> type_improved{};
     while (timer.sec() < TIME_LIMIT) {
         ++total_iters;
         Move mv;
         if (!apply_random_move(cur, rng, mv, pos)) continue;
         ++valid_moves;
-        if (mv.type >= 0 && mv.type < 6) {
+        if (mv.type >= 0 && mv.type < 3) {
             ++type_valid[mv.type];
         }
         int p1 = -1;
@@ -857,7 +763,7 @@ int main(int argc, char **argv) {
             p1 = mv.p;
         }
         bool root_changed = false;
-        if (mv.type == MOVE_SWAP || mv.type == MOVE_REVERSE || mv.type == MOVE_INSERT || mv.type == MOVE_BLOCK) {
+        if (mv.type == MOVE_SWAP) {
             root_changed = (mv.p == cur.root);
         } else if (mv.type == MOVE_REPARENT) {
             root_changed = (mv.old_parent == cur.root || mv.new_parent == cur.root);
@@ -901,7 +807,7 @@ int main(int argc, char **argv) {
             cur_cost = cand_cost;
             cur_obj = cand_obj;
             ++accepted_moves;
-            if (mv.type >= 0 && mv.type < 6) {
+            if (mv.type >= 0 && mv.type < 3) {
                 ++type_accepted[mv.type];
             }
             if (cur_cost < best_cost) {
@@ -909,7 +815,7 @@ int main(int argc, char **argv) {
                 best = cur;
                 best_pos = pos;
                 ++improved_moves;
-                if (mv.type >= 0 && mv.type < 6) {
+                if (mv.type >= 0 && mv.type < 3) {
                     ++type_improved[mv.type];
                 }
             }
@@ -947,8 +853,8 @@ int main(int argc, char **argv) {
              << " accepted=" << accepted_moves << " improved=" << improved_moves << "\n";
         cerr << "accept_rate=" << fixed << setprecision(2) << rate(accepted_moves, valid_moves) << "% "
              << "improve_rate=" << rate(improved_moves, valid_moves) << "%\n";
-        const char *names[6] = {"swap", "reverse", "insert", "block", "reparent", "lswap"};
-        for (int t = 0; t < 6; ++t) {
+        const char *names[3] = {"swap", "reparent", "lswap"};
+        for (int t = 0; t < 3; ++t) {
             cerr << names[t] << ": valid=" << type_valid[t]
                  << " accepted=" << type_accepted[t]
                  << " improved=" << type_improved[t] << "\n";
