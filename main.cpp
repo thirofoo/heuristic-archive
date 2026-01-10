@@ -572,9 +572,11 @@ static string build_solution(const Tree &tr, const vector<array<Pos, 2>> &pos) {
     return ops;
 }
 
-int main() {
+int main(int argc, char **argv) {
     ios::sync_with_stdio(false);
     cin.tie(nullptr);
+
+    bool log_stats = (argc > 1);
 
     int N;
     if (!(cin >> N)) return 0;
@@ -605,11 +607,21 @@ int main() {
     const double T0 = 10.0;
     const double T1 = 0.05;
 
-    int iter = 0;
+    long long total_iters = 0;
+    long long valid_moves = 0;
+    long long accepted_moves = 0;
+    long long improved_moves = 0;
+    array<long long, 3> type_valid{};
+    array<long long, 3> type_accepted{};
+    array<long long, 3> type_improved{};
     while (timer.sec() < TIME_LIMIT) {
-        ++iter;
+        ++total_iters;
         Move mv;
         if (!apply_random_move(cur, rng, mv)) continue;
+        ++valid_moves;
+        if (mv.type >= 0 && mv.type < 3) {
+            ++type_valid[mv.type];
+        }
         int p1 = -1;
         int p2 = -1;
         if (mv.type == MOVE_REPARENT) {
@@ -636,15 +648,40 @@ int main() {
             // cerr << "Iter " << iter << ": Cost " << cand_cost << ", Best Cost " << best_cost << "\n";
             // cerr << "Best Update? : " << (cand_cost < best_cost ? "Yes" : "No") << "\n";
             cur_cost = cand_cost;
+            ++accepted_moves;
+            if (mv.type >= 0 && mv.type < 3) {
+                ++type_accepted[mv.type];
+            }
             if (cur_cost < best_cost) {
                 best_cost = cur_cost;
                 best = cur;
+                ++improved_moves;
+                if (mv.type >= 0 && mv.type < 3) {
+                    ++type_improved[mv.type];
+                }
             }
         } else {
             undo_move(cur, mv);
             if (p1 != -1) recompute_path(cur, pos, cost, p1);
             if (p2 != -1 && p2 != p1) recompute_path(cur, pos, cost, p2);
             cur_cost = recompute_root(cur, pos, cost);
+        }
+    }
+
+    if (log_stats) {
+        auto rate = [](long long a, long long b) -> double {
+            if (b == 0) return 0.0;
+            return 100.0 * (double)a / (double)b;
+        };
+        cerr << "iters=" << total_iters << " valid=" << valid_moves
+             << " accepted=" << accepted_moves << " improved=" << improved_moves << "\n";
+        cerr << "accept_rate=" << fixed << setprecision(2) << rate(accepted_moves, valid_moves) << "% "
+             << "improve_rate=" << rate(improved_moves, valid_moves) << "%\n";
+        const char *names[3] = {"swap", "reverse", "reparent"};
+        for (int t = 0; t < 3; ++t) {
+            cerr << names[t] << ": valid=" << type_valid[t]
+                 << " accepted=" << type_accepted[t]
+                 << " improved=" << type_improved[t] << "\n";
         }
     }
 
