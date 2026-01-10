@@ -44,7 +44,8 @@ struct Tree {
 enum MoveType {
     MOVE_SWAP = 0,
     MOVE_REPARENT = 1,
-    MOVE_LABEL_SWAP = 2
+    MOVE_LABEL_SWAP = 2,
+    MOVE_PARENT_SWAP = 3
 };
 
 struct Move {
@@ -384,18 +385,66 @@ static bool is_descendant(const Tree &tr, int node, int potential_parent) {
     return false;
 }
 
+static int choose_insert_pos(const Tree &tr, int parent, int v, XorShift64 &rng) {
+    const auto &ch = tr.children[parent];
+    int sz = (int)ch.size();
+    if (sz == 0) return 0;
+    auto center_of = [&](int node) -> Pos {
+        return (node == tr.root) ? root_center2 : center2[node];
+    };
+    auto delta_at = [&](int pos) -> int {
+        Pos left = center_of(pos > 0 ? ch[pos - 1] : parent);
+        Pos right = center_of(pos < sz ? ch[pos] : parent);
+        return dist(left, center2[v]) + dist(center2[v], right) - dist(left, right);
+    };
+    int best_pos = 0;
+    int best_delta = delta_at(0);
+    int end_delta = delta_at(sz);
+    if (end_delta < best_delta) {
+        best_delta = end_delta;
+        best_pos = sz;
+    }
+    int samples = min(sz, 8);
+    for (int t = 0; t < samples; ++t) {
+        int idx = rng.next_int(0, sz - 1);
+        int d0 = delta_at(idx);
+        if (d0 < best_delta) {
+            best_delta = d0;
+            best_pos = idx;
+        }
+        int d1 = delta_at(idx + 1);
+        if (d1 < best_delta) {
+            best_delta = d1;
+            best_pos = idx + 1;
+        }
+    }
+    return best_pos;
+}
+
 static bool apply_random_move(Tree &tr, XorShift64 &rng, Move &mv,
                               vector<array<Pos, 2>> &pos) {
     int M = tr.M;
     int roll = rng.next_int(0, 99);
     const int LABEL_SWAP_RATE = 80;
+    const int PARENT_SWAP_RATE = 80;
 
     if (roll < 40) { // swap siblings or labels
         if (rng.next_int(0, 99) < LABEL_SWAP_RATE) {
             for (int tries = 0; tries < 8; ++tries) {
                 int a = rng.next_int(0, M - 1);
-                int b = rng.next_int(0, M - 1);
-                if (a == b) continue;
+                int best = -1;
+                int best_d = INT_MAX;
+                for (int t = 0; t < 16; ++t) {
+                    int b = rng.next_int(0, M - 1);
+                    if (b == a) continue;
+                    int d = dist(center2[a], center2[b]);
+                    if (d < best_d) {
+                        best_d = d;
+                        best = b;
+                    }
+                }
+                if (best == -1) continue;
+                int b = best;
                 swap(pos[a], pos[b]);
                 swap(center2[a], center2[b]);
                 mv.type = MOVE_LABEL_SWAP;
@@ -419,6 +468,47 @@ static bool apply_random_move(Tree &tr, XorShift64 &rng, Move &mv,
             return true;
         }
         return false;
+    }
+
+    if (rng.next_int(0, 99) < PARENT_SWAP_RATE) { // swap parents
+        for (int tries = 0; tries < 8; ++tries) {
+            int a = rng.next_int(0, M - 1);
+            int b = rng.next_int(0, M - 1);
+            if (a == b) continue;
+            if (is_descendant(tr, a, b) || is_descendant(tr, b, a)) continue;
+            int pa = tr.parent[a];
+            int pb = tr.parent[b];
+            if (pa == pb) continue;
+            auto &cha = tr.children[pa];
+            auto &chb = tr.children[pb];
+            int idx_a = -1;
+            int idx_b = -1;
+            for (int i = 0; i < (int)cha.size(); ++i) {
+                if (cha[i] == a) {
+                    idx_a = i;
+                    break;
+                }
+            }
+            for (int i = 0; i < (int)chb.size(); ++i) {
+                if (chb[i] == b) {
+                    idx_b = i;
+                    break;
+                }
+            }
+            if (idx_a == -1 || idx_b == -1) continue;
+            cha[idx_a] = b;
+            chb[idx_b] = a;
+            tr.parent[a] = pb;
+            tr.parent[b] = pa;
+            mv.type = MOVE_PARENT_SWAP;
+            mv.v = a;
+            mv.p = b;
+            mv.old_parent = pa;
+            mv.new_parent = pb;
+            mv.i = idx_a;
+            mv.j = idx_b;
+            return true;
+        }
     }
 
     // move subtree
@@ -452,7 +542,7 @@ static bool apply_random_move(Tree &tr, XorShift64 &rng, Move &mv,
 
     old_ch.erase(old_ch.begin() + idx);
     auto &new_ch = tr.children[new_parent];
-    int ins = rng.next_int(0, (int)new_ch.size());
+    int ins = choose_insert_pos(tr, new_parent, v, rng);
     new_ch.insert(new_ch.begin() + ins, v);
     tr.parent[v] = new_parent;
     mv.type = MOVE_REPARENT;
@@ -480,6 +570,17 @@ static void undo_move(Tree &tr, const Move &mv, vector<array<Pos, 2>> &pos) {
     if (mv.type == MOVE_LABEL_SWAP) {
         swap(pos[mv.p], pos[mv.v]);
         swap(center2[mv.p], center2[mv.v]);
+        return;
+    }
+    if (mv.type == MOVE_PARENT_SWAP) {
+        int a = mv.v;
+        int b = mv.p;
+        int pa = mv.old_parent;
+        int pb = mv.new_parent;
+        tr.children[pa][mv.i] = a;
+        tr.children[pb][mv.j] = b;
+        tr.parent[a] = pa;
+        tr.parent[b] = pb;
     }
 }
 
@@ -749,7 +850,7 @@ int main(int argc, char **argv) {
 
     Timer timer;
     XorShift64 rng;
-    const double TIME_LIMIT = 1.95;
+    const double TIME_LIMIT = 1.99;
     const double T0 = 2.0;
     const double T1 = 0.5;
     const double DEPTH_WEIGHT = 0.05;
@@ -759,15 +860,15 @@ int main(int argc, char **argv) {
     long long valid_moves = 0;
     long long accepted_moves = 0;
     long long improved_moves = 0;
-    array<long long, 3> type_valid{};
-    array<long long, 3> type_accepted{};
-    array<long long, 3> type_improved{};
+    array<long long, 4> type_valid{};
+    array<long long, 4> type_accepted{};
+    array<long long, 4> type_improved{};
     while (timer.sec() < TIME_LIMIT) {
         ++total_iters;
         Move mv;
         if (!apply_random_move(cur, rng, mv, pos)) continue;
         ++valid_moves;
-        if (mv.type >= 0 && mv.type < 3) {
+        if (mv.type >= 0 && mv.type < 4) {
             ++type_valid[mv.type];
         }
         int p1 = -1;
@@ -778,6 +879,9 @@ int main(int argc, char **argv) {
         } else if (mv.type == MOVE_LABEL_SWAP) {
             p1 = mv.p;
             p2 = mv.v;
+        } else if (mv.type == MOVE_PARENT_SWAP) {
+            p1 = mv.old_parent;
+            p2 = mv.new_parent;
         } else {
             p1 = mv.p;
         }
@@ -785,6 +889,8 @@ int main(int argc, char **argv) {
         if (mv.type == MOVE_SWAP) {
             root_changed = (mv.p == cur.root);
         } else if (mv.type == MOVE_REPARENT) {
+            root_changed = (mv.old_parent == cur.root || mv.new_parent == cur.root);
+        } else if (mv.type == MOVE_PARENT_SWAP) {
             root_changed = (mv.old_parent == cur.root || mv.new_parent == cur.root);
         }
 
@@ -806,12 +912,21 @@ int main(int argc, char **argv) {
         long long cand_cost = root_seg.total_cost();
         long long cand_sum_depth = sum_depth;
         int moved_size = 0;
+        int size_a = 0;
+        int size_b = 0;
         if (mv.type == MOVE_REPARENT) {
             int new_depth = depth_of(cur, mv.new_parent) + 1;
             int old_depth = depth_of(cur, mv.old_parent) + 1;
             int delta = new_depth - old_depth;
             moved_size = subtree_size[mv.v];
             cand_sum_depth = sum_depth + 1LL * delta * moved_size;
+        } else if (mv.type == MOVE_PARENT_SWAP) {
+            int pa = mv.old_parent;
+            int pb = mv.new_parent;
+            int delta = depth_of(cur, pb) - depth_of(cur, pa);
+            size_a = subtree_size[mv.v];
+            size_b = subtree_size[mv.p];
+            cand_sum_depth = sum_depth + 1LL * delta * (size_a - size_b);
         }
         double cand_obj = cand_cost + DEPTH_WEIGHT * (double)cand_sum_depth;
 
@@ -831,20 +946,25 @@ int main(int argc, char **argv) {
             cur_cost = cand_cost;
             cur_obj = cand_obj;
             ++accepted_moves;
-            if (mv.type >= 0 && mv.type < 3) {
+            if (mv.type >= 0 && mv.type < 4) {
                 ++type_accepted[mv.type];
             }
             if (mv.type == MOVE_REPARENT) {
                 sum_depth = cand_sum_depth;
                 update_subtree_sizes(subtree_size, cur, mv.old_parent, -moved_size);
                 update_subtree_sizes(subtree_size, cur, mv.new_parent, +moved_size);
+            } else if (mv.type == MOVE_PARENT_SWAP) {
+                sum_depth = cand_sum_depth;
+                int delta = size_b - size_a;
+                update_subtree_sizes(subtree_size, cur, mv.old_parent, delta);
+                update_subtree_sizes(subtree_size, cur, mv.new_parent, -delta);
             }
             if (cur_cost < best_cost) {
                 best_cost = cur_cost;
                 best = cur;
                 best_pos = pos;
                 ++improved_moves;
-                if (mv.type >= 0 && mv.type < 3) {
+                if (mv.type >= 0 && mv.type < 4) {
                     ++type_improved[mv.type];
                 }
             }
@@ -878,8 +998,8 @@ int main(int argc, char **argv) {
              << " accepted=" << accepted_moves << " improved=" << improved_moves << "\n";
         cerr << "accept_rate=" << fixed << setprecision(2) << rate(accepted_moves, valid_moves) << "% "
              << "improve_rate=" << rate(improved_moves, valid_moves) << "%\n";
-        const char *names[3] = {"swap", "reparent", "lswap"};
-        for (int t = 0; t < 3; ++t) {
+        const char *names[4] = {"swap", "reparent", "lswap", "pswap"};
+        for (int t = 0; t < 4; ++t) {
             cerr << names[t] << ": valid=" << type_valid[t]
                  << " accepted=" << type_accepted[t]
                  << " improved=" << type_improved[t] << "\n";
