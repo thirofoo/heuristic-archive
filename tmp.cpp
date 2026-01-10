@@ -633,8 +633,8 @@ int main() {
         }
 
         if (accept) {
-            // cerr << "Iter " << iter << ": Cost " << cand_cost << ", Best Cost " << best_cost << "\n";
-            // cerr << "Best Update? : " << (cand_cost < best_cost ? "Yes" : "No") << "\n";
+            cerr << "Iter " << iter << ": Cost " << cand_cost << ", Best Cost " << best_cost << "\n";
+            cerr << "Best Update? : " << (cand_cost < best_cost ? "Yes" : "No") << "\n";
             cur_cost = cand_cost;
             if (cur_cost < best_cost) {
                 best_cost = cur_cost;
@@ -647,6 +647,7 @@ int main() {
             cur_cost = recompute_root(cur, pos, cost);
         }
     }
+    cerr << "Finished " << iter << " iterations.\n";
 
     string ops = build_solution(best, pos);
     for (char ch : ops) {
