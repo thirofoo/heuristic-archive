@@ -61,6 +61,112 @@ struct Move {
     int new_index = -1;
 };
 
+struct SegNode {
+    Pos entry[2];
+    Pos exit[2];
+    long long cost[2][2];
+};
+
+static void fill_leaf_node(SegNode &node, int child, const vector<array<Pos, 2>> &pos,
+                           const vector<array<long long, 2>> &cost) {
+    node.entry[0] = pos[child][0];
+    node.entry[1] = pos[child][1];
+    node.exit[0] = pos[child][1];
+    node.exit[1] = pos[child][0];
+    const long long INF = (1LL << 60);
+    node.cost[0][0] = cost[child][0];
+    node.cost[1][1] = cost[child][1];
+    node.cost[0][1] = INF;
+    node.cost[1][0] = INF;
+}
+
+static SegNode merge_nodes(const SegNode &a, const SegNode &b) {
+    SegNode res;
+    res.entry[0] = a.entry[0];
+    res.entry[1] = a.entry[1];
+    res.exit[0] = b.exit[0];
+    res.exit[1] = b.exit[1];
+    const long long INF = (1LL << 60);
+    for (int i = 0; i < 2; ++i) {
+        for (int k = 0; k < 2; ++k) {
+            long long best = INF;
+            for (int j = 0; j < 2; ++j) {
+                for (int l = 0; l < 2; ++l) {
+                    long long cand = a.cost[i][j] + dist(a.exit[j], b.entry[l]) + b.cost[l][k];
+                    if (cand < best) best = cand;
+                }
+            }
+            res.cost[i][k] = best;
+        }
+    }
+    return res;
+}
+
+struct RootSegTree {
+    int n = 0;
+    vector<SegNode> seg;
+    vector<int> order;
+    vector<int> index_of;
+
+    void build(const vector<int> &children, const vector<array<Pos, 2>> &pos,
+               const vector<array<long long, 2>> &cost) {
+        order = children;
+        n = (int)order.size();
+        seg.assign(n ? 4 * n : 1, SegNode());
+        index_of.assign((int)cost.size(), -1);
+        for (int i = 0; i < n; ++i) index_of[order[i]] = i;
+        if (n == 0) return;
+        build_rec(1, 0, n - 1, pos, cost);
+    }
+
+    void build_rec(int idx, int l, int r, const vector<array<Pos, 2>> &pos,
+                   const vector<array<long long, 2>> &cost) {
+        if (l == r) {
+            fill_leaf_node(seg[idx], order[l], pos, cost);
+            return;
+        }
+        int mid = (l + r) / 2;
+        build_rec(idx * 2, l, mid, pos, cost);
+        build_rec(idx * 2 + 1, mid + 1, r, pos, cost);
+        seg[idx] = merge_nodes(seg[idx * 2], seg[idx * 2 + 1]);
+    }
+
+    void update_child(int child, const vector<array<Pos, 2>> &pos,
+                      const vector<array<long long, 2>> &cost) {
+        if (n == 0) return;
+        int idx = (child >= 0 && child < (int)index_of.size()) ? index_of[child] : -1;
+        if (idx < 0) return;
+        update_rec(1, 0, n - 1, idx, pos, cost);
+    }
+
+    void update_rec(int node, int l, int r, int idx, const vector<array<Pos, 2>> &pos,
+                    const vector<array<long long, 2>> &cost) {
+        if (l == r) {
+            fill_leaf_node(seg[node], order[l], pos, cost);
+            return;
+        }
+        int mid = (l + r) / 2;
+        if (idx <= mid) update_rec(node * 2, l, mid, idx, pos, cost);
+        else update_rec(node * 2 + 1, mid + 1, r, idx, pos, cost);
+        seg[node] = merge_nodes(seg[node * 2], seg[node * 2 + 1]);
+    }
+
+    long long total_cost() const {
+        if (n == 0) return 0;
+        const SegNode &root = seg[1];
+        const long long INF = (1LL << 60);
+        Pos start{0, 0};
+        long long best = INF;
+        for (int s = 0; s < 2; ++s) {
+            for (int t = 0; t < 2; ++t) {
+                long long cand = dist(start, root.entry[s]) + root.cost[s][t];
+                if (cand < best) best = cand;
+            }
+        }
+        return best;
+    }
+};
+
 static vector<int> build_greedy_order(int M, const vector<array<Pos, 2>> &pos) {
     vector<int> order;
     order.reserve(M);
@@ -228,44 +334,15 @@ static void recompute_node(const Tree &tr, const vector<array<Pos, 2>> &pos,
     }
 }
 
-static long long recompute_root(const Tree &tr, const vector<array<Pos, 2>> &pos,
-                                const vector<array<long long, 2>> &cost) {
-    const long long INF = (1LL << 60);
-    const auto &rch = tr.children[tr.root];
-    if (rch.empty()) return 0;
-
-    long long dp_prev[2] = {INF, INF};
-    long long dp_cur[2] = {INF, INF};
-    Pos exit_prev[2];
-    Pos start{0, 0};
-    for (size_t i = 0; i < rch.size(); ++i) {
-        int u = rch[i];
-        for (int cs = 0; cs < 2; ++cs) {
-            Pos entry = pos[u][cs];
-            long long base;
-            if (i == 0) {
-                base = dist(start, entry);
-            } else {
-                long long c0 = dp_prev[0] + dist(exit_prev[0], entry);
-                long long c1 = dp_prev[1] + dist(exit_prev[1], entry);
-                base = min(c0, c1);
-            }
-            dp_cur[cs] = base + cost[u][cs];
-        }
-        dp_prev[0] = dp_cur[0];
-        dp_prev[1] = dp_cur[1];
-        exit_prev[0] = pos[u][1];
-        exit_prev[1] = pos[u][0];
-    }
-    return min(dp_prev[0], dp_prev[1]);
-}
-
-static void recompute_path(const Tree &tr, const vector<array<Pos, 2>> &pos,
-                           vector<array<long long, 2>> &cost, int v) {
+static int recompute_path(const Tree &tr, const vector<array<Pos, 2>> &pos,
+                          vector<array<long long, 2>> &cost, int v) {
+    int last = -1;
     while (v != tr.root) {
+        last = v;
         recompute_node(tr, pos, cost, v);
         v = tr.parent[v];
     }
+    return last;
 }
 
 static bool is_descendant(const Tree &tr, int node, int potential_parent) {
@@ -600,6 +677,8 @@ int main(int argc, char **argv) {
     vector<array<long long, 2>> cost;
     long long cur_cost = evaluate_tree(cur, pos, cost);
     long long best_cost = cur_cost;
+    RootSegTree root_seg;
+    root_seg.build(cur.children[cur.root], pos, cost);
 
     Timer timer;
     XorShift64 rng;
@@ -630,9 +709,25 @@ int main(int argc, char **argv) {
         } else {
             p1 = mv.p;
         }
-        if (p1 != -1) recompute_path(cur, pos, cost, p1);
-        if (p2 != -1 && p2 != p1) recompute_path(cur, pos, cost, p2);
-        long long cand_cost = recompute_root(cur, pos, cost);
+        bool root_changed = false;
+        if (mv.type == MOVE_SWAP || mv.type == MOVE_REVERSE) {
+            root_changed = (mv.p == cur.root);
+        } else if (mv.type == MOVE_REPARENT) {
+            root_changed = (mv.old_parent == cur.root || mv.new_parent == cur.root);
+        }
+
+        int top1 = -1;
+        int top2 = -1;
+        if (p1 != -1) top1 = recompute_path(cur, pos, cost, p1);
+        if (p2 != -1 && p2 != p1) top2 = recompute_path(cur, pos, cost, p2);
+
+        if (root_changed) {
+            root_seg.build(cur.children[cur.root], pos, cost);
+        } else {
+            if (top1 != -1) root_seg.update_child(top1, pos, cost);
+            if (top2 != -1 && top2 != top1) root_seg.update_child(top2, pos, cost);
+        }
+        long long cand_cost = root_seg.total_cost();
 
         bool accept = false;
         if (cand_cost <= cur_cost) {
@@ -662,9 +757,17 @@ int main(int argc, char **argv) {
             }
         } else {
             undo_move(cur, mv);
-            if (p1 != -1) recompute_path(cur, pos, cost, p1);
-            if (p2 != -1 && p2 != p1) recompute_path(cur, pos, cost, p2);
-            cur_cost = recompute_root(cur, pos, cost);
+            top1 = -1;
+            top2 = -1;
+            if (p1 != -1) top1 = recompute_path(cur, pos, cost, p1);
+            if (p2 != -1 && p2 != p1) top2 = recompute_path(cur, pos, cost, p2);
+            if (root_changed) {
+                root_seg.build(cur.children[cur.root], pos, cost);
+            } else {
+                if (top1 != -1) root_seg.update_child(top1, pos, cost);
+                if (top2 != -1 && top2 != top1) root_seg.update_child(top2, pos, cost);
+            }
+            cur_cost = root_seg.total_cost();
         }
     }
 
