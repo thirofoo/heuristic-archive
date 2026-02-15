@@ -1,5 +1,6 @@
 #include <bits/stdc++.h>
 #include <atcoder/all>
+#include "params.hpp"
 using namespace std;
 using namespace atcoder;
 #define rep(i, n) for(int i = 0; i < n; i++)
@@ -80,6 +81,7 @@ struct Solver {
   int T = 0;
   int U = 0;
   array<int, 100> V;
+  int maxV = 0;
   vector<int> sx;
   vector<int> sy;
   struct EnemyParam {
@@ -94,13 +96,21 @@ struct Solver {
   State current;
   bool initialized = false;
 
-  const int BEAM_WIDTH = 100;
-  const int MAX_DEPTH = 10;
-  const int MAX_BRANCH = 100;
-  const double TIME_LIMIT_MS = 1900.0;
-  const double ALPHA = 1.0;
-  const double BETA = 1.0;
-  const double GAMMA = 0.02;
+  const int BEAM_WIDTH = PARAM_BEAM_WIDTH;
+  const int MAX_DEPTH = PARAM_MAX_DEPTH;
+  const int MAX_BRANCH = PARAM_MAX_BRANCH;
+  const double TIME_LIMIT_MS = PARAM_TIME_LIMIT_MS;
+  const double ALPHA = PARAM_ALPHA;
+  const double BETA = PARAM_BETA;
+  const double GAMMA = PARAM_GAMMA;
+  const double EDGE_OWN_BONUS = PARAM_EDGE_OWN_BONUS;
+  const double EDGE_REINFORCE_FACTOR = PARAM_EDGE_REINFORCE_FACTOR;
+  const double ENEMY_LV1_BONUS = PARAM_ENEMY_LV1_BONUS;
+  const double EMPTY_ADJ_PENALTY = PARAM_EMPTY_ADJ_PENALTY;
+  const double ENEMY_ADJ_PENALTY = PARAM_ENEMY_ADJ_PENALTY;
+  const double LOW_VALUE_BONUS = PARAM_LOW_VALUE_BONUS;
+  const double MOVE_ENEMY_ADJ_PENALTY = PARAM_MOVE_ENEMY_ADJ_PENALTY;
+  const double MOVE_EMPTY_ADJ_PENALTY = PARAM_MOVE_EMPTY_ADJ_PENALTY;
 
   Solver() {
     this->input();
@@ -108,9 +118,11 @@ struct Solver {
 
   void input() {
     if(!(cin >> N >> M >> T >> U)) return;
+    maxV = 0;
     for(int i = 0; i < N; i++) {
       for(int j = 0; j < N; j++) {
         cin >> V[i * N + j];
+        if(V[i * N + j] > maxV) maxV = V[i * N + j];
       }
     }
     sx.assign(M, 0);
@@ -225,10 +237,38 @@ struct Solver {
   double move_heuristic(const State& st, int cell) const {
     int owner = st.owner[cell];
     int level = st.level[cell];
-    if(owner == -1) return 1.0 * V[cell];
-    if(owner == 0) return (level < U ? 0.2 : 0.05) * V[cell];
-    if(level == 1) return 1.3 * V[cell];
-    return 0.6 * V[cell];
+    int x = cell / N;
+    int y = cell % N;
+    bool edge = (x == 0 || x == N - 1 || y == 0 || y == N - 1);
+    double bonus_edge = edge ? EDGE_OWN_BONUS * V[cell] : 0.0;
+    int enemy_adj = 0;
+    int empty_adj = 0;
+    const int dx[4] = {1, -1, 0, 0};
+    const int dy[4] = {0, 0, 1, -1};
+    for(int d = 0; d < 4; d++) {
+      int nx = x + dx[d];
+      int ny = y + dy[d];
+      if(nx < 0 || nx >= N || ny < 0 || ny >= N) continue;
+      int ni = idx(nx, ny);
+      if(st.owner[ni] == -1) empty_adj++;
+      else if(st.owner[ni] != 0) enemy_adj++;
+    }
+
+    if(owner == -1) {
+      double low_value = (double) (maxV - V[cell]);
+      double base = 0.2 * V[cell] + 0.8 * low_value + bonus_edge;
+      base -= MOVE_ENEMY_ADJ_PENALTY * enemy_adj * V[cell];
+      base -= MOVE_EMPTY_ADJ_PENALTY * empty_adj * V[cell];
+      return base;
+    }
+    if(owner == 0) {
+      double base = (level < U ? 0.2 : 0.05) * V[cell];
+      if(edge) base *= EDGE_REINFORCE_FACTOR;
+      base -= MOVE_ENEMY_ADJ_PENALTY * enemy_adj * V[cell];
+      return base + bonus_edge;
+    }
+    if(level == 1) return (1.3 + ENEMY_LV1_BONUS) * V[cell] + bonus_edge;
+    return 0.6 * V[cell] + bonus_edge;
   }
 
   vector<int> enumerate_moves_my(const State& st) const {
@@ -591,12 +631,17 @@ struct Solver {
     for(int p = 1; p < M; p++) smax = max(smax, score_p[p]);
 
     long long own_cnt = 0;
-    long long frontier_value = 0;
+    long long edge_value = 0;
+    long long empty_adj_value = 0;
+    long long enemy_adj_value = 0;
+    long long low_value_sum = 0;
     for(int i = 0; i < N * N; i++) {
       if(st.owner[i] != 0) continue;
       own_cnt++;
       int x = i / N;
       int y = i % N;
+      if(x == 0 || x == N - 1 || y == 0 || y == N - 1) edge_value += V[i];
+      low_value_sum += (maxV - V[i]);
       const int dx[4] = {1, -1, 0, 0};
       const int dy[4] = {0, 0, 1, -1};
       for(int d = 0; d < 4; d++) {
@@ -604,10 +649,15 @@ struct Solver {
         int ny = y + dy[d];
         if(nx < 0 || nx >= N || ny < 0 || ny >= N) continue;
         int ni = idx(nx, ny);
-        if(st.owner[ni] != 0) frontier_value += V[ni];
+        if(st.owner[ni] == -1) empty_adj_value += V[ni];
+        else if(st.owner[ni] != 0) enemy_adj_value += V[ni];
       }
     }
-    double potential = (double) own_cnt + 0.001 * (double) frontier_value;
+    double potential = (double) own_cnt
+                       + 0.001 * (double) edge_value
+                       + LOW_VALUE_BONUS * (double) low_value_sum
+                       - EMPTY_ADJ_PENALTY * (double) empty_adj_value
+                       - ENEMY_ADJ_PENALTY * (double) enemy_adj_value;
 
     return ALPHA * (double) s0 - BETA * (double) smax + GAMMA * potential;
   }
