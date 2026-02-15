@@ -26,29 +26,6 @@ inline unsigned int rand_int() {
   return (tw = (tw ^ (tw >> 19)) ^ (tt ^ (tt >> 8)));
 }
 
-inline double rand_double() {
-  return (double) (rand_int() % (int) 1e9) / 1e9;
-}
-
-inline double gaussian(double mean, double stddev) {
-  // 標準正規分布からの乱数生成（Box-Muller変換
-  double z0 = sqrt(-2.0 * log(rand_double())) * cos(2.0 * M_PI * rand_double());
-  // 平均と標準偏差の変換
-  return mean + z0 * stddev;
-}
-
-// 温度関数
-#define TIME_LIMIT 2950
-inline double temp(double start) {
-  double start_temp = 100, end_temp = 1;
-  return start_temp + (end_temp - start_temp) * ((utility::mytm.elapsed() - start) / TIME_LIMIT);
-}
-
-// 焼きなましの採用確率
-inline double prob(int best, int now, int start) {
-  return exp((double) (now - best) / temp(start));
-}
-
 // ビームサーチの結果復元用の構造体
 struct Trace {
   char op;
@@ -117,14 +94,12 @@ struct Solver {
   State current;
   bool initialized = false;
 
-  const int BEAM_WIDTH = 1;
-  const int MAX_DEPTH = 3;
-  const int MAX_BRANCH = 30;
-  const double TIME_LIMIT_MS = 1800.0;
-  const double ALPHA = 1.0; // ratio term
-  const double BETA = 1.0;  // opponent scale
-  const double GAMMA = 0.01; // potential term
-  const double OPP_SMOOTH_TAU = 2000.0;
+  const int BEAM_WIDTH = 5;
+  const int MAX_DEPTH = 10;
+  const int MAX_BRANCH = 100;
+  const double ALPHA = 1.0;
+  const double BETA = 1.0;
+  const double GAMMA = 0.02;
 
   Solver() {
     this->input();
@@ -242,37 +217,40 @@ struct Solver {
     if(moves.empty()) {
       int stay = idx(st.pos[p].first, st.pos[p].second);
       moves.push_back(stay);
-      return moves;
     }
-    if(p == 0 && (int) moves.size() > MAX_BRANCH) {
-      vector<pair<double, int>> scored;
-      scored.reserve(moves.size());
-      for(int cell : moves) {
-        int owner = st.owner[cell];
-        int level = st.level[cell];
-        double h = 0.0;
-        if(owner == -1) h = V[cell];
-        else if(owner == 0) h = 0.2 * V[cell];
-        else if(level == 1) h = 1.5 * V[cell];
-        else h = 0.7 * V[cell];
-        scored.push_back({h, cell});
-      }
-      int k = MAX_BRANCH;
-      nth_element(scored.begin(), scored.begin() + k, scored.end(),
-                  [](const auto& a, const auto& b) {
-                    if(a.first != b.first) return a.first > b.first;
-                    return a.second < b.second;
-                  });
-      scored.resize(k);
-      sort(scored.begin(), scored.end(),
-           [](const auto& a, const auto& b) {
-             if(a.first != b.first) return a.first > b.first;
-             return a.second < b.second;
-           });
-      moves.clear();
-      moves.reserve(k);
-      for(auto& it : scored) moves.push_back(it.second);
-    }
+    return moves;
+  }
+
+  double move_heuristic(const State& st, int cell) const {
+    int owner = st.owner[cell];
+    int level = st.level[cell];
+    if(owner == -1) return 1.0 * V[cell];
+    if(owner == 0) return (level < U ? 0.2 : 0.05) * V[cell];
+    if(level == 1) return 1.3 * V[cell];
+    return 0.6 * V[cell];
+  }
+
+  vector<int> enumerate_moves_my(const State& st) const {
+    vector<int> moves = enumerate_moves(st, 0);
+    if((int) moves.size() <= MAX_BRANCH) return moves;
+    vector<pair<double, int>> scored;
+    scored.reserve(moves.size());
+    for(int cell : moves) scored.push_back({move_heuristic(st, cell), cell});
+    int k = MAX_BRANCH;
+    nth_element(scored.begin(), scored.begin() + k, scored.end(),
+                [](const auto& a, const auto& b) {
+                  if(a.first != b.first) return a.first > b.first;
+                  return a.second < b.second;
+                });
+    scored.resize(k);
+    sort(scored.begin(), scored.end(),
+         [](const auto& a, const auto& b) {
+           if(a.first != b.first) return a.first > b.first;
+           return a.second < b.second;
+         });
+    moves.clear();
+    moves.reserve(k);
+    for(const auto& it : scored) moves.push_back(it.second);
     return moves;
   }
 
@@ -503,17 +481,6 @@ struct Solver {
     return next;
   }
 
-  double smooth_max_opponent(const vector<long long>& score_p) const {
-    if(M <= 1) return 0.0;
-    double mx = 0.0;
-    for(int p = 1; p < M; p++) mx = max(mx, (double) score_p[p]);
-    double sum = 0.0;
-    for(int p = 1; p < M; p++) {
-      sum += exp(((double) score_p[p] - mx) / OPP_SMOOTH_TAU);
-    }
-    return mx + OPP_SMOOTH_TAU * log(sum);
-  }
-
   double evaluate(const State& st) const {
     vector<long long> score_p(M, 0);
     for(int i = 0; i < N * N; i++) {
@@ -522,16 +489,14 @@ struct Solver {
       score_p[owner] += (long long) V[i] * st.level[i];
     }
     long long s0 = score_p[0];
-    double smax = smooth_max_opponent(score_p);
+    long long smax = 0;
+    for(int p = 1; p < M; p++) smax = max(smax, score_p[p]);
 
-    // Potential: reachable own cells + frontier value sum
-    array<char, 100> reachable;
-    compute_reachable(st, 0, reachable);
-    long long reach_cnt = 0;
+    long long own_cnt = 0;
     long long frontier_value = 0;
     for(int i = 0; i < N * N; i++) {
-      if(!reachable[i]) continue;
-      reach_cnt++;
+      if(st.owner[i] != 0) continue;
+      own_cnt++;
       int x = i / N;
       int y = i % N;
       const int dx[4] = {1, -1, 0, 0};
@@ -544,13 +509,12 @@ struct Solver {
         if(st.owner[ni] != 0) frontier_value += V[ni];
       }
     }
-    double potential = (double) reach_cnt + 0.001 * (double) frontier_value;
+    double potential = (double) own_cnt + 0.001 * (double) frontier_value;
 
-    double ratio = log1p((double) s0 / (BETA * smax + 1.0));
-    return ALPHA * ratio + GAMMA * potential;
+    return ALPHA * (double) s0 - BETA * (double) smax + GAMMA * potential;
   }
 
-  pair<int, int> beam_search_decision(const State& st, double turn_end) const {
+  pair<int, int> beam_search_decision(const State& st) const {
     struct Node {
       State st;
       int first_move;
@@ -567,13 +531,11 @@ struct Solver {
     double best_eval = -1e100;
 
     for(int depth = 0; depth < MAX_DEPTH; depth++) {
-      if(utility::mytm.elapsed() > turn_end) break;
       vector<Node> next_beam;
-      next_beam.reserve(BEAM_WIDTH * 4);
+      next_beam.reserve(BEAM_WIDTH * MAX_BRANCH);
       for(const Node& node : beam) {
-        vector<int> moves = enumerate_moves(node.st, 0);
+        vector<int> moves = enumerate_moves_my(node.st);
         for(int mv : moves) {
-          if(utility::mytm.elapsed() > turn_end) break;
           State ns = simulate_turn_greedy(node.st, mv);
           ns.score = evaluate(ns);
           Node child;
@@ -581,7 +543,6 @@ struct Solver {
           child.first_move = (depth == 0 ? mv : node.first_move);
           next_beam.push_back(child);
         }
-        if(utility::mytm.elapsed() > turn_end) break;
       }
       if(next_beam.empty()) break;
       int k = min((int) next_beam.size(), BEAM_WIDTH);
@@ -607,10 +568,8 @@ struct Solver {
 
   void solve() {
     if(!initialized) return;
-    utility::mytm.CodeStart();
     for(int turn = 0; turn < T; turn++) {
-      double turn_end = TIME_LIMIT_MS * (double) (turn + 1) / (double) T;
-      pair<int, int> decision = beam_search_decision(current, turn_end);
+      pair<int, int> decision = beam_search_decision(current);
       cout << decision.first << " " << decision.second << "\n" << flush;
       int move_idx = idx(decision.first, decision.second);
       current = simulate_turn_actual(current, move_idx, turn);
