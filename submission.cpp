@@ -28,15 +28,15 @@ struct Params {
 };
 
 static constexpr Params PARAMS_BY_M[9] = {
-  {152, 9, 37, 1900.000000, 1.234282, 0.616277, 0.004232, 0.267951, 0.797311, 0.563437, 0.000574, 0.008174, 0.003602, 0.726777, 0.252830, 0.800000, 0.800000, 0.300000, 0.003000},
-  {152, 9, 37, 1900.000000, 1.234282, 0.616277, 0.004232, 0.267951, 0.797311, 0.563437, 0.000574, 0.008174, 0.003602, 0.726777, 0.252830, 0.800000, 0.800000, 0.300000, 0.003000},
-  {152, 9, 37, 1900.000000, 1.234282, 0.616277, 0.004232, 0.267951, 0.797311, 0.563437, 0.000574, 0.008174, 0.003602, 0.726777, 0.252830, 0.800000, 0.800000, 0.300000, 0.003000},
-  {152, 9, 37, 1900.000000, 1.234282, 0.616277, 0.004232, 0.267951, 0.797311, 0.563437, 0.000574, 0.008174, 0.003602, 0.726777, 0.252830, 0.800000, 0.800000, 0.300000, 0.003000},
-  {152, 9, 37, 1900.000000, 1.234282, 0.616277, 0.004232, 0.267951, 0.797311, 0.563437, 0.000574, 0.008174, 0.003602, 0.726777, 0.252830, 0.800000, 0.800000, 0.300000, 0.003000},
-  {152, 9, 37, 1900.000000, 1.234282, 0.616277, 0.004232, 0.267951, 0.797311, 0.563437, 0.000574, 0.008174, 0.003602, 0.726777, 0.252830, 0.800000, 0.800000, 0.300000, 0.003000},
-  {152, 9, 37, 1900.000000, 1.234282, 0.616277, 0.004232, 0.267951, 0.797311, 0.563437, 0.000574, 0.008174, 0.003602, 0.726777, 0.252830, 0.800000, 0.800000, 0.300000, 0.003000},
-  {152, 9, 37, 1900.000000, 1.234282, 0.616277, 0.004232, 0.267951, 0.797311, 0.563437, 0.000574, 0.008174, 0.003602, 0.726777, 0.252830, 0.800000, 0.800000, 0.300000, 0.003000},
-  {152, 9, 37, 1900.000000, 1.234282, 0.616277, 0.004232, 0.267951, 0.797311, 0.563437, 0.000574, 0.008174, 0.003602, 0.726777, 0.252830, 0.800000, 0.800000, 0.300000, 0.003000}
+  {100, 10, 100, 1900.000000, 0.969396, 1.374834, 0.009361, 0.281041, 0.669435, 0.322654, 0.002969, 0.005455, 0.002204, 0.185216, 0.302057, 0.800000, 0.800000, 0.300000, 0.003000},
+  {100, 10, 100, 1900.000000, 0.969396, 1.374834, 0.009361, 0.281041, 0.669435, 0.322654, 0.002969, 0.005455, 0.002204, 0.185216, 0.302057, 0.800000, 0.800000, 0.300000, 0.003000},
+  {100, 10, 100, 1900.000000, 0.969396, 1.374834, 0.009361, 0.281041, 0.669435, 0.322654, 0.002969, 0.005455, 0.002204, 0.185216, 0.302057, 0.800000, 0.800000, 0.300000, 0.003000},
+  {100, 10, 100, 1900.000000, 0.969396, 1.374834, 0.009361, 0.281041, 0.669435, 0.322654, 0.002969, 0.005455, 0.002204, 0.185216, 0.302057, 0.800000, 0.800000, 0.300000, 0.003000},
+  {100, 10, 100, 1900.000000, 0.969396, 1.374834, 0.009361, 0.281041, 0.669435, 0.322654, 0.002969, 0.005455, 0.002204, 0.185216, 0.302057, 0.800000, 0.800000, 0.300000, 0.003000},
+  {100, 10, 100, 1900.000000, 0.969396, 1.374834, 0.009361, 0.281041, 0.669435, 0.322654, 0.002969, 0.005455, 0.002204, 0.185216, 0.302057, 0.800000, 0.800000, 0.300000, 0.003000},
+  {100, 10, 100, 1900.000000, 0.969396, 1.374834, 0.009361, 0.281041, 0.669435, 0.322654, 0.002969, 0.005455, 0.002204, 0.185216, 0.302057, 0.800000, 0.800000, 0.300000, 0.003000},
+  {100, 10, 100, 1900.000000, 0.969396, 1.374834, 0.009361, 0.281041, 0.669435, 0.322654, 0.002969, 0.005455, 0.002204, 0.185216, 0.302057, 0.800000, 0.800000, 0.300000, 0.003000},
+  {100, 10, 100, 1900.000000, 0.969396, 1.374834, 0.009361, 0.281041, 0.669435, 0.322654, 0.002969, 0.005455, 0.002204, 0.185216, 0.302057, 0.800000, 0.800000, 0.300000, 0.003000}
 };
 
 inline const Params& params_for_m(int m) {
@@ -59,7 +59,7 @@ namespace utility {
   // 経過時間 (ms) を返す
   double elapsed() const {
     using namespace std::chrono;
-    return (double) duration_cast<milliseconds>(steady_clock::now() - start).count();
+    return duration<double, milli>(steady_clock::now() - start).count();
   }
   } mytm;
 }
@@ -89,7 +89,7 @@ struct State {
   array<int, 100> owner; // O[100] 各マスの所有者
   array<int, 100> level; // L[100] 各マスのレベル
   // プレイヤー情報
-  vector<pair<int, int>> pos; // 各プレイヤーの現在位置 pos[M]
+  array<pair<int, int>, 8> pos; // 各プレイヤーの現在位置 pos[M] (先頭M要素を使用)
   // ターン数
   int t;
   // 評価値
@@ -100,6 +100,7 @@ struct State {
   State() : t(0), score(0.0), hash(0) {
     owner.fill(-1);
     level.fill(0);
+    pos.fill({0, 0});
     score_p.fill(0);
   }
   // 必要に応じてコピーコンストラクタやmoveも追加可能
@@ -142,6 +143,8 @@ struct Solver {
   vector<array<double, 4>> enemy_candidates;
   vector<vector<double>> enemy_logp;
   static constexpr double kAssumedEps = 0.3;
+  double value_cx = 0.0;
+  double value_cy = 0.0;
 
   Solver() {
     this->input();
@@ -154,6 +157,26 @@ struct Solver {
       for(int j = 0; j < N; j++) {
         cin >> V[i * N + j];
         if(V[i * N + j] > maxV) maxV = V[i * N + j];
+      }
+    }
+    {
+      double wsum = 0.0;
+      double sxw = 0.0;
+      double syw = 0.0;
+      for(int i = 0; i < N; i++) {
+        for(int j = 0; j < N; j++) {
+          double w = (double) V[i * N + j];
+          wsum += w;
+          sxw += w * i;
+          syw += w * j;
+        }
+      }
+      if(wsum > 0.0) {
+        value_cx = sxw / wsum;
+        value_cy = syw / wsum;
+      } else {
+        value_cx = (N - 1) * 0.5;
+        value_cy = (N - 1) * 0.5;
       }
     }
     sx.assign(M, 0);
@@ -178,7 +201,7 @@ struct Solver {
     }
 
     current = State();
-    current.pos.assign(M, {0, 0});
+    current.pos.fill({0, 0});
     for(int p = 0; p < M; p++) {
       int idx = sx[p] * N + sy[p];
       current.owner[idx] = p;
@@ -192,6 +215,8 @@ struct Solver {
     init_scores_and_hash(current);
     enemy_cache.assign(M, {});
     move_cache.assign(M, {});
+    for(auto& mp : enemy_cache) mp.reserve(4096);
+    for(auto& mp : move_cache) mp.reserve(4096);
     init_enemy_estimator();
   }
 
@@ -202,12 +227,13 @@ struct Solver {
   bool read_turn_state(State& st) {
     int tx, ty;
     State prev = st;
-    vector<int> selected(M, -1);
+    array<int, 8> selected;
+    selected.fill(-1);
     for(int p = 0; p < M; p++) {
       if(!(cin >> tx >> ty)) return false;
       selected[p] = idx(tx, ty);
     }
-    st.pos.assign(M, {0, 0});
+    st.pos.fill({0, 0});
     for(int p = 0; p < M; p++) {
       if(!(cin >> tx >> ty)) return false;
       st.pos[p] = {tx, ty};
@@ -246,12 +272,12 @@ struct Solver {
     }
   }
 
-  void update_enemy_params(const State& prev, const vector<int>& selected) {
+  void update_enemy_params(const State& prev, const array<int, 8>& selected) {
     if(enemy_candidates.empty()) return;
     for(int p = 1; p < M; p++) {
       int obs = selected[p];
       if(obs < 0) continue;
-      vector<int> moves = enumerate_moves(prev, p);
+      const vector<int>& moves = enumerate_moves(prev, p);
       if(moves.empty()) continue;
       int ai_idx = p - 1;
       vector<double>& logp = enemy_logp[ai_idx];
@@ -420,12 +446,11 @@ struct Solver {
     }
   }
 
-  vector<int> enumerate_moves(const State& st, int p) const {
+  const vector<int>& enumerate_moves(const State& st, int p) const {
     uint64_t key = st.hash ^ (0x3c6ef372fe94f82aULL * (uint64_t) (p + 1));
-    if(p < (int) move_cache.size()) {
-      auto it = move_cache[p].find(key);
-      if(it != move_cache[p].end()) return it->second;
-    }
+    auto& cache = move_cache[p];
+    auto it = cache.find(key);
+    if(it != cache.end()) return it->second;
 
     array<char, 100> visited;
     visited.fill(0);
@@ -465,11 +490,12 @@ struct Solver {
     }
 
     if(moves.empty()) moves.push_back(start);
-    if(p < (int) move_cache.size()) move_cache[p][key] = moves;
-    return moves;
+    auto [inserted_it, _] = cache.emplace(key, std::move(moves));
+    return inserted_it->second;
   }
 
-  void compute_returned(const State& st, const vector<int>& target, array<char, 8>& returned) const {
+  template <class TargetContainer>
+  void compute_returned(const State& st, const TargetContainer& target, array<char, 8>& returned) const {
     returned.fill(0);
     array<uint8_t, 100> cnt;
     array<uint16_t, 100> mask;
@@ -499,6 +525,51 @@ struct Solver {
     }
   }
 
+  void apply_turn_targets_inplace(State& st, const array<int, 8>& target) const {
+    array<pair<int, int>, 8> start_pos = st.pos;
+    array<pair<int, int>, 8> moved_pos = st.pos;
+    for(int p = 0; p < M; p++) {
+      int cell = target[p];
+      moved_pos[p] = {cell / N, cell % N};
+    }
+
+    array<char, 8> returned;
+    compute_returned(st, target, returned);
+
+    for(int p = 0; p < M; p++) {
+      if(returned[p]) continue;
+      int cell = target[p];
+      int cell_owner = st.owner[cell];
+      int cell_level = st.level[cell];
+      if(cell_owner == -1) {
+        update_cell(st, cell, p, 1);
+      } else if(cell_owner == p) {
+        update_cell(st, cell, p, min(U, cell_level + 1));
+      } else {
+        int new_level = cell_level - 1;
+        if(new_level <= 0) {
+          update_cell(st, cell, p, 1);
+        } else {
+          update_cell(st, cell, cell_owner, new_level);
+          returned[p] = 1;
+        }
+      }
+    }
+
+    for(int p = 0; p < M; p++) {
+      int new_cell = returned[p] ? idx(start_pos[p].first, start_pos[p].second)
+                                 : idx(moved_pos[p].first, moved_pos[p].second);
+      update_pos(st, p, new_cell);
+    }
+    st.t += 1;
+  }
+
+  void build_target_greedy(const State& st, int my_move, array<int, 8>& target) const {
+    target.fill(-1);
+    target[0] = my_move;
+    for(int p = 1; p < M; p++) target[p] = decide_enemy_move_greedy(st, p);
+  }
+
   int nearest_enemy_dist(const State& st, int x, int y, int enemy_id) const {
     int best = 1e9;
     for(int i = 0; i < N * N; i++) {
@@ -512,43 +583,150 @@ struct Solver {
     return best;
   }
 
-  double move_heuristic(const State& st, int cell) const {
+  double move_heuristic(
+      const State& st,
+      int cell,
+      const array<uint8_t, 100>& enemy_target_cnt,
+      const array<uint16_t, 100>& enemy_target_mask) const {
+    int x = cell / N;
+    int y = cell % N;
     int owner = st.owner[cell];
     int level = st.level[cell];
-    if(owner == -1) return (double) V[cell];
-    if(owner == 0) return 0.01 * (double) V[cell];
-    return (double) V[cell];
+    double v = (double) V[cell];
+    double h = 0.0;
+
+    // Base gain model
+    if(owner == -1) {
+      h += 1.00 * v;
+    } else if(owner == 0) {
+      if(level < U) h += 0.30 * v;
+      else h -= 0.25 * v;
+    } else {
+      h += (level == 1 ? 2.10 : 0.70) * v;
+    }
+
+    // Local next-turn potential around destination.
+    const int dx[4] = {1, -1, 0, 0};
+    const int dy[4] = {0, 0, 1, -1};
+    double local_potential = 0.0;
+    for(int d = 0; d < 4; d++) {
+      int nx = x + dx[d];
+      int ny = y + dy[d];
+      if(nx < 0 || nx >= N || ny < 0 || ny >= N) continue;
+      int c = idx(nx, ny);
+      int o = st.owner[c];
+      int l = st.level[c];
+      double nv = (double) V[c];
+      if(o == -1) local_potential += 0.22 * nv;
+      else if(o != 0 && l == 1) local_potential += 0.42 * nv;
+      else if(o == 0 && l >= U) local_potential -= 0.08 * nv;
+    }
+    h += local_potential;
+
+    int d1 = 100, d2 = 100;
+    int near2 = 0;
+    int near4 = 0;
+    for(int p = 1; p < M; p++) {
+      int md = abs(st.pos[p].first - x) + abs(st.pos[p].second - y);
+      if(md < d1) {
+        d2 = d1;
+        d1 = md;
+      } else if(md < d2) {
+        d2 = md;
+      }
+      if(md <= 2) near2++;
+      if(md <= 4) near4++;
+    }
+
+    if(M >= 4) {
+      int edge_dist = min(min(x, N - 1 - x), min(y, N - 1 - y));
+      int max_edge_dist = max(1, (N - 1) / 2);
+      double edge_pref = (double) (max_edge_dist - edge_dist) / (double) max_edge_dist;
+      h += 0.55 * v * edge_pref;
+
+      double pressure = 0.0;
+      if(d1 <= 1) pressure += 2.0;
+      else if(d1 == 2) pressure += 1.0;
+      else if(d1 == 3) pressure += 0.4;
+      if(d2 <= 2) pressure += 0.9;
+      else if(d2 == 3) pressure += 0.3;
+      pressure += 0.25 * near2 + 0.08 * near4;
+      h -= 0.55 * v * pressure;
+
+      double d_value = fabs(x - value_cx) + fabs(y - value_cy);
+      h += 0.20 * v * (d_value / max(1.0, 2.0 * (N - 1)));
+    } else {
+      // In low-player games, Lv1 sniping is highly efficient (+2 swing).
+      if(owner > 0 && level == 1) h += 1.20 * v;
+      if(d1 < 100) h += 0.45 * v / (1.0 + d1);
+    }
+
+    // This turn's predicted enemy targets (for branch pruning quality).
+    int hit = enemy_target_cnt[cell];
+    int neigh_hit = 0;
+    const int dx2[4] = {1, -1, 0, 0};
+    const int dy2[4] = {0, 0, 1, -1};
+    for(int d = 0; d < 4; d++) {
+      int nx = x + dx2[d];
+      int ny = y + dy2[d];
+      if(nx < 0 || nx >= N || ny < 0 || ny >= N) continue;
+      neigh_hit += enemy_target_cnt[idx(nx, ny)];
+    }
+    bool owner_defends = (owner > 0) && ((enemy_target_mask[cell] & (uint16_t) (1u << owner)) != 0);
+    if(M >= 4) {
+      h -= 0.85 * v * hit;
+      h -= 0.22 * v * neigh_hit;
+      if(owner_defends) h -= 1.10 * v;
+      if(hit == 0 && neigh_hit == 0) h += 0.12 * v;
+    } else {
+      if(owner > 0 && level == 1 && !owner_defends) h += 0.55 * v;
+      if(owner_defends) h -= 0.70 * v;
+      h -= 0.25 * v * hit;
+    }
+
+    return h;
   }
 
-  vector<int> enumerate_moves_my(const State& st) const {
-    vector<int> moves = enumerate_moves(st, 0);
-    vector<int> filtered;
-    filtered.reserve(moves.size());
-    for(int cell : moves) {
+  void enumerate_moves_my(const State& st, vector<int>& moves) const {
+    const vector<int>& base_moves = enumerate_moves(st, 0);
+    moves.clear();
+    if((int) moves.capacity() < (int) base_moves.size()) moves.reserve(base_moves.size());
+    for(int cell : base_moves) {
       if(st.owner[cell] == 0 && st.level[cell] >= U) continue;
-      filtered.push_back(cell);
+      moves.push_back(cell);
     }
-    if(!filtered.empty()) moves.swap(filtered);
-    if((int) moves.size() <= params.max_branch) return moves;
-    vector<pair<double, int>> scored;
-    scored.reserve(moves.size());
-    for(int cell : moves) scored.push_back({move_heuristic(st, cell), cell});
+    if(moves.empty()) moves.assign(base_moves.begin(), base_moves.end());
+    if((int) moves.size() <= params.max_branch) return;
+
+    array<uint8_t, 100> enemy_target_cnt;
+    enemy_target_cnt.fill(0);
+    array<uint16_t, 100> enemy_target_mask;
+    enemy_target_mask.fill(0);
+    for(int p = 1; p < M; p++) {
+      int c = decide_enemy_move_greedy(st, p);
+      enemy_target_cnt[c]++;
+      enemy_target_mask[c] |= (uint16_t) (1u << p);
+    }
+
+    array<pair<double, int>, 100> scored;
+    int scored_size = 0;
+    for(int cell : moves) {
+      scored[scored_size++] = {move_heuristic(st, cell, enemy_target_cnt, enemy_target_mask), cell};
+    }
     int k = params.max_branch;
-    nth_element(scored.begin(), scored.begin() + k, scored.end(),
-                [](const auto& a, const auto& b) {
+    nth_element(scored.begin(), scored.begin() + k, scored.begin() + scored_size,
+                [](const pair<double, int>& a, const pair<double, int>& b) {
                   if(a.first != b.first) return a.first > b.first;
                   return a.second < b.second;
                 });
-    scored.resize(k);
-    sort(scored.begin(), scored.end(),
-         [](const auto& a, const auto& b) {
+    sort(scored.begin(), scored.begin() + k,
+         [](const pair<double, int>& a, const pair<double, int>& b) {
            if(a.first != b.first) return a.first > b.first;
            return a.second < b.second;
          });
     moves.clear();
     moves.reserve(k);
-    for(const auto& it : scored) moves.push_back(it.second);
-    return moves;
+    for(int i = 0; i < k; i++) moves.push_back(scored[i].second);
   }
 
   int decide_enemy_move_greedy(const State& st, int p) const {
@@ -557,7 +735,7 @@ struct Solver {
       auto it = enemy_cache[p].find(key);
       if(it != enemy_cache[p].end()) return it->second;
     }
-    vector<int> moves = enumerate_moves(st, p);
+    const vector<int>& moves = enumerate_moves(st, p);
     double best_score = -1e100;
     int best_move = moves[0];
     for(int i = 0; i < (int)moves.size(); i++) {
@@ -585,24 +763,14 @@ struct Solver {
 
   int decide_enemy_move_actual(const State& st, int p, int turn) const {
     int ai_idx = p - 1;
-    vector<int> cand = enumerate_moves(st, p);
-    vector<double> scores;
-    scores.reserve(cand.size());
-    for(int cell : cand) {
+    const vector<int>& cand = enumerate_moves(st, p);
+    auto calc_score = [&](int cell) {
       int owner = st.owner[cell];
       int level = st.level[cell];
-      double a = 0.0;
-      if(owner == -1) {
-        a = V[cell] * enemy[p].wa;
-      } else if(owner == p) {
-        if(level < U) a = V[cell] * enemy[p].wb;
-        else a = 0.0;
-      } else {
-        if(level == 1) a = V[cell] * enemy[p].wc;
-        else a = V[cell] * enemy[p].wd;
-      }
-      scores.push_back(a);
-    }
+      if(owner == -1) return V[cell] * enemy[p].wa;
+      if(owner == p) return (level < U) ? (V[cell] * enemy[p].wb) : 0.0;
+      return (level == 1) ? (V[cell] * enemy[p].wc) : (V[cell] * enemy[p].wd);
+    };
 
     double eps = enemy[p].eps;
     double r1 = r[ai_idx][2 * (turn % T)];
@@ -612,108 +780,36 @@ struct Solver {
       if(idx_sel >= cand.size()) idx_sel = cand.size() - 1;
       return cand[idx_sel];
     }
+
     double max_score = -1e100;
-    for(double v : scores) max_score = max(max_score, v);
+    for(int cell : cand) max_score = max(max_score, calc_score(cell));
     double tolerance = 1e-9 * max(fabs(max_score), 1.0);
-    vector<int> best_ids;
-    for(int i = 0; i < (int) scores.size(); i++) {
-      if(scores[i] >= max_score - tolerance) best_ids.push_back(i);
+    int best_count = 0;
+    for(int cell : cand) {
+      if(calc_score(cell) >= max_score - tolerance) best_count++;
     }
-    size_t idx_sel = (size_t) floor(r2 * best_ids.size());
-    if(idx_sel >= best_ids.size()) idx_sel = best_ids.size() - 1;
-    int pick = best_ids[idx_sel];
-    return cand[pick];
+    size_t idx_sel = (size_t) floor(r2 * best_count);
+    if(idx_sel >= (size_t) best_count) idx_sel = (size_t) best_count - 1;
+    for(int cell : cand) {
+      if(calc_score(cell) >= max_score - tolerance) {
+        if(idx_sel == 0) return cell;
+        idx_sel--;
+      }
+    }
+    return cand[0];
   }
 
   State simulate_turn_greedy(const State& st, int my_move) const {
     State next = st;
-    vector<int> target(M, -1);
-    target[0] = my_move;
-    for(int p = 1; p < M; p++) {
-      target[p] = decide_enemy_move_greedy(st, p);
-    }
-
-    vector<pair<int, int>> start_pos = st.pos;
-    vector<pair<int, int>> moved_pos = st.pos;
-    for(int p = 0; p < M; p++) {
-      int cell = target[p];
-      moved_pos[p] = {cell / N, cell % N};
-    }
-
-    array<char, 8> returned;
-    compute_returned(st, target, returned);
-
-    // Territory update
-    for(int p = 0; p < M; p++) {
-      if(returned[p]) continue;
-      int cell = target[p];
-      int cell_owner = next.owner[cell];
-      int cell_level = next.level[cell];
-      if(cell_owner == -1) {
-        next.owner[cell] = p;
-        next.level[cell] = 1;
-      } else if(cell_owner == p) {
-        next.level[cell] = min(U, cell_level + 1);
-      } else {
-        // attack
-        next.level[cell] = cell_level - 1;
-        if(next.level[cell] <= 0) {
-          next.owner[cell] = p;
-          next.level[cell] = 1;
-        } else {
-          returned[p] = 1;
-        }
-      }
-    }
-
-    // Piece return
-    for(int p = 0; p < M; p++) {
-      int new_cell = returned[p] ? idx(start_pos[p].first, start_pos[p].second)
-                                 : idx(moved_pos[p].first, moved_pos[p].second);
-      update_pos(next, p, new_cell);
-    }
-    next.t = st.t + 1;
+    array<int, 8> target;
+    build_target_greedy(st, my_move, target);
+    apply_turn_targets_inplace(next, target);
     return next;
   }
 
-  State simulate_turn_targets(const State& st, const vector<int>& target) const {
+  State simulate_turn_targets(const State& st, const array<int, 8>& target) const {
     State next = st;
-    vector<pair<int, int>> start_pos = st.pos;
-    vector<pair<int, int>> moved_pos = st.pos;
-    for(int p = 0; p < M; p++) {
-      int cell = target[p];
-      moved_pos[p] = {cell / N, cell % N};
-    }
-
-    array<char, 8> returned;
-    compute_returned(st, target, returned);
-
-    for(int p = 0; p < M; p++) {
-      if(returned[p]) continue;
-      int cell = target[p];
-      int cell_owner = next.owner[cell];
-      int cell_level = next.level[cell];
-      if(cell_owner == -1) {
-        update_cell(next, cell, p, 1);
-      } else if(cell_owner == p) {
-        update_cell(next, cell, p, min(U, cell_level + 1));
-      } else {
-        int new_level = cell_level - 1;
-        if(new_level <= 0) {
-          update_cell(next, cell, p, 1);
-        } else {
-          update_cell(next, cell, cell_owner, new_level);
-          returned[p] = 1;
-        }
-      }
-    }
-
-    for(int p = 0; p < M; p++) {
-      int new_cell = returned[p] ? idx(start_pos[p].first, start_pos[p].second)
-                                 : idx(moved_pos[p].first, moved_pos[p].second);
-      update_pos(next, p, new_cell);
-    }
-    next.t = st.t + 1;
+    apply_turn_targets_inplace(next, target);
     return next;
   }
 
@@ -724,15 +820,16 @@ struct Solver {
   };
 
   struct Undo {
-    vector<CellChange> changes;
-    vector<pair<int, int>> prev_pos;
+    array<CellChange, 8> changes;
+    int changes_size = 0;
+    array<pair<int, int>, 8> prev_pos;
     int prev_t = 0;
     array<long long, 8> prev_score_p;
     uint64_t prev_hash = 0;
   };
 
   void apply_turn_greedy(State& st, int my_move, Undo& undo) const {
-    undo.changes.clear();
+    undo.changes_size = 0;
     undo.prev_pos = st.pos;
     undo.prev_t = st.t;
     undo.prev_score_p = st.score_p;
@@ -742,14 +839,13 @@ struct Solver {
     auto mark = [&](int cell) {
       if(touched[cell]) return;
       touched[cell] = 1;
-      undo.changes.push_back({cell, st.owner[cell], st.level[cell]});
+      undo.changes[undo.changes_size++] = {cell, st.owner[cell], st.level[cell]};
     };
 
-    vector<int> target(M, -1);
-    target[0] = my_move;
-    for(int p = 1; p < M; p++) target[p] = decide_enemy_move_greedy(st, p);
+    array<int, 8> target;
+    build_target_greedy(st, my_move, target);
 
-    vector<pair<int, int>> moved_pos = st.pos;
+    array<pair<int, int>, 8> moved_pos = st.pos;
     for(int p = 0; p < M; p++) {
       int cell = target[p];
       moved_pos[p] = {cell / N, cell % N};
@@ -788,7 +884,8 @@ struct Solver {
   }
 
   void undo_turn(State& st, const Undo& undo) const {
-    for(const auto& ch : undo.changes) {
+    for(int i = 0; i < undo.changes_size; i++) {
+      const auto& ch = undo.changes[i];
       update_cell(st, ch.idx, ch.owner, ch.level);
     }
     st.score_p = undo.prev_score_p;
@@ -799,51 +896,13 @@ struct Solver {
 
   State simulate_turn_actual(const State& st, int my_move, int turn) const {
     State next = st;
-    vector<int> target(M, -1);
+    array<int, 8> target;
+    target.fill(-1);
     target[0] = my_move;
     for(int p = 1; p < M; p++) {
       target[p] = decide_enemy_move_actual(st, p, turn);
     }
-
-    vector<pair<int, int>> start_pos = st.pos;
-    vector<pair<int, int>> moved_pos = st.pos;
-    for(int p = 0; p < M; p++) {
-      int cell = target[p];
-      moved_pos[p] = {cell / N, cell % N};
-    }
-
-    array<char, 8> returned;
-    compute_returned(st, target, returned);
-
-    // Territory update
-    for(int p = 0; p < M; p++) {
-      if(returned[p]) continue;
-      int cell = target[p];
-      int cell_owner = next.owner[cell];
-      int cell_level = next.level[cell];
-      if(cell_owner == -1) {
-        update_cell(next, cell, p, 1);
-      } else if(cell_owner == p) {
-        update_cell(next, cell, p, min(U, cell_level + 1));
-      } else {
-        // attack
-        int new_level = cell_level - 1;
-        if(new_level <= 0) {
-          update_cell(next, cell, p, 1);
-        } else {
-          update_cell(next, cell, cell_owner, new_level);
-          returned[p] = 1;
-        }
-      }
-    }
-
-    // Piece return
-    for(int p = 0; p < M; p++) {
-      int new_cell = returned[p] ? idx(start_pos[p].first, start_pos[p].second)
-                                 : idx(moved_pos[p].first, moved_pos[p].second);
-      update_pos(next, p, new_cell);
-    }
-    next.t = st.t + 1;
+    apply_turn_targets_inplace(next, target);
     return next;
   }
 
@@ -854,23 +913,106 @@ struct Solver {
     double s0d = max(1.0, (double) s0);
     double sad = (double) smax;
     double abs_score = 1e5 * log2(1.0 + sad / s0d);
-    return -abs_score;
+    double score = -abs_score;
+    double phase = (T <= 1) ? 1.0 : (double) st.t / (double) (T - 1);
+
+    int mx = st.pos[0].first;
+    int my = st.pos[0].second;
+    const double max_md = max(1.0, 2.0 * (N - 1));
+
+    if(M >= 4) {
+      int edge_dist = min(min(mx, N - 1 - mx), min(my, N - 1 - my));
+      int max_edge_dist = max(1, (N - 1) / 2);
+      double edge_pref = (double) (max_edge_dist - edge_dist) / (double) max_edge_dist;
+      double edge_w = (3400.0 + 2200.0 * (1.0 - phase)) * (double) (M - 3);
+      score += edge_w * edge_pref;
+
+      int near2 = 0;
+      int near4 = 0;
+      array<char, 4> quadrant;
+      quadrant.fill(0);
+      double ex_sum = 0.0;
+      double ey_sum = 0.0;
+      int enemy_cnt = 0;
+      for(int p = 1; p < M; p++) {
+        int ex = st.pos[p].first;
+        int ey = st.pos[p].second;
+        int md = abs(ex - mx) + abs(ey - my);
+        if(md <= 2) near2++;
+        if(md <= 4) near4++;
+        int q = (ex >= mx ? 1 : 0) | (ey >= my ? 2 : 0);
+        quadrant[q] = 1;
+        ex_sum += ex;
+        ey_sum += ey;
+        enemy_cnt++;
+      }
+      int qcnt = quadrant[0] + quadrant[1] + quadrant[2] + quadrant[3];
+      score -= (2400.0 + 500.0 * phase) * near2;
+      score -= (650.0 + 250.0 * phase) * near4;
+      if(qcnt >= 3) score -= (1700.0 + 800.0 * phase) * (qcnt - 2);
+
+      int pair_cnt = 0;
+      double pair_sum = 0.0;
+      for(int a = 1; a < M; a++) {
+        for(int b = a + 1; b < M; b++) {
+          pair_sum += abs(st.pos[a].first - st.pos[b].first) + abs(st.pos[a].second - st.pos[b].second);
+          pair_cnt++;
+        }
+      }
+      if(pair_cnt > 0) {
+        double avg_pair = pair_sum / pair_cnt;
+        double cluster = 1.0 - avg_pair / max_md;
+        score += (3200.0 + 1200.0 * phase) * cluster;
+      }
+
+      if(enemy_cnt > 0) {
+        double ecx = ex_sum / enemy_cnt;
+        double ecy = ey_sum / enemy_cnt;
+        double d_enemy = fabs(mx - ecx) + fabs(my - ecy);
+        score += (2200.0 + 700.0 * (1.0 - phase)) * (d_enemy / max_md);
+      }
+
+      double d_value = fabs(mx - value_cx) + fabs(my - value_cy);
+      score += (1200.0 + 900.0 * (1.0 - phase)) * (d_value / max_md);
+    } else {
+      int nearest_enemy = 100;
+      for(int p = 1; p < M; p++) {
+        int md = abs(st.pos[p].first - mx) + abs(st.pos[p].second - my);
+        nearest_enemy = min(nearest_enemy, md);
+      }
+      if(nearest_enemy < 100) {
+        double desired_dist = (phase < 0.7) ? 3.5 : 2.0;
+        score -= 380.0 * fabs((double) nearest_enemy - desired_dist);
+      }
+
+      if(phase < 0.75) {
+        double lead = ((double) s0 - (double) smax) / max(1.0, (double) (s0 + smax));
+        if(lead > 0.0) {
+          score -= 14000.0 * lead * (0.75 - phase);
+        }
+      }
+    }
+
+    return score;
   }
 
   pair<int, int> beam_search_decision(const State& root, double turn_start, double turn_end) const {
-    struct Node {
-      int parent;
-      int action;
+    struct BeamNode {
+      State st;
       int first_action;
       double score;
     };
 
-    vector<Node> nodes;
-    nodes.reserve(params.beam_width * params.max_depth * 4);
-    nodes.push_back({-1, -1, -1, evaluate(root)});
-    vector<int> layer = {0};
+    vector<BeamNode> layer;
+    layer.reserve(params.beam_width);
+    layer.push_back({root, -1, evaluate(root)});
     int best_move = idx(root.pos[0].first, root.pos[0].second);
     double best_eval = -1e100;
+
+    auto better = [](const BeamNode& a, const BeamNode& b) {
+      if(a.score != b.score) return a.score > b.score;
+      return a.first_action < b.first_action;
+    };
 
     double total_budget = max(1.0, turn_end - turn_start);
     for(int depth = 0; depth < params.max_depth; depth++) {
@@ -879,48 +1021,55 @@ struct Solver {
       double remaining = max(0.0, turn_end - now);
       int beam_limit = max(1, (int) (params.beam_width * (remaining / total_budget)));
       if(beam_limit > params.beam_width) beam_limit = params.beam_width;
-      vector<int> next_layer;
-      next_layer.reserve(beam_limit * params.max_branch);
-      for(int node_idx : layer) {
+      vector<BeamNode> next_layer;
+      next_layer.reserve(beam_limit);
+      int worst_idx = -1;
+      vector<int> moves;
+      moves.reserve(100);
+      auto recompute_worst = [&]() {
+        if(next_layer.empty()) {
+          worst_idx = -1;
+          return;
+        }
+        worst_idx = 0;
+        for(int i = 1; i < (int) next_layer.size(); i++) {
+          if(better(next_layer[worst_idx], next_layer[i])) {
+            worst_idx = i;
+          }
+        }
+      };
+      for(const auto& parent : layer) {
         if(utility::mytm.elapsed() > turn_end) break;
-        State st = root;
-        vector<int> path;
-        int cur = node_idx;
-        while(cur > 0) {
-          path.push_back(nodes[cur].action);
-          cur = nodes[cur].parent;
+        enumerate_moves_my(parent.st, moves);
+        array<int, 8> enemy_target;
+        enemy_target.fill(-1);
+        for(int p = 1; p < M; p++) {
+          enemy_target[p] = decide_enemy_move_greedy(parent.st, p);
         }
-        reverse(path.begin(), path.end());
-        for(int action : path) {
-          if(utility::mytm.elapsed() > turn_end) return {best_move / N, best_move % N};
-          Undo u;
-          apply_turn_greedy(st, action, u);
-        }
-
-        vector<int> moves = enumerate_moves_my(st);
         for(int mv : moves) {
           if(utility::mytm.elapsed() > turn_end) break;
-          Undo u;
-          apply_turn_greedy(st, mv, u);
-          double sc = evaluate(st);
-          int first_action = (nodes[node_idx].first_action == -1 ? mv : nodes[node_idx].first_action);
-          nodes.push_back({node_idx, mv, first_action, sc});
-          next_layer.push_back((int) nodes.size() - 1);
-          undo_turn(st, u);
+          BeamNode child = {parent.st, parent.first_action == -1 ? mv : parent.first_action, 0.0};
+          array<int, 8> target = enemy_target;
+          target[0] = mv;
+          apply_turn_targets_inplace(child.st, target);
+          child.score = evaluate(child.st);
+          if((int) next_layer.size() < beam_limit) {
+            next_layer.push_back(std::move(child));
+            int new_idx = (int) next_layer.size() - 1;
+            if(worst_idx == -1 || better(next_layer[worst_idx], next_layer[new_idx])) {
+              worst_idx = new_idx;
+            }
+          } else if(better(child, next_layer[worst_idx])) {
+            next_layer[worst_idx] = std::move(child);
+            recompute_worst();
+          }
         }
       }
 
       if(next_layer.empty()) break;
-      int k = min((int) next_layer.size(), beam_limit);
-      if(k < (int) next_layer.size()) {
-        nth_element(next_layer.begin(), next_layer.begin() + k, next_layer.end(),
-                    [&](int a, int b) { return nodes[a].score > nodes[b].score; });
-        next_layer.resize(k);
-      }
       layer.swap(next_layer);
 
-      for(int node_idx : layer) {
-        const Node& node = nodes[node_idx];
+      for(const auto& node : layer) {
         if(node.score > best_eval && node.first_action != -1) {
           best_eval = node.score;
           best_move = node.first_action;

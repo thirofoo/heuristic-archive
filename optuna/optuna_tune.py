@@ -129,7 +129,7 @@ def objective(trial: optuna.Trial, pahcer_cmd: str, timeout_sec: int) -> float:
         beam_width=trial.suggest_int("beam_width", 40, 160),
         max_depth=trial.suggest_int("max_depth", 6, 12),
         max_branch=trial.suggest_int("max_branch", 15, 40),
-        time_limit_ms=1900.0,
+        time_limit_ms=5000.0,
         alpha=trial.suggest_float("alpha", 0.5, 1.5),
         beta=trial.suggest_float("beta", 0.5, 1.5),
         gamma=trial.suggest_float("gamma", 0.0, 0.05),
