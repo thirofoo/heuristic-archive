@@ -60,10 +60,13 @@ struct State {
   int t;
   // 評価値
   double score;
+  array<long long, 8> score_p;
+  uint64_t hash;
 
-  State() : t(0), score(0.0) {
+  State() : t(0), score(0.0), hash(0) {
     owner.fill(-1);
     level.fill(0);
+    score_p.fill(0);
   }
   // 必要に応じてコピーコンストラクタやmoveも追加可能
 
@@ -97,6 +100,10 @@ struct Solver {
   bool initialized = false;
 
   Params params = {};
+  vector<vector<uint64_t>> z_owner;
+  vector<vector<uint64_t>> z_level;
+  vector<vector<uint64_t>> z_pos;
+  mutable vector<unordered_map<uint64_t, int>> enemy_cache;
 
   Solver() {
     this->input();
@@ -138,6 +145,9 @@ struct Solver {
     current.t = 0;
     initialized = true;
     params = params_for_m(M);
+    init_zobrist();
+    init_scores_and_hash(current);
+    enemy_cache.assign(M, {});
   }
 
   void output() {
@@ -146,6 +156,59 @@ struct Solver {
 
   inline int idx(int x, int y) const {
     return x * N + y;
+  }
+
+  void init_zobrist() {
+    mt19937_64 rng(1234567);
+    z_owner.assign(9, vector<uint64_t>(N * N, 0));
+    z_level.assign(U + 1, vector<uint64_t>(N * N, 0));
+    z_pos.assign(M, vector<uint64_t>(N * N, 0));
+    for(int o = 0; o < (int) z_owner.size(); o++) {
+      for(int i = 0; i < N * N; i++) z_owner[o][i] = rng();
+    }
+    for(int l = 0; l < (int) z_level.size(); l++) {
+      for(int i = 0; i < N * N; i++) z_level[l][i] = rng();
+    }
+    for(int p = 0; p < M; p++) {
+      for(int i = 0; i < N * N; i++) z_pos[p][i] = rng();
+    }
+  }
+
+  void init_scores_and_hash(State& st) const {
+    st.score_p.fill(0);
+    st.hash = 0;
+    for(int i = 0; i < N * N; i++) {
+      int owner = st.owner[i];
+      int level = st.level[i];
+      if(owner != -1) st.score_p[owner] += (long long) V[i] * level;
+      st.hash ^= z_owner[owner + 1][i];
+      st.hash ^= z_level[level][i];
+    }
+    for(int p = 0; p < M; p++) {
+      int cell = idx(st.pos[p].first, st.pos[p].second);
+      st.hash ^= z_pos[p][cell];
+    }
+  }
+
+  void update_cell(State& st, int cell, int new_owner, int new_level) const {
+    int old_owner = st.owner[cell];
+    int old_level = st.level[cell];
+    if(old_owner != -1) st.score_p[old_owner] -= (long long) V[cell] * old_level;
+    if(new_owner != -1) st.score_p[new_owner] += (long long) V[cell] * new_level;
+    st.hash ^= z_owner[old_owner + 1][cell];
+    st.hash ^= z_level[old_level][cell];
+    st.hash ^= z_owner[new_owner + 1][cell];
+    st.hash ^= z_level[new_level][cell];
+    st.owner[cell] = new_owner;
+    st.level[cell] = new_level;
+  }
+
+  void update_pos(State& st, int p, int new_cell) const {
+    int old_cell = idx(st.pos[p].first, st.pos[p].second);
+    if(old_cell == new_cell) return;
+    st.hash ^= z_pos[p][old_cell];
+    st.hash ^= z_pos[p][new_cell];
+    st.pos[p] = {new_cell / N, new_cell % N};
   }
 
   vector<pair<int, int>> get_candidates_ordered(const State& st, int p) const {
@@ -274,6 +337,11 @@ struct Solver {
   }
 
   int decide_enemy_move_greedy(const State& st, int p) const {
+    uint64_t key = st.hash ^ (0x9e3779b97f4a7c15ULL * (uint64_t) (p + 1));
+    if(p < (int) enemy_cache.size()) {
+      auto it = enemy_cache[p].find(key);
+      if(it != enemy_cache[p].end()) return it->second;
+    }
     vector<int> moves = enumerate_moves(st, p);
     double best_score = -1e100;
     int best_move = moves[0];
@@ -296,6 +364,7 @@ struct Solver {
         best_move = cell;
       }
     }
+    if(p < (int) enemy_cache.size()) enemy_cache[p][key] = best_move;
     return best_move;
   }
 
@@ -463,23 +532,24 @@ struct Solver {
       int cell_owner = next.owner[cell];
       int cell_level = next.level[cell];
       if(cell_owner == -1) {
-        next.owner[cell] = p;
-        next.level[cell] = 1;
+        update_cell(next, cell, p, 1);
       } else if(cell_owner == p) {
-        next.level[cell] = min(U, cell_level + 1);
+        update_cell(next, cell, p, min(U, cell_level + 1));
       } else {
-        next.level[cell] = cell_level - 1;
-        if(next.level[cell] <= 0) {
-          next.owner[cell] = p;
-          next.level[cell] = 1;
+        int new_level = cell_level - 1;
+        if(new_level <= 0) {
+          update_cell(next, cell, p, 1);
         } else {
+          update_cell(next, cell, cell_owner, new_level);
           returned[p] = 1;
         }
       }
     }
 
     for(int p = 0; p < M; p++) {
-      next.pos[p] = returned[p] ? start_pos[p] : moved_pos[p];
+      int new_cell = returned[p] ? idx(start_pos[p].first, start_pos[p].second)
+                                 : idx(moved_pos[p].first, moved_pos[p].second);
+      update_pos(next, p, new_cell);
     }
     next.t = st.t + 1;
     return next;
@@ -495,12 +565,16 @@ struct Solver {
     vector<CellChange> changes;
     vector<pair<int, int>> prev_pos;
     int prev_t = 0;
+    array<long long, 8> prev_score_p;
+    uint64_t prev_hash = 0;
   };
 
   void apply_turn_greedy(State& st, int my_move, Undo& undo) const {
     undo.changes.clear();
     undo.prev_pos = st.pos;
     undo.prev_t = st.t;
+    undo.prev_score_p = st.score_p;
+    undo.prev_hash = st.hash;
     array<char, 100> touched;
     touched.fill(0);
     auto mark = [&](int cell) {
@@ -552,32 +626,34 @@ struct Solver {
       int cell_owner = st.owner[cell];
       int cell_level = st.level[cell];
       if(cell_owner == -1) {
-        st.owner[cell] = p;
-        st.level[cell] = 1;
+        update_cell(st, cell, p, 1);
       } else if(cell_owner == p) {
-        st.level[cell] = min(U, cell_level + 1);
+        update_cell(st, cell, p, min(U, cell_level + 1));
       } else {
-        st.level[cell] = cell_level - 1;
-        if(st.level[cell] <= 0) {
-          st.owner[cell] = p;
-          st.level[cell] = 1;
+        int new_level = cell_level - 1;
+        if(new_level <= 0) {
+          update_cell(st, cell, p, 1);
         } else {
+          update_cell(st, cell, cell_owner, new_level);
           returned[p] = 1;
         }
       }
     }
 
     for(int p = 0; p < M; p++) {
-      st.pos[p] = returned[p] ? undo.prev_pos[p] : moved_pos[p];
+      int new_cell = returned[p] ? idx(undo.prev_pos[p].first, undo.prev_pos[p].second)
+                                 : idx(moved_pos[p].first, moved_pos[p].second);
+      update_pos(st, p, new_cell);
     }
     st.t = undo.prev_t + 1;
   }
 
   void undo_turn(State& st, const Undo& undo) const {
     for(const auto& ch : undo.changes) {
-      st.owner[ch.idx] = ch.owner;
-      st.level[ch.idx] = ch.level;
+      update_cell(st, ch.idx, ch.owner, ch.level);
     }
+    st.score_p = undo.prev_score_p;
+    st.hash = undo.prev_hash;
     st.pos = undo.prev_pos;
     st.t = undo.prev_t;
   }
@@ -636,17 +712,16 @@ struct Solver {
       int cell_owner = next.owner[cell];
       int cell_level = next.level[cell];
       if(cell_owner == -1) {
-        next.owner[cell] = p;
-        next.level[cell] = 1;
+        update_cell(next, cell, p, 1);
       } else if(cell_owner == p) {
-        next.level[cell] = min(U, cell_level + 1);
+        update_cell(next, cell, p, min(U, cell_level + 1));
       } else {
         // attack
-        next.level[cell] = cell_level - 1;
-        if(next.level[cell] <= 0) {
-          next.owner[cell] = p;
-          next.level[cell] = 1;
+        int new_level = cell_level - 1;
+        if(new_level <= 0) {
+          update_cell(next, cell, p, 1);
         } else {
+          update_cell(next, cell, cell_owner, new_level);
           returned[p] = 1;
         }
       }
@@ -654,23 +729,18 @@ struct Solver {
 
     // Piece return
     for(int p = 0; p < M; p++) {
-      if(returned[p]) next.pos[p] = start_pos[p];
-      else next.pos[p] = moved_pos[p];
+      int new_cell = returned[p] ? idx(start_pos[p].first, start_pos[p].second)
+                                 : idx(moved_pos[p].first, moved_pos[p].second);
+      update_pos(next, p, new_cell);
     }
     next.t = st.t + 1;
     return next;
   }
 
   double evaluate(const State& st) const {
-    vector<long long> score_p(M, 0);
-    for(int i = 0; i < N * N; i++) {
-      int owner = st.owner[i];
-      if(owner == -1) continue;
-      score_p[owner] += (long long) V[i] * st.level[i];
-    }
-    long long s0 = score_p[0];
+    long long s0 = st.score_p[0];
     long long smax = 0;
-    for(int p = 1; p < M; p++) smax = max(smax, score_p[p]);
+    for(int p = 1; p < M; p++) smax = max(smax, st.score_p[p]);
     double s0d = max(1.0, (double) s0);
     double sad = (double) smax;
     double abs_score = 1e5 * log2(1.0 + sad / s0d);
@@ -749,6 +819,7 @@ struct Solver {
     if(!initialized) return;
     utility::mytm.CodeStart();
     for(int turn = 0; turn < T; turn++) {
+      for(auto& mp : enemy_cache) mp.clear();
       double turn_end = params.time_limit_ms * (double) (turn + 1) / (double) T;
       pair<int, int> decision = beam_search_decision(current, turn_end);
       cout << decision.first << " " << decision.second << "\n" << flush;
