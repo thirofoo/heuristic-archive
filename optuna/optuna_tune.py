@@ -185,7 +185,7 @@ def main() -> int:
         beam_width=int(best.params["beam_width"]),
         max_depth=int(best.params["max_depth"]),
         max_branch=int(best.params["max_branch"]),
-        time_limit_ms=1900.0,
+        time_limit_ms=5000.0,
         alpha=float(best.params["alpha"]),
         beta=float(best.params["beta"]),
         gamma=float(best.params["gamma"]),
