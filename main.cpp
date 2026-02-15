@@ -94,9 +94,10 @@ struct Solver {
   State current;
   bool initialized = false;
 
-  const int BEAM_WIDTH = 5;
+  const int BEAM_WIDTH = 100;
   const int MAX_DEPTH = 10;
   const int MAX_BRANCH = 100;
+  const double TIME_LIMIT_MS = 1900.0;
   const double ALPHA = 1.0;
   const double BETA = 1.0;
   const double GAMMA = 0.02;
@@ -402,6 +403,103 @@ struct Solver {
     return next;
   }
 
+  struct CellChange {
+    int idx;
+    int owner;
+    int level;
+  };
+
+  struct Undo {
+    vector<CellChange> changes;
+    vector<pair<int, int>> prev_pos;
+    int prev_t = 0;
+  };
+
+  void apply_turn_greedy(State& st, int my_move, Undo& undo) const {
+    undo.changes.clear();
+    undo.prev_pos = st.pos;
+    undo.prev_t = st.t;
+    array<char, 100> touched;
+    touched.fill(0);
+    auto mark = [&](int cell) {
+      if(touched[cell]) return;
+      touched[cell] = 1;
+      undo.changes.push_back({cell, st.owner[cell], st.level[cell]});
+    };
+
+    vector<int> target(M, -1);
+    target[0] = my_move;
+    for(int p = 1; p < M; p++) target[p] = decide_enemy_move_greedy(st, p);
+
+    vector<pair<int, int>> moved_pos = st.pos;
+    for(int p = 0; p < M; p++) {
+      int cell = target[p];
+      moved_pos[p] = {cell / N, cell % N};
+    }
+
+    vector<char> returned(M, 0);
+    array<vector<int>, 100> landing;
+    for(int i = 0; i < N * N; i++) landing[i].clear();
+    for(int p = 0; p < M; p++) landing[target[p]].push_back(p);
+
+    for(int cell = 0; cell < N * N; cell++) {
+      if(landing[cell].size() <= 1) continue;
+      int cell_owner = st.owner[cell];
+      bool owner_here = false;
+      int owner_player = -1;
+      if(cell_owner != -1) {
+        for(int p : landing[cell]) {
+          if(p == cell_owner) {
+            owner_here = true;
+            owner_player = p;
+            break;
+          }
+        }
+      }
+      if(owner_here) {
+        for(int p : landing[cell]) if(p != owner_player) returned[p] = 1;
+      } else {
+        for(int p : landing[cell]) returned[p] = 1;
+      }
+    }
+
+    for(int p = 0; p < M; p++) {
+      if(returned[p]) continue;
+      int cell = target[p];
+      mark(cell);
+      int cell_owner = st.owner[cell];
+      int cell_level = st.level[cell];
+      if(cell_owner == -1) {
+        st.owner[cell] = p;
+        st.level[cell] = 1;
+      } else if(cell_owner == p) {
+        st.level[cell] = min(U, cell_level + 1);
+      } else {
+        st.level[cell] = cell_level - 1;
+        if(st.level[cell] <= 0) {
+          st.owner[cell] = p;
+          st.level[cell] = 1;
+        } else {
+          returned[p] = 1;
+        }
+      }
+    }
+
+    for(int p = 0; p < M; p++) {
+      st.pos[p] = returned[p] ? undo.prev_pos[p] : moved_pos[p];
+    }
+    st.t = undo.prev_t + 1;
+  }
+
+  void undo_turn(State& st, const Undo& undo) const {
+    for(const auto& ch : undo.changes) {
+      st.owner[ch.idx] = ch.owner;
+      st.level[ch.idx] = ch.level;
+    }
+    st.pos = undo.prev_pos;
+    st.t = undo.prev_t;
+  }
+
   State simulate_turn_actual(const State& st, int my_move, int turn) const {
     State next = st;
     vector<int> target(M, -1);
@@ -514,51 +612,67 @@ struct Solver {
     return ALPHA * (double) s0 - BETA * (double) smax + GAMMA * potential;
   }
 
-  pair<int, int> beam_search_decision(const State& st) const {
+  pair<int, int> beam_search_decision(const State& root, double turn_end) const {
     struct Node {
-      State st;
-      int first_move;
+      int parent;
+      int action;
+      int first_action;
+      double score;
     };
 
-    vector<Node> beam;
-    beam.reserve(BEAM_WIDTH);
-    Node root;
-    root.st = st;
-    root.first_move = idx(st.pos[0].first, st.pos[0].second);
-    beam.push_back(root);
-
-    int best_move = root.first_move;
+    vector<Node> nodes;
+    nodes.reserve(BEAM_WIDTH * MAX_DEPTH * 4);
+    nodes.push_back({-1, -1, -1, evaluate(root)});
+    vector<int> layer = {0};
+    int best_move = idx(root.pos[0].first, root.pos[0].second);
     double best_eval = -1e100;
 
     for(int depth = 0; depth < MAX_DEPTH; depth++) {
-      vector<Node> next_beam;
-      next_beam.reserve(BEAM_WIDTH * MAX_BRANCH);
-      for(const Node& node : beam) {
-        vector<int> moves = enumerate_moves_my(node.st);
+      if(utility::mytm.elapsed() > turn_end) break;
+      vector<int> next_layer;
+      next_layer.reserve(BEAM_WIDTH * MAX_BRANCH);
+      for(int node_idx : layer) {
+        if(utility::mytm.elapsed() > turn_end) break;
+        State st = root;
+        vector<int> path;
+        int cur = node_idx;
+        while(cur > 0) {
+          path.push_back(nodes[cur].action);
+          cur = nodes[cur].parent;
+        }
+        reverse(path.begin(), path.end());
+        for(int action : path) {
+          Undo u;
+          apply_turn_greedy(st, action, u);
+        }
+
+        vector<int> moves = enumerate_moves_my(st);
         for(int mv : moves) {
-          State ns = simulate_turn_greedy(node.st, mv);
-          ns.score = evaluate(ns);
-          Node child;
-          child.st = ns;
-          child.first_move = (depth == 0 ? mv : node.first_move);
-          next_beam.push_back(child);
+          if(utility::mytm.elapsed() > turn_end) break;
+          Undo u;
+          apply_turn_greedy(st, mv, u);
+          double sc = evaluate(st);
+          int first_action = (nodes[node_idx].first_action == -1 ? mv : nodes[node_idx].first_action);
+          nodes.push_back({node_idx, mv, first_action, sc});
+          next_layer.push_back((int) nodes.size() - 1);
+          undo_turn(st, u);
         }
       }
-      if(next_beam.empty()) break;
-      int k = min((int) next_beam.size(), BEAM_WIDTH);
-      if(k < (int) next_beam.size()) {
-        nth_element(next_beam.begin(),
-                    next_beam.begin() + k,
-                    next_beam.end(),
-                    [](const Node& a, const Node& b) { return a.st.score > b.st.score; });
-        next_beam.resize(k);
-      }
-      beam.swap(next_beam);
 
-      for(const Node& node : beam) {
-        if(node.st.score > best_eval) {
-          best_eval = node.st.score;
-          best_move = node.first_move;
+      if(next_layer.empty()) break;
+      int k = min((int) next_layer.size(), BEAM_WIDTH);
+      if(k < (int) next_layer.size()) {
+        nth_element(next_layer.begin(), next_layer.begin() + k, next_layer.end(),
+                    [&](int a, int b) { return nodes[a].score > nodes[b].score; });
+        next_layer.resize(k);
+      }
+      layer.swap(next_layer);
+
+      for(int node_idx : layer) {
+        const Node& node = nodes[node_idx];
+        if(node.score > best_eval && node.first_action != -1) {
+          best_eval = node.score;
+          best_move = node.first_action;
         }
       }
     }
@@ -568,8 +682,10 @@ struct Solver {
 
   void solve() {
     if(!initialized) return;
+    utility::mytm.CodeStart();
     for(int turn = 0; turn < T; turn++) {
-      pair<int, int> decision = beam_search_decision(current);
+      double turn_end = TIME_LIMIT_MS * (double) (turn + 1) / (double) T;
+      pair<int, int> decision = beam_search_decision(current, turn_end);
       cout << decision.first << " " << decision.second << "\n" << flush;
       int move_idx = idx(decision.first, decision.second);
       current = simulate_turn_actual(current, move_idx, turn);
