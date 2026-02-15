@@ -96,21 +96,7 @@ struct Solver {
   State current;
   bool initialized = false;
 
-  const int BEAM_WIDTH = PARAM_BEAM_WIDTH;
-  const int MAX_DEPTH = PARAM_MAX_DEPTH;
-  const int MAX_BRANCH = PARAM_MAX_BRANCH;
-  const double TIME_LIMIT_MS = PARAM_TIME_LIMIT_MS;
-  const double ALPHA = PARAM_ALPHA;
-  const double BETA = PARAM_BETA;
-  const double GAMMA = PARAM_GAMMA;
-  const double EDGE_OWN_BONUS = PARAM_EDGE_OWN_BONUS;
-  const double EDGE_REINFORCE_FACTOR = PARAM_EDGE_REINFORCE_FACTOR;
-  const double ENEMY_LV1_BONUS = PARAM_ENEMY_LV1_BONUS;
-  const double EMPTY_ADJ_PENALTY = PARAM_EMPTY_ADJ_PENALTY;
-  const double ENEMY_ADJ_PENALTY = PARAM_ENEMY_ADJ_PENALTY;
-  const double LOW_VALUE_BONUS = PARAM_LOW_VALUE_BONUS;
-  const double MOVE_ENEMY_ADJ_PENALTY = PARAM_MOVE_ENEMY_ADJ_PENALTY;
-  const double MOVE_EMPTY_ADJ_PENALTY = PARAM_MOVE_EMPTY_ADJ_PENALTY;
+  Params params = {};
 
   Solver() {
     this->input();
@@ -151,6 +137,7 @@ struct Solver {
     }
     current.t = 0;
     initialized = true;
+    params = params_for_m(M);
   }
 
   void output() {
@@ -234,50 +221,41 @@ struct Solver {
     return moves;
   }
 
+  int nearest_enemy_dist(const State& st, int x, int y, int enemy_id) const {
+    int best = 1e9;
+    for(int i = 0; i < N * N; i++) {
+      if(st.owner[i] != enemy_id) continue;
+      int ex = i / N;
+      int ey = i % N;
+      int dist = abs(x - ex) + abs(y - ey);
+      if(dist < best) best = dist;
+    }
+    if(best == 1e9) return N + N;
+    return best;
+  }
+
   double move_heuristic(const State& st, int cell) const {
     int owner = st.owner[cell];
     int level = st.level[cell];
-    int x = cell / N;
-    int y = cell % N;
-    bool edge = (x == 0 || x == N - 1 || y == 0 || y == N - 1);
-    double bonus_edge = edge ? EDGE_OWN_BONUS * V[cell] : 0.0;
-    int enemy_adj = 0;
-    int empty_adj = 0;
-    const int dx[4] = {1, -1, 0, 0};
-    const int dy[4] = {0, 0, 1, -1};
-    for(int d = 0; d < 4; d++) {
-      int nx = x + dx[d];
-      int ny = y + dy[d];
-      if(nx < 0 || nx >= N || ny < 0 || ny >= N) continue;
-      int ni = idx(nx, ny);
-      if(st.owner[ni] == -1) empty_adj++;
-      else if(st.owner[ni] != 0) enemy_adj++;
-    }
-
-    if(owner == -1) {
-      double low_value = (double) (maxV - V[cell]);
-      double base = 0.2 * V[cell] + 0.8 * low_value + bonus_edge;
-      base -= MOVE_ENEMY_ADJ_PENALTY * enemy_adj * V[cell];
-      base -= MOVE_EMPTY_ADJ_PENALTY * empty_adj * V[cell];
-      return base;
-    }
-    if(owner == 0) {
-      double base = (level < U ? 0.2 : 0.05) * V[cell];
-      if(edge) base *= EDGE_REINFORCE_FACTOR;
-      base -= MOVE_ENEMY_ADJ_PENALTY * enemy_adj * V[cell];
-      return base + bonus_edge;
-    }
-    if(level == 1) return (1.3 + ENEMY_LV1_BONUS) * V[cell] + bonus_edge;
-    return 0.6 * V[cell] + bonus_edge;
+    if(owner == -1) return (double) V[cell];
+    if(owner == 0) return 0.01 * (double) V[cell];
+    return (double) V[cell];
   }
 
   vector<int> enumerate_moves_my(const State& st) const {
     vector<int> moves = enumerate_moves(st, 0);
-    if((int) moves.size() <= MAX_BRANCH) return moves;
+    vector<int> filtered;
+    filtered.reserve(moves.size());
+    for(int cell : moves) {
+      if(st.owner[cell] == 0 && st.level[cell] >= U) continue;
+      filtered.push_back(cell);
+    }
+    if(!filtered.empty()) moves.swap(filtered);
+    if((int) moves.size() <= params.max_branch) return moves;
     vector<pair<double, int>> scored;
     scored.reserve(moves.size());
     for(int cell : moves) scored.push_back({move_heuristic(st, cell), cell});
-    int k = MAX_BRANCH;
+    int k = params.max_branch;
     nth_element(scored.begin(), scored.begin() + k, scored.end(),
                 [](const auto& a, const auto& b) {
                   if(a.first != b.first) return a.first > b.first;
@@ -438,6 +416,70 @@ struct Solver {
     for(int p = 0; p < M; p++) {
       if(returned[p]) next.pos[p] = start_pos[p];
       else next.pos[p] = moved_pos[p];
+    }
+    next.t = st.t + 1;
+    return next;
+  }
+
+  State simulate_turn_targets(const State& st, const vector<int>& target) const {
+    State next = st;
+    vector<pair<int, int>> start_pos = st.pos;
+    vector<pair<int, int>> moved_pos = st.pos;
+    for(int p = 0; p < M; p++) {
+      int cell = target[p];
+      moved_pos[p] = {cell / N, cell % N};
+    }
+
+    vector<char> returned(M, 0);
+    array<vector<int>, 100> landing;
+    for(int i = 0; i < N * N; i++) landing[i].clear();
+    for(int p = 0; p < M; p++) landing[target[p]].push_back(p);
+
+    for(int cell = 0; cell < N * N; cell++) {
+      if(landing[cell].empty()) continue;
+      if(landing[cell].size() == 1) continue;
+      int cell_owner = st.owner[cell];
+      bool owner_here = false;
+      int owner_player = -1;
+      if(cell_owner != -1) {
+        for(int p : landing[cell]) {
+          if(p == cell_owner) {
+            owner_here = true;
+            owner_player = p;
+            break;
+          }
+        }
+      }
+      if(owner_here) {
+        for(int p : landing[cell]) if(p != owner_player) returned[p] = 1;
+      } else {
+        for(int p : landing[cell]) returned[p] = 1;
+      }
+    }
+
+    for(int p = 0; p < M; p++) {
+      if(returned[p]) continue;
+      int cell = target[p];
+      int cell_owner = next.owner[cell];
+      int cell_level = next.level[cell];
+      if(cell_owner == -1) {
+        next.owner[cell] = p;
+        next.level[cell] = 1;
+      } else if(cell_owner == p) {
+        next.level[cell] = min(U, cell_level + 1);
+      } else {
+        next.level[cell] = cell_level - 1;
+        if(next.level[cell] <= 0) {
+          next.owner[cell] = p;
+          next.level[cell] = 1;
+        } else {
+          returned[p] = 1;
+        }
+      }
+    }
+
+    for(int p = 0; p < M; p++) {
+      next.pos[p] = returned[p] ? start_pos[p] : moved_pos[p];
     }
     next.t = st.t + 1;
     return next;
@@ -629,37 +671,10 @@ struct Solver {
     long long s0 = score_p[0];
     long long smax = 0;
     for(int p = 1; p < M; p++) smax = max(smax, score_p[p]);
-
-    long long own_cnt = 0;
-    long long edge_value = 0;
-    long long empty_adj_value = 0;
-    long long enemy_adj_value = 0;
-    long long low_value_sum = 0;
-    for(int i = 0; i < N * N; i++) {
-      if(st.owner[i] != 0) continue;
-      own_cnt++;
-      int x = i / N;
-      int y = i % N;
-      if(x == 0 || x == N - 1 || y == 0 || y == N - 1) edge_value += V[i];
-      low_value_sum += (maxV - V[i]);
-      const int dx[4] = {1, -1, 0, 0};
-      const int dy[4] = {0, 0, 1, -1};
-      for(int d = 0; d < 4; d++) {
-        int nx = x + dx[d];
-        int ny = y + dy[d];
-        if(nx < 0 || nx >= N || ny < 0 || ny >= N) continue;
-        int ni = idx(nx, ny);
-        if(st.owner[ni] == -1) empty_adj_value += V[ni];
-        else if(st.owner[ni] != 0) enemy_adj_value += V[ni];
-      }
-    }
-    double potential = (double) own_cnt
-                       + 0.001 * (double) edge_value
-                       + LOW_VALUE_BONUS * (double) low_value_sum
-                       - EMPTY_ADJ_PENALTY * (double) empty_adj_value
-                       - ENEMY_ADJ_PENALTY * (double) enemy_adj_value;
-
-    return ALPHA * (double) s0 - BETA * (double) smax + GAMMA * potential;
+    double s0d = max(1.0, (double) s0);
+    double sad = (double) smax;
+    double abs_score = 1e5 * log2(1.0 + sad / s0d);
+    return -abs_score;
   }
 
   pair<int, int> beam_search_decision(const State& root, double turn_end) const {
@@ -671,16 +686,16 @@ struct Solver {
     };
 
     vector<Node> nodes;
-    nodes.reserve(BEAM_WIDTH * MAX_DEPTH * 4);
+    nodes.reserve(params.beam_width * params.max_depth * 4);
     nodes.push_back({-1, -1, -1, evaluate(root)});
     vector<int> layer = {0};
     int best_move = idx(root.pos[0].first, root.pos[0].second);
     double best_eval = -1e100;
 
-    for(int depth = 0; depth < MAX_DEPTH; depth++) {
+    for(int depth = 0; depth < params.max_depth; depth++) {
       if(utility::mytm.elapsed() > turn_end) break;
       vector<int> next_layer;
-      next_layer.reserve(BEAM_WIDTH * MAX_BRANCH);
+      next_layer.reserve(params.beam_width * params.max_branch);
       for(int node_idx : layer) {
         if(utility::mytm.elapsed() > turn_end) break;
         State st = root;
@@ -710,7 +725,7 @@ struct Solver {
       }
 
       if(next_layer.empty()) break;
-      int k = min((int) next_layer.size(), BEAM_WIDTH);
+      int k = min((int) next_layer.size(), params.beam_width);
       if(k < (int) next_layer.size()) {
         nth_element(next_layer.begin(), next_layer.begin() + k, next_layer.end(),
                     [&](int a, int b) { return nodes[a].score > nodes[b].score; });
@@ -734,7 +749,7 @@ struct Solver {
     if(!initialized) return;
     utility::mytm.CodeStart();
     for(int turn = 0; turn < T; turn++) {
-      double turn_end = TIME_LIMIT_MS * (double) (turn + 1) / (double) T;
+      double turn_end = params.time_limit_ms * (double) (turn + 1) / (double) T;
       pair<int, int> decision = beam_search_decision(current, turn_end);
       cout << decision.first << " " << decision.second << "\n" << flush;
       int move_idx = idx(decision.first, decision.second);
