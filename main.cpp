@@ -1,9 +1,6 @@
 #include <bits/stdc++.h>
-#include <atcoder/all>
 #include "params.hpp"
 using namespace std;
-using namespace atcoder;
-#define rep(i, n) for(int i = 0; i < n; i++)
 
 namespace utility {
   struct timer {
@@ -86,7 +83,6 @@ struct Solver {
     double eps = 0.0;
   };
   vector<EnemyParam> enemy;
-  vector<vector<double>> r;
   State current;
   bool initialized = false;
 
@@ -141,19 +137,12 @@ struct Solver {
       cin >> sx[p] >> sy[p];
     }
     enemy.assign(M, EnemyParam());
-    r.assign(max(0, M - 1), vector<double>(2 * T, 0.0));
     for(int p = 1; p < M; p++) {
       enemy[p].wa = 0.3 + 0.7 * rand01();
       enemy[p].wb = 0.3 + 0.7 * rand01();
       enemy[p].wc = 0.3 + 0.7 * rand01();
       enemy[p].wd = 0.3 + 0.7 * rand01();
       enemy[p].eps = 0.1 + 0.4 * rand01();
-    }
-    for(int i = 0; i < M - 1; i++) {
-      for(int t = 0; t < T; t++) {
-        r[i][2 * t] = rand01();
-        r[i][2 * t + 1] = rand01();
-      }
     }
 
     current = State();
@@ -243,12 +232,7 @@ struct Solver {
         int best_count = 0;
         bool obs_best = false;
         for(int cell : moves) {
-          int owner = prev.owner[cell];
-          int level = prev.level[cell];
-          double a = 0.0;
-          if(owner == -1) a = V[cell] * cand[0];
-          else if(owner == p) a = (level < U) ? V[cell] * cand[1] : 0.0;
-          else a = (level == 1) ? V[cell] * cand[2] : V[cell] * cand[3];
+          double a = enemy_eval_cell(prev, p, cell, cand[0], cand[1], cand[2], cand[3]);
           if(a > max_score + 1e-12) {
             max_score = a;
             best_count = 1;
@@ -287,6 +271,21 @@ struct Solver {
 
   inline int idx(int x, int y) const {
     return x * N + y;
+  }
+
+  inline double enemy_eval_cell(
+      const State& st,
+      int p,
+      int cell,
+      double wa,
+      double wb,
+      double wc,
+      double wd) const {
+    int owner = st.owner[cell];
+    int level = st.level[cell];
+    if(owner == -1) return V[cell] * wa;
+    if(owner == p) return (level < U) ? (V[cell] * wb) : 0.0;
+    return (level == 1) ? (V[cell] * wc) : (V[cell] * wd);
   }
 
   void init_zobrist() {
@@ -339,67 +338,6 @@ struct Solver {
     st.hash ^= z_pos[p][old_cell];
     st.hash ^= z_pos[p][new_cell];
     st.pos[p] = {new_cell / N, new_cell % N};
-  }
-
-  vector<pair<int, int>> get_candidates_ordered(const State& st, int p) const {
-    vector<pair<int, int>> reachable;
-    vector<vector<char>> visited(N, vector<char>(N, 0));
-    queue<pair<int, int>> q;
-    int sx = st.pos[p].first;
-    int sy = st.pos[p].second;
-    visited[sx][sy] = 1;
-    q.push({sx, sy});
-    const int dx[4] = {0, 1, 0, -1};
-    const int dy[4] = {1, 0, -1, 0};
-    while(!q.empty()) {
-      auto [x, y] = q.front();
-      q.pop();
-      bool ok = true;
-      for(int i = 0; i < M; i++) {
-        if(i != p && st.pos[i].first == x && st.pos[i].second == y) {
-          ok = false;
-          break;
-        }
-      }
-      if(ok) reachable.push_back({x, y});
-      if(st.owner[idx(x, y)] == p) {
-        for(int d = 0; d < 4; d++) {
-          int nx = x + dx[d];
-          int ny = y + dy[d];
-          if(nx < 0 || nx >= N || ny < 0 || ny >= N) continue;
-          if(visited[nx][ny]) continue;
-          visited[nx][ny] = 1;
-          q.push({nx, ny});
-        }
-      }
-    }
-    return reachable;
-  }
-
-  void compute_reachable(const State& st, int p, array<char, 100>& reachable) const {
-    reachable.fill(0);
-    queue<int> q;
-    int start = idx(st.pos[p].first, st.pos[p].second);
-    reachable[start] = 1;
-    q.push(start);
-    while(!q.empty()) {
-      int v = q.front();
-      q.pop();
-      int x = v / N;
-      int y = v % N;
-      const int dx[4] = {1, -1, 0, 0};
-      const int dy[4] = {0, 0, 1, -1};
-      for(int d = 0; d < 4; d++) {
-        int nx = x + dx[d];
-        int ny = y + dy[d];
-        if(nx < 0 || nx >= N || ny < 0 || ny >= N) continue;
-        int ni = idx(nx, ny);
-        if(reachable[ni]) continue;
-        if(st.owner[ni] != p) continue;
-        reachable[ni] = 1;
-        q.push(ni);
-      }
-    }
   }
 
   const vector<int>& enumerate_moves(const State& st, int p) const {
@@ -518,25 +456,6 @@ struct Solver {
       update_pos(st, p, new_cell);
     }
     st.t += 1;
-  }
-
-  void build_target_greedy(const State& st, int my_move, array<int, 8>& target) const {
-    target.fill(-1);
-    target[0] = my_move;
-    for(int p = 1; p < M; p++) target[p] = decide_enemy_move_greedy(st, p);
-  }
-
-  int nearest_enemy_dist(const State& st, int x, int y, int enemy_id) const {
-    int best = 1e9;
-    for(int i = 0; i < N * N; i++) {
-      if(st.owner[i] != enemy_id) continue;
-      int ex = i / N;
-      int ey = i % N;
-      int dist = abs(x - ex) + abs(y - ey);
-      if(dist < best) best = dist;
-    }
-    if(best == 1e9) return N + N;
-    return best;
   }
 
   double move_heuristic(
@@ -696,18 +615,7 @@ struct Solver {
     int best_move = moves[0];
     for(int i = 0; i < (int)moves.size(); i++) {
       int cell = moves[i];
-      int owner = st.owner[cell];
-      int level = st.level[cell];
-      double a = 0.0;
-      if(owner == -1) {
-        a = V[cell] * enemy[p].wa;
-      } else if(owner == p) {
-        if(level < U) a = V[cell] * enemy[p].wb;
-        else a = 0.0;
-      } else {
-        if(level == 1) a = V[cell] * enemy[p].wc;
-        else a = V[cell] * enemy[p].wd;
-      }
+      double a = enemy_eval_cell(st, p, cell, enemy[p].wa, enemy[p].wb, enemy[p].wc, enemy[p].wd);
       if(a > best_score || (a == best_score && cell < best_move)) {
         best_score = a;
         best_move = cell;
@@ -717,149 +625,40 @@ struct Solver {
     return best_move;
   }
 
-  int decide_enemy_move_actual(const State& st, int p, int turn) const {
-    int ai_idx = p - 1;
-    const vector<int>& cand = enumerate_moves(st, p);
-    auto calc_score = [&](int cell) {
-      int owner = st.owner[cell];
-      int level = st.level[cell];
-      if(owner == -1) return V[cell] * enemy[p].wa;
-      if(owner == p) return (level < U) ? (V[cell] * enemy[p].wb) : 0.0;
-      return (level == 1) ? (V[cell] * enemy[p].wc) : (V[cell] * enemy[p].wd);
-    };
-
-    double eps = enemy[p].eps;
-    double r1 = r[ai_idx][2 * (turn % T)];
-    double r2 = r[ai_idx][2 * (turn % T) + 1];
-    if(r1 < eps) {
-      size_t idx_sel = (size_t) floor(r2 * cand.size());
-      if(idx_sel >= cand.size()) idx_sel = cand.size() - 1;
-      return cand[idx_sel];
-    }
-
-    double max_score = -1e100;
-    for(int cell : cand) max_score = max(max_score, calc_score(cell));
-    double tolerance = 1e-9 * max(fabs(max_score), 1.0);
-    int best_count = 0;
-    for(int cell : cand) {
-      if(calc_score(cell) >= max_score - tolerance) best_count++;
-    }
-    size_t idx_sel = (size_t) floor(r2 * best_count);
-    if(idx_sel >= (size_t) best_count) idx_sel = (size_t) best_count - 1;
-    for(int cell : cand) {
-      if(calc_score(cell) >= max_score - tolerance) {
-        if(idx_sel == 0) return cell;
-        idx_sel--;
+  void build_enemy_target_prob(const State& st, array<array<double, 100>, 8>& prob) const {
+    for(int p = 0; p < 8; p++) prob[p].fill(0.0);
+    for(int p = 1; p < M; p++) {
+      const vector<int>& moves = enumerate_moves(st, p);
+      int msz = (int) moves.size();
+      if(msz <= 0) continue;
+      double eps = enemy[p].eps;
+      if(eps < 0.0) eps = 0.0;
+      if(eps > 0.5) eps = 0.5;
+      double inv_m = 1.0 / (double) msz;
+      array<double, 100> score;
+      int n = 0;
+      double max_score = -1e100;
+      for(int cell : moves) {
+        double a = enemy_eval_cell(st, p, cell, enemy[p].wa, enemy[p].wb, enemy[p].wc, enemy[p].wd);
+        score[n++] = a;
+        if(a > max_score) max_score = a;
       }
-    }
-    return cand[0];
-  }
-
-  State simulate_turn_greedy(const State& st, int my_move) const {
-    State next = st;
-    array<int, 8> target;
-    build_target_greedy(st, my_move, target);
-    apply_turn_targets_inplace(next, target);
-    return next;
-  }
-
-  State simulate_turn_targets(const State& st, const array<int, 8>& target) const {
-    State next = st;
-    apply_turn_targets_inplace(next, target);
-    return next;
-  }
-
-  struct CellChange {
-    int idx;
-    int owner;
-    int level;
-  };
-
-  struct Undo {
-    array<CellChange, 8> changes;
-    int changes_size = 0;
-    array<pair<int, int>, 8> prev_pos;
-    int prev_t = 0;
-    array<long long, 8> prev_score_p;
-    uint64_t prev_hash = 0;
-  };
-
-  void apply_turn_greedy(State& st, int my_move, Undo& undo) const {
-    undo.changes_size = 0;
-    undo.prev_pos = st.pos;
-    undo.prev_t = st.t;
-    undo.prev_score_p = st.score_p;
-    undo.prev_hash = st.hash;
-    array<char, 100> touched;
-    touched.fill(0);
-    auto mark = [&](int cell) {
-      if(touched[cell]) return;
-      touched[cell] = 1;
-      undo.changes[undo.changes_size++] = {cell, st.owner[cell], st.level[cell]};
-    };
-
-    array<int, 8> target;
-    build_target_greedy(st, my_move, target);
-
-    array<pair<int, int>, 8> moved_pos = st.pos;
-    for(int p = 0; p < M; p++) {
-      int cell = target[p];
-      moved_pos[p] = {cell / N, cell % N};
-    }
-
-    array<char, 8> returned;
-    compute_returned(st, target, returned);
-
-    for(int p = 0; p < M; p++) {
-      if(returned[p]) continue;
-      int cell = target[p];
-      mark(cell);
-      int cell_owner = st.owner[cell];
-      int cell_level = st.level[cell];
-      if(cell_owner == -1) {
-        update_cell(st, cell, p, 1);
-      } else if(cell_owner == p) {
-        update_cell(st, cell, p, min(U, cell_level + 1));
-      } else {
-        int new_level = cell_level - 1;
-        if(new_level <= 0) {
-          update_cell(st, cell, p, 1);
-        } else {
-          update_cell(st, cell, cell_owner, new_level);
-          returned[p] = 1;
+      double tol = 1e-12 * max(1.0, fabs(max_score));
+      int best_count = 0;
+      for(int i = 0; i < n; i++) {
+        if(fabs(score[i] - max_score) <= tol) best_count++;
+      }
+      double add_rand = eps * inv_m;
+      for(int cell : moves) prob[p][cell] += add_rand;
+      if(best_count > 0) {
+        double add_greedy = (1.0 - eps) / (double) best_count;
+        for(int i = 0; i < n; i++) {
+          if(fabs(score[i] - max_score) <= tol) {
+            prob[p][moves[i]] += add_greedy;
+          }
         }
       }
     }
-
-    for(int p = 0; p < M; p++) {
-      int new_cell = returned[p] ? idx(undo.prev_pos[p].first, undo.prev_pos[p].second)
-                                 : idx(moved_pos[p].first, moved_pos[p].second);
-      update_pos(st, p, new_cell);
-    }
-    st.t = undo.prev_t + 1;
-  }
-
-  void undo_turn(State& st, const Undo& undo) const {
-    for(int i = 0; i < undo.changes_size; i++) {
-      const auto& ch = undo.changes[i];
-      update_cell(st, ch.idx, ch.owner, ch.level);
-    }
-    st.score_p = undo.prev_score_p;
-    st.hash = undo.prev_hash;
-    st.pos = undo.prev_pos;
-    st.t = undo.prev_t;
-  }
-
-  State simulate_turn_actual(const State& st, int my_move, int turn) const {
-    State next = st;
-    array<int, 8> target;
-    target.fill(-1);
-    target[0] = my_move;
-    for(int p = 1; p < M; p++) {
-      target[p] = decide_enemy_move_actual(st, p, turn);
-    }
-    apply_turn_targets_inplace(next, target);
-    return next;
   }
 
   double evaluate(const State& st) const {
@@ -997,10 +796,23 @@ struct Solver {
       for(const auto& parent : layer) {
         if(utility::mytm.elapsed() > turn_end) break;
         enumerate_moves_my(parent.st, moves);
+        bool use_root_ev = (depth == 0);
         array<int, 8> enemy_target;
         enemy_target.fill(-1);
         for(int p = 1; p < M; p++) {
           enemy_target[p] = decide_enemy_move_greedy(parent.st, p);
+        }
+        array<array<double, 100>, 8> enemy_prob;
+        array<double, 100> conflict_prob;
+        if(use_root_ev) {
+          build_enemy_target_prob(parent.st, enemy_prob);
+          for(int cell = 0; cell < N * N; cell++) {
+            double p_none = 1.0;
+            for(int p = 1; p < M; p++) {
+              p_none *= max(0.0, 1.0 - enemy_prob[p][cell]);
+            }
+            conflict_prob[cell] = 1.0 - p_none;
+          }
         }
         for(int mv : moves) {
           if(utility::mytm.elapsed() > turn_end) break;
@@ -1009,6 +821,43 @@ struct Solver {
           target[0] = mv;
           apply_turn_targets_inplace(child.st, target);
           child.score = evaluate(child.st);
+          if(use_root_ev) {
+            int owner = parent.st.owner[mv];
+            int level = parent.st.level[mv];
+            double v = (double) V[mv];
+            double p_conf = conflict_prob[mv];
+            if(p_conf < 0.0) p_conf = 0.0;
+            if(p_conf > 1.0) p_conf = 1.0;
+            double p_success = 1.0 - p_conf;
+            double gain_if_success = 0.0;
+            if(owner == -1) {
+              gain_if_success = 1.00 * v;
+            } else if(owner == 0) {
+              gain_if_success = (level < U) ? 1.00 * v : 0.0;
+            } else {
+              gain_if_success = (level == 1) ? 1.25 * v : 0.18 * v;
+            }
+            double fail_cost = (owner <= 0 ? 0.32 * v : 0.44 * v);
+            double ev_delta = p_success * gain_if_success - p_conf * fail_cost;
+            if(owner > 0 && owner < M) {
+              ev_delta -= 0.42 * v * p_success * enemy_prob[owner][mv];
+            }
+            int x = mv / N;
+            int y = mv % N;
+            const int dx[4] = {1, -1, 0, 0};
+            const int dy[4] = {0, 0, 1, -1};
+            double neigh_conf = 0.0;
+            for(int d = 0; d < 4; d++) {
+              int nx = x + dx[d];
+              int ny = y + dy[d];
+              if(nx < 0 || nx >= N || ny < 0 || ny >= N) continue;
+              neigh_conf += conflict_prob[idx(nx, ny)];
+            }
+            double risk_scale = (M >= 4 ? 0.56 : 0.32);
+            double neigh_scale = (M >= 4 ? 0.11 : 0.06);
+            child.score += risk_scale * ev_delta;
+            child.score -= neigh_scale * v * neigh_conf;
+          }
           if((int) next_layer.size() < beam_limit) {
             next_layer.push_back(std::move(child));
             int new_idx = (int) next_layer.size() - 1;
