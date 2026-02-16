@@ -343,12 +343,6 @@ struct Solver {
     st.level[cell] = new_level;
   }
 
-  void update_pos(State& st, int p, int new_cell) const {
-    int old_cell = idx(st.pos[p].first, st.pos[p].second);
-    if(old_cell == new_cell) return;
-    st.pos[p] = {new_cell / N, new_cell % N};
-  }
-
   MoveList enumerate_moves(const State& st, int p) const {
     uint32_t ve = ++visit_epoch;
     if(ve == 0) {
@@ -390,6 +384,13 @@ struct Solver {
 
     if(moves.n <= 0) moves.a[moves.n++] = start;
     return moves;
+  }
+
+  static int pick_index(double r, int n) {
+    int j = (int) (r * n);
+    if(j < 0) j = 0;
+    if(j >= n) j = n - 1;
+    return j;
   }
 
   template <class TargetContainer>
@@ -457,7 +458,7 @@ struct Solver {
     for(int p = 0; p < M; p++) {
       int new_cell = returned[p] ? idx(start_pos[p].first, start_pos[p].second)
                                  : idx(moved_pos[p].first, moved_pos[p].second);
-      update_pos(st, p, new_cell);
+      st.pos[p] = {new_cell / N, new_cell % N};
     }
     st.t += 1;
   }
@@ -492,22 +493,18 @@ struct Solver {
   }
 
   int root_candidate_cap(int remaining_turns) const {
-    int root_cap;
-    if(remaining_turns >= 70) root_cap = 20;
-    else if(remaining_turns >= 40) root_cap = 16;
-    else if(remaining_turns >= 20) root_cap = 12;
-    else root_cap = 9;
-    root_cap = min(root_cap, params.max_branch);
-    if(root_cap < 1) root_cap = 1;
-    return root_cap;
-  }
+    int hi = params.cap_hi;
+    int lo = params.cap_lo;
+    if(hi < 1) hi = 1;
+    if(lo < 1) lo = 1;
+    if(lo > hi) swap(lo, hi);
+    int mid_hi = (2 * hi + lo + 1) / 3;
+    int mid_lo = (hi + 2 * lo + 1) / 3;
 
-  void enumerate_root_moves(const State& root, vector<int>& moves) const {
-    enumerate_moves_my(root, moves);
-    if(!moves.empty()) return;
-    MoveList base = enumerate_moves(root, 0);
-    moves.reserve(base.n);
-    for(int i = 0; i < base.n; i++) moves.push_back(base.a[i]);
+    if(remaining_turns >= 70) return hi;
+    if(remaining_turns >= 40) return mid_hi;
+    if(remaining_turns >= 20) return mid_lo;
+    return lo;
   }
 
   double robust_root_value(double sum, double sq_sum, int cnt, int turn) const {
@@ -533,87 +530,179 @@ struct Solver {
     if(moves.empty()) {
       for(int i = 0; i < base_moves.n; i++) moves.push_back(base_moves.a[i]);
     }
-    cap_moves_by_heuristic(st, moves, params.max_branch);
+  }
+
+  double compute_piece_position_bonus(const State& st) const {
+    int start = idx(st.pos[0].first, st.pos[0].second);
+    array<int8_t, 100> dist;
+    dist.fill(-1);
+    int qbuf[100];
+    int head = 0, tail = 0;
+    dist[start] = 0;
+    qbuf[tail++] = start;
+    double bonus = 0.0;
+    constexpr int kMaxDepth = 4;
+    while(head < tail) {
+      int v = qbuf[head++];
+      int d = dist[v];
+      if(d >= kMaxDepth) continue;
+      int deg = (int) neighbor_deg[v];
+      for(int di = 0; di < deg; di++) {
+        int ni = neighbors[v][di];
+        if(dist[ni] >= 0) continue;
+        dist[ni] = d + 1;
+        int no = st.owner[ni];
+        if(no == 0) {
+          qbuf[tail++] = ni;
+        } else {
+          double decay = 1.0 / (double)(d + 1);
+          if(no == -1) {
+            bonus += (double) V[ni] * decay;
+          } else if(st.level[ni] == 1) {
+            bonus += (double) V[ni] * decay * 0.8;
+          } else {
+            bonus += (double) V[ni] * decay * 0.3;
+          }
+        }
+      }
+    }
+    return bonus * params.eval_piece_pos_w;
   }
 
   double evaluate(const State& st) const {
     long long s0 = st.score_p[0];
-    long long smax = 0;
-    int strongest = 1;
-    for(int p = 1; p < M; p++) {
-      if(st.score_p[p] > smax) {
-        smax = st.score_p[p];
-        strongest = p;
-      }
-    }
-
     int remaining = T - st.t;
 
-    // At game end or near end, use exact score only
     if(remaining <= 0 || params.eval_potential_w <= 0.0) {
       double s0d = max(1.0, (double) s0);
-      double sad = max(1.0, (double) smax);
+      double sad = 1.0;
+      for(int p = 1; p < M; p++) {
+        double sp = max(1.0, (double) st.score_p[p]);
+        if(sp > sad) sad = sp;
+      }
       return -1e5 * log2(1.0 + sad / s0d);
     }
 
-    // Compute territory potential for player 0 and strongest enemy
-    double my_reinforce = 0.0, my_expand = 0.0;
-    double en_reinforce = 0.0, en_expand = 0.0;
+    // Per-player potential
+    array<double, 8> potential;
+    potential.fill(0.0);
 
     for(int i = 0; i < N * N; i++) {
       int owner = st.owner[i];
-      if(owner == 0) {
-        // Our cell: reinforcement potential
-        if(st.level[i] < U) {
-          my_reinforce += (double) V[i] * (U - st.level[i]);
-        }
-      } else if(owner == strongest) {
-        // Strongest enemy cell: reinforcement potential
-        if(st.level[i] < U) {
-          en_reinforce += (double) V[i] * (U - st.level[i]);
-        }
-      } else if(owner == -1) {
-        // Unowned cell: check adjacency for expansion potential
+      int lv = st.level[i];
+      double v = (double) V[i];
+
+      if(owner == -1) {
+        // Unowned: expand potential for adjacent owners
         int deg = (int) neighbor_deg[i];
-        bool adj_me = false, adj_en = false;
+        uint8_t seen = 0;
         for(int d = 0; d < deg; d++) {
           int ni = neighbors[i][d];
-          if(st.owner[ni] == 0) adj_me = true;
-          if(st.owner[ni] == strongest) adj_en = true;
+          int no = st.owner[ni];
+          if(no >= 0 && !(seen & (1u << no))) {
+            potential[no] += v;
+            seen |= (1u << no);
+          }
         }
-        if(adj_me) my_expand += (double) V[i];
-        if(adj_en) en_expand += (double) V[i];
+      } else {
+        // Owned: reinforce potential
+        if(lv < U) {
+          potential[owner] += v * (U - lv) * params.eval_reinforce_w;
+        }
+        // Capture potential for adjacent enemies
+        int deg = (int) neighbor_deg[i];
+        uint8_t seen = 0;
+        for(int d = 0; d < deg; d++) {
+          int ni = neighbors[i][d];
+          int no = st.owner[ni];
+          if(no >= 0 && no != owner && !(seen & (1u << no))) {
+            double capture_v = (lv == 1) ? v : v / (double) lv;
+            potential[no] += capture_v * params.eval_capture_w;
+            seen |= (1u << no);
+          }
+        }
       }
     }
 
+    // Piece position bonus for player 0
+    potential[0] += compute_piece_position_bonus(st);
+
+    // Adjusted scores
     double phase = (double) remaining / (double) T;
     double w = phase * params.eval_potential_w;
+    double s0_adj = max(1.0, (double) s0 + w * potential[0]);
 
-    double s0_adj = max(1.0, (double) s0 + w * (my_reinforce + my_expand));
-    double sa_adj = max(1.0, (double) smax + w * (en_reinforce + en_expand));
+    // LogSumExp over enemies (smooth max)
+    double threat_temp = params.eval_threat_temp;
+    if(threat_temp < 1.0) threat_temp = 1.0;
+    double max_sa = -1e100;
+    for(int p = 1; p < M; p++) {
+      double sp_adj = max(1.0, (double) st.score_p[p] + w * potential[p]);
+      if(sp_adj > max_sa) max_sa = sp_adj;
+    }
+    double lse_sum = 0.0;
+    for(int p = 1; p < M; p++) {
+      double sp_adj = max(1.0, (double) st.score_p[p] + w * potential[p]);
+      double z = (sp_adj - max_sa) / threat_temp;
+      if(z < -60.0) z = -60.0;
+      lse_sum += exp(z);
+    }
+    double sa_adj = max(1.0, max_sa + threat_temp * log(max(1e-30, lse_sum)));
 
     return -1e5 * log2(1.0 + sa_adj / s0_adj);
   }
 
-  inline uint64_t splitmix64(uint64_t x) const {
-    x += 0x9e3779b97f4a7c15ULL;
-    x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ULL;
-    x = (x ^ (x >> 27)) * 0x94d049bb133111ebULL;
-    return x ^ (x >> 31);
-  }
+  struct XorShift32 {
+    unsigned int tx;
+    unsigned int ty;
+    unsigned int tz;
+    unsigned int tw;
 
-  inline double rand01_det(uint64_t seed) const {
-    uint64_t z = splitmix64(seed);
-    return (double) (z >> 11) * (1.0 / 9007199254740992.0);
-  }
-
-  inline uint64_t state_seed(const State& st) const {
-    uint64_t h = 0x9e3779b97f4a7c15ULL ^ (uint64_t) (st.t + 1);
-    for(int p = 0; p < M; p++) {
-      int cell = idx(st.pos[p].first, st.pos[p].second);
-      h ^= splitmix64((uint64_t) (cell + 1) ^ (0xbf58476d1ce4e5b9ULL * (uint64_t) (p + 1)));
+    explicit XorShift32(unsigned int seed = 1u) {
+      tx = 123456789u ^ seed;
+      ty = 362436069u ^ ((seed << 13) | (seed >> 19));
+      tz = 521288629u ^ (seed * 1664525u + 1013904223u);
+      tw = 88675123u ^ (seed * 1103515245u + 12345u);
+      if((tx | ty | tz | tw) == 0u) tw = 88675123u;
     }
-    return h;
+
+    inline unsigned int rand_int() {
+      unsigned int tt = (tx ^ (tx << 11));
+      tx = ty;
+      ty = tz;
+      tz = tw;
+      return (tw = (tw ^ (tw >> 19)) ^ (tt ^ (tt >> 8)));
+    }
+
+    inline double rand_double() {
+      return (double) (rand_int() % 1000000000u) * (1.0 / 1000000000.0);
+    }
+  };
+
+  inline unsigned int mix32(unsigned int x) const {
+    x ^= x >> 16;
+    x *= 0x7feb352dU;
+    x ^= x >> 15;
+    x *= 0x846ca68bU;
+    x ^= x >> 16;
+    return x;
+  }
+
+  inline unsigned int rollout_seed(const State& root, uint64_t sample_id) const {
+    unsigned int h = 2166136261u;
+    auto add = [&](unsigned int v) {
+      h ^= v;
+      h *= 16777619u;
+    };
+    add((unsigned int) root.t);
+    add((unsigned int) M);
+    add((unsigned int) sample_id);
+    add((unsigned int) (sample_id >> 32));
+    for(int p = 0; p < M; p++) {
+      int cell = idx(root.pos[p].first, root.pos[p].second);
+      add((unsigned int) (cell + 1 + 1315423911u * (unsigned int) (p + 1)));
+    }
+    return mix32(h);
   }
 
   EnemyParam sample_enemy_param_rollout(int p, double r_model) const {
@@ -650,9 +739,7 @@ struct Solver {
     if(eps < 0.0) eps = 0.0;
     if(eps > 0.5) eps = 0.5;
     if(r_eps < eps) {
-      int j = (int) (r_sel * msz);
-      if(j < 0) j = 0;
-      if(j >= msz) j = msz - 1;
+      int j = pick_index(r_sel, msz);
       return moves.a[j];
     }
 
@@ -674,13 +761,11 @@ struct Solver {
       }
     }
     if(best_count <= 0) return moves.a[0];
-    int pick = (int) (r_sel * best_count);
-    if(pick < 0) pick = 0;
-    if(pick >= best_count) pick = best_count - 1;
+    int pick = pick_index(r_sel, best_count);
     return best_cells[pick];
   }
 
-  int choose_my_rollout_move(const State& st, uint64_t sample_id, int depth) const {
+  int choose_my_rollout_move(const State& st, double r_mode, double r_sel) const {
     MoveList base_moves = enumerate_moves(st, 0);
     int fallback = idx(st.pos[0].first, st.pos[0].second);
     if(base_moves.n <= 0) return fallback;
@@ -697,23 +782,14 @@ struct Solver {
     }
     if(n == 1) return cand[0];
 
-    uint64_t seed = state_seed(st);
-    seed ^= 0x632be59bd9b4e019ULL * (sample_id + 1);
-    seed ^= 0x9e3779b97f4a7c15ULL * (uint64_t) (depth + 1);
-    double r_mode = rand01_det(seed ^ 0x243f6a8885a308d3ULL);
-    double r_sel = rand01_det(seed ^ 0x13198a2e03707344ULL);
-
     double self_eps = params.self_random_eps;
     if(self_eps < 0.0) self_eps = 0.0;
     if(self_eps > 1.0) self_eps = 1.0;
     if(r_mode < self_eps) {
-      int j = (int) (r_sel * n);
-      if(j < 0) j = 0;
-      if(j >= n) j = n - 1;
+      int j = pick_index(r_sel, n);
       return cand[j];
     }
 
-    // Softmax selection over move_heuristic scores (normalized)
     double temp = params.softmax_temp;
     if(temp < 1e-6) temp = 1e-6;
     double inv_temp = 1.0 / temp;
@@ -727,18 +803,13 @@ struct Solver {
       if(h_scores[i] < min_h) min_h = h_scores[i];
     }
 
-    // Normalize scores to [0, 1] range before applying temperature
     double range = max_h - min_h;
     if(range < 1e-12) {
-      // All scores are equal, pick uniformly
-      int j = (int) (r_sel * n);
-      if(j < 0) j = 0;
-      if(j >= n) j = n - 1;
+      int j = pick_index(r_sel, n);
       return cand[j];
     }
     double inv_range = 1.0 / range;
 
-    // Compute cumulative softmax probabilities
     array<double, 100> cum_prob;
     double acc = 0.0;
     for(int i = 0; i < n; i++) {
@@ -748,7 +819,6 @@ struct Solver {
       cum_prob[i] = acc;
     }
 
-    // Sample from the distribution
     double threshold = r_sel * acc;
     for(int i = 0; i < n; i++) {
       if(cum_prob[i] >= threshold) return cand[i];
@@ -758,28 +828,23 @@ struct Solver {
 
   double rollout_once(const State& root, int first_move, int horizon, uint64_t sample_id) const {
     State st = root;
-    uint64_t root_seed = state_seed(root);
+    XorShift32 rng(rollout_seed(root, sample_id));
     array<EnemyParam, 8> sampled_enemy;
     for(int p = 1; p < M; p++) {
-      uint64_t z = root_seed ^ (0x9e3779b97f4a7c15ULL * (sample_id + 1)) ^ (0xbf58476d1ce4e5b9ULL * (uint64_t) (p + 1));
-      double r_model = rand01_det(z ^ 0x94d049bb133111ebULL);
-      sampled_enemy[p] = sample_enemy_param_rollout(p, r_model);
+      sampled_enemy[p] = sample_enemy_param_rollout(p, rng.rand_double());
     }
     for(int d = 0; d < horizon && st.t < T; d++) {
-      uint64_t step_seed = state_seed(st);
       array<int, 8> target;
+      double my_r_mode = rng.rand_double();
+      double my_r_sel = rng.rand_double();
       if(d == 0) {
         target[0] = first_move;
       } else {
-        target[0] = choose_my_rollout_move(st, sample_id, d);
+        target[0] = choose_my_rollout_move(st, my_r_mode, my_r_sel);
       }
       for(int p = 1; p < M; p++) {
-        uint64_t base = step_seed;
-        base ^= 0x9e3779b97f4a7c15ULL * (sample_id + 1);
-        base ^= 0xbf58476d1ce4e5b9ULL * (uint64_t) (d + 1);
-        base ^= 0x94d049bb133111ebULL * (uint64_t) (p + 1);
-        double r1 = rand01_det(base ^ 0x243f6a8885a308d3ULL);
-        double r2 = rand01_det(base ^ 0x13198a2e03707344ULL);
+        double r1 = rng.rand_double();
+        double r2 = rng.rand_double();
         target[p] = sample_enemy_move_rollout(st, p, sampled_enemy[p], r1, r2);
       }
       apply_turn_targets_inplace(st, target);
@@ -789,7 +854,7 @@ struct Solver {
 
   pair<int, int> monte_carlo_rollout_decision(const State& root, double turn_end) const {
     vector<int> moves;
-    enumerate_root_moves(root, moves);
+    enumerate_moves_my(root, moves);
     if(moves.empty()) {
       return {root.pos[0].first, root.pos[0].second};
     }
@@ -813,7 +878,6 @@ struct Solver {
     if(C < 0.0) C = 0.0;
     int total_cnt = 0;
 
-    // Phase 1: Initialize each arm with one rollout
     for(int i = 0; i < K; i++) {
       if(utility::mytm.elapsed() > turn_end) break;
       double val = rollout_once(root, moves[i], horizon, 0);
@@ -823,8 +887,6 @@ struct Solver {
       total_cnt++;
     }
 
-    // Compute reward scale for UCB exploration normalization
-    // Use pooled stddev; fallback to range-based estimate if too few samples
     double ucb_scale = 1.0;
     if(total_cnt >= 2) {
       double total_sum_all = 0.0, total_sq_all = 0.0;
@@ -841,21 +903,17 @@ struct Solver {
       double overall_var = total_sq_all / total_cnt - overall_mean * overall_mean;
       if(overall_var < 0.0) overall_var = 0.0;
       ucb_scale = sqrt(overall_var);
-      // Fallback: if stddev is tiny, use range
       if(ucb_scale < 1.0) {
         ucb_scale = max(1.0, val_max - val_min);
       }
     }
 
-    // Phase 2: UCB1-based arm selection with scaled exploration
     while(utility::mytm.elapsed() <= turn_end) {
-      // Select arm with highest UCB1 value
       int sel = -1;
       double best_ucb = -1e100;
       double log_total = log((double) total_cnt);
       for(int i = 0; i < K; i++) {
         if(cnt[i] <= 0) {
-          // Uninitialized arm gets highest priority
           sel = i;
           break;
         }
@@ -874,7 +932,6 @@ struct Solver {
       cnt[sel]++;
       total_cnt++;
 
-      // Periodically update scale (every 32 rollouts)
       if((total_cnt & 31) == 0 && total_cnt >= 4) {
         double ts = 0.0, tsq = 0.0;
         for(int i = 0; i < K; i++) {
@@ -906,7 +963,8 @@ struct Solver {
     constexpr double kHarnessOverheadMs = 120.0;
     constexpr double kSafetyMs = 80.0;
     constexpr double kPostMoveMs = 5.0;
-    double hard_deadline = params.time_limit_ms - kSafetyMs - kHarnessOverheadMs;
+    constexpr double kTimeLimitMs = 1900.0;
+    double hard_deadline = kTimeLimitMs - kSafetyMs - kHarnessOverheadMs;
     if(hard_deadline < 0.0) hard_deadline = 0.0;
     double ema_read_ms = 7.0;
     for(int turn = 0; turn < T; turn++) {
