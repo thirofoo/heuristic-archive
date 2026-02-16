@@ -26,14 +26,20 @@ class TrialParams:
     rollout_horizon: int
     self_random_eps: float
     time_limit_ms: float
+    eval_potential_w: float
+    softmax_temp: float
+    ucb_c: float
 
 
 def write_params(p: TrialParams) -> None:
-    entry = "{max_branch}, {rollout_horizon}, {self_random_eps:.6f}, {time_limit_ms:.6f}".format(
+    entry = "{max_branch}, {rollout_horizon}, {self_random_eps:.6f}, {time_limit_ms:.6f}, {eval_potential_w:.6f}, {softmax_temp:.6f}, {ucb_c:.6f}".format(
         max_branch=p.max_branch,
         rollout_horizon=p.rollout_horizon,
         self_random_eps=p.self_random_eps,
         time_limit_ms=p.time_limit_ms,
+        eval_potential_w=p.eval_potential_w,
+        softmax_temp=p.softmax_temp,
+        ucb_c=p.ucb_c,
     )
     entries = ",\n".join([f"  {{{entry}}}"] * 9)
     template = """#pragma once
@@ -45,6 +51,9 @@ struct Params {{
   int rollout_horizon;
   double self_random_eps;
   double time_limit_ms;
+  double eval_potential_w;
+  double softmax_temp;
+  double ucb_c;
 }};
 
 static constexpr Params PARAMS_BY_M[9] = {{
@@ -138,13 +147,19 @@ def objective(trial: optuna.Trial, pahcer_cmd: str, timeout_sec: int) -> float:
         rollout_horizon=20,
         self_random_eps=trial.suggest_float("self_random_eps", 0.0, 0.35),
         time_limit_ms=5000.0,
+        eval_potential_w=trial.suggest_float("eval_potential_w", 0.0, 2.0),
+        softmax_temp=trial.suggest_float("softmax_temp", 0.05, 1.5, log=True),
+        ucb_c=trial.suggest_float("ucb_c", 0.0, 2.0),
     )
     print(
         f"[trial {trial.number}] start: "
         f"max_branch={params.max_branch}, "
         f"rollout_horizon={params.rollout_horizon}, "
         f"self_random_eps={params.self_random_eps:.6f}, "
-        f"time_limit_ms={params.time_limit_ms:.1f}",
+        f"time_limit_ms={params.time_limit_ms:.1f}, "
+        f"eval_potential_w={params.eval_potential_w:.6f}, "
+        f"softmax_temp={params.softmax_temp:.6f}, "
+        f"ucb_c={params.ucb_c:.6f}",
         flush=True,
     )
     write_params(params)
@@ -190,10 +205,13 @@ def main() -> int:
         print(" ", k, v)
 
     best_params = TrialParams(
-        max_branch=int(best.params["max_branch"]),
-        rollout_horizon=20,
-        self_random_eps=float(best.params["self_random_eps"]),
+        max_branch=int(best.params.get("max_branch", 26)),
+        rollout_horizon=int(best.params.get("rollout_horizon", 20)),
+        self_random_eps=float(best.params.get("self_random_eps", 0.30)),
         time_limit_ms=5000.0,
+        eval_potential_w=float(best.params.get("eval_potential_w", 0.0)),
+        softmax_temp=float(best.params.get("softmax_temp", 0.30)),
+        ucb_c=float(best.params.get("ucb_c", 1.0)),
     )
     write_params(best_params)
     return 0

@@ -9,18 +9,21 @@ struct Params {
   int rollout_horizon;
   double self_random_eps;
   double time_limit_ms;
+  double eval_potential_w;
+  double softmax_temp;
+  double ucb_c;
 };
 
 static constexpr Params PARAMS_BY_M[9] = {
-  {200, 10, 1.0000, 1900.000000},
-  {200, 10, 1.0000, 1900.000000},
-  {200, 10, 1.0000, 1900.000000},
-  {200, 10, 1.0000, 1900.000000},
-  {200, 10, 1.0000, 1900.000000},
-  {200, 10, 1.0000, 1900.000000},
-  {200, 10, 1.0000, 1900.000000},
-  {200, 10, 1.0000, 1900.000000},
-  {200, 10, 1.0000, 1900.000000}
+  {200, 10, 0.15, 1900.000000, 0.10, 0.50, 0.65},
+  {200, 10, 0.15, 1900.000000, 0.10, 0.50, 0.65},
+  {200, 10, 0.15, 1900.000000, 0.10, 0.50, 0.65},
+  {200, 10, 0.15, 1900.000000, 0.10, 0.50, 0.65},
+  {200, 10, 0.15, 1900.000000, 0.10, 0.50, 0.65},
+  {200, 10, 0.15, 1900.000000, 0.10, 0.50, 0.65},
+  {200, 10, 0.15, 1900.000000, 0.10, 0.50, 0.65},
+  {200, 10, 0.15, 1900.000000, 0.10, 0.50, 0.65},
+  {200, 10, 0.15, 1900.000000, 0.10, 0.50, 0.65}
 };
 
 inline const Params& params_for_m(int m) {
@@ -70,8 +73,6 @@ struct Solver {
   int T = 0;
   int U = 0;
   array<int, 100> V;
-  vector<int> sx;
-  vector<int> sy;
   struct EnemyParam {
     double wa = 0.0;
     double wb = 0.0;
@@ -98,9 +99,6 @@ struct Solver {
   mutable uint32_t block_epoch = 1;
   array<array<int, 4>, 100> neighbors{};
   array<uint8_t, 100> neighbor_deg{};
-  static constexpr double kDefaultEps = 0.3;
-  double value_cx = 0.0;
-  double value_cy = 0.0;
 
   Solver() {
     this->input();
@@ -113,40 +111,16 @@ struct Solver {
         cin >> V[i * N + j];
       }
     }
-    {
-      double wsum = 0.0;
-      double sxw = 0.0;
-      double syw = 0.0;
-      for(int i = 0; i < N; i++) {
-        for(int j = 0; j < N; j++) {
-          double w = (double) V[i * N + j];
-          wsum += w;
-          sxw += w * i;
-          syw += w * j;
-        }
-      }
-      if(wsum > 0.0) {
-        value_cx = sxw / wsum;
-        value_cy = syw / wsum;
-      } else {
-        value_cx = (N - 1) * 0.5;
-        value_cy = (N - 1) * 0.5;
-      }
-    }
-    sx.assign(M, 0);
-    sy.assign(M, 0);
-    for(int p = 0; p < M; p++) {
-      cin >> sx[p] >> sy[p];
-    }
     enemy.assign(M, EnemyParam());
 
     current = State();
-    current.pos.fill({0, 0});
     for(int p = 0; p < M; p++) {
-      int idx = sx[p] * N + sy[p];
+      int x, y;
+      cin >> x >> y;
+      int idx = x * N + y;
       current.owner[idx] = p;
       current.level[idx] = 1;
-      current.pos[p] = {sx[p], sy[p]};
+      current.pos[p] = {x, y};
     }
     current.t = 0;
     initialized = true;
@@ -165,7 +139,6 @@ struct Solver {
       if(!(cin >> tx >> ty)) return false;
       selected[p] = idx(tx, ty);
     }
-    st.pos.fill({0, 0});
     for(int p = 0; p < M; p++) {
       if(!(cin >> tx >> ty)) return false;
       st.pos[p] = {tx, ty};
@@ -530,6 +503,56 @@ struct Solver {
     return (level == 1) ? (2.0 * v) : v;
   }
 
+  static bool better_scored_cell(const pair<double, int>& a, const pair<double, int>& b) {
+    if(a.first != b.first) return a.first > b.first;
+    return a.second < b.second;
+  }
+
+  void cap_moves_by_heuristic(const State& st, vector<int>& moves, int cap) const {
+    if(cap < 1) cap = 1;
+    if((int) moves.size() <= cap) return;
+    array<pair<double, int>, 100> scored;
+    int scored_size = 0;
+    for(int cell : moves) {
+      scored[scored_size++] = {move_heuristic(st, cell), cell};
+    }
+    nth_element(scored.begin(), scored.begin() + cap, scored.begin() + scored_size, better_scored_cell);
+    sort(scored.begin(), scored.begin() + cap, better_scored_cell);
+    moves.clear();
+    moves.reserve(cap);
+    for(int i = 0; i < cap; i++) moves.push_back(scored[i].second);
+  }
+
+  int root_candidate_cap(int remaining_turns) const {
+    int root_cap;
+    if(remaining_turns >= 70) root_cap = 20;
+    else if(remaining_turns >= 40) root_cap = 16;
+    else if(remaining_turns >= 20) root_cap = 12;
+    else root_cap = 9;
+    root_cap = min(root_cap, params.max_branch);
+    if(root_cap < 1) root_cap = 1;
+    return root_cap;
+  }
+
+  void enumerate_root_moves(const State& root, vector<int>& moves) const {
+    enumerate_moves_my(root, moves);
+    if(!moves.empty()) return;
+    MoveList base = enumerate_moves(root, 0);
+    moves.reserve(base.n);
+    for(int i = 0; i < base.n; i++) moves.push_back(base.a[i]);
+  }
+
+  double robust_root_value(double sum, double sq_sum, int cnt, int turn) const {
+    if(cnt <= 0) return -1e100;
+    double mean = sum / cnt;
+    double var = sq_sum / cnt - mean * mean;
+    if(var < 0.0) var = 0.0;
+    double phase = (T <= 1) ? 1.0 : (double) turn / (double) (T - 1);
+    double lambda = 0.18 - 0.10 * phase;
+    if(lambda < 0.05) lambda = 0.05;
+    return mean - lambda * sqrt(var);
+  }
+
   void enumerate_moves_my(const State& st, vector<int>& moves) const {
     MoveList base_moves = enumerate_moves(st, 0);
     moves.clear();
@@ -542,38 +565,66 @@ struct Solver {
     if(moves.empty()) {
       for(int i = 0; i < base_moves.n; i++) moves.push_back(base_moves.a[i]);
     }
-    if((int) moves.size() <= params.max_branch) return;
-
-    array<pair<double, int>, 100> scored;
-    int scored_size = 0;
-    for(int cell : moves) {
-      scored[scored_size++] = {move_heuristic(st, cell), cell};
-    }
-    int k = params.max_branch;
-    nth_element(scored.begin(), scored.begin() + k, scored.begin() + scored_size,
-                [](const pair<double, int>& a, const pair<double, int>& b) {
-                  if(a.first != b.first) return a.first > b.first;
-                  return a.second < b.second;
-                });
-    sort(scored.begin(), scored.begin() + k,
-         [](const pair<double, int>& a, const pair<double, int>& b) {
-           if(a.first != b.first) return a.first > b.first;
-           return a.second < b.second;
-         });
-    moves.clear();
-    moves.reserve(k);
-    for(int i = 0; i < k; i++) moves.push_back(scored[i].second);
+    cap_moves_by_heuristic(st, moves, params.max_branch);
   }
 
   double evaluate(const State& st) const {
     long long s0 = st.score_p[0];
     long long smax = 0;
-    for(int p = 1; p < M; p++) smax = max(smax, st.score_p[p]);
-    double s0d = max(1.0, (double) s0);
-    double sad = (double) smax;
-    double abs_score = 1e5 * log2(1.0 + sad / s0d);
-    double score = -abs_score;
-    return score;
+    int strongest = 1;
+    for(int p = 1; p < M; p++) {
+      if(st.score_p[p] > smax) {
+        smax = st.score_p[p];
+        strongest = p;
+      }
+    }
+
+    int remaining = T - st.t;
+
+    // At game end or near end, use exact score only
+    if(remaining <= 0 || params.eval_potential_w <= 0.0) {
+      double s0d = max(1.0, (double) s0);
+      double sad = max(1.0, (double) smax);
+      return -1e5 * log2(1.0 + sad / s0d);
+    }
+
+    // Compute territory potential for player 0 and strongest enemy
+    double my_reinforce = 0.0, my_expand = 0.0;
+    double en_reinforce = 0.0, en_expand = 0.0;
+
+    for(int i = 0; i < N * N; i++) {
+      int owner = st.owner[i];
+      if(owner == 0) {
+        // Our cell: reinforcement potential
+        if(st.level[i] < U) {
+          my_reinforce += (double) V[i] * (U - st.level[i]);
+        }
+      } else if(owner == strongest) {
+        // Strongest enemy cell: reinforcement potential
+        if(st.level[i] < U) {
+          en_reinforce += (double) V[i] * (U - st.level[i]);
+        }
+      } else if(owner == -1) {
+        // Unowned cell: check adjacency for expansion potential
+        int deg = (int) neighbor_deg[i];
+        bool adj_me = false, adj_en = false;
+        for(int d = 0; d < deg; d++) {
+          int ni = neighbors[i][d];
+          if(st.owner[ni] == 0) adj_me = true;
+          if(st.owner[ni] == strongest) adj_en = true;
+        }
+        if(adj_me) my_expand += (double) V[i];
+        if(adj_en) en_expand += (double) V[i];
+      }
+    }
+
+    double phase = (double) remaining / (double) T;
+    double w = phase * params.eval_potential_w;
+
+    double s0_adj = max(1.0, (double) s0 + w * (my_reinforce + my_expand));
+    double sa_adj = max(1.0, (double) smax + w * (en_reinforce + en_expand));
+
+    return -1e5 * log2(1.0 + sa_adj / s0_adj);
   }
 
   inline uint64_t splitmix64(uint64_t x) const {
@@ -694,17 +745,47 @@ struct Solver {
       return cand[j];
     }
 
-    int best_cell = cand[0];
-    double best_h = move_heuristic(st, best_cell);
-    for(int i = 1; i < n; i++) {
-      int cell = cand[i];
-      double h = move_heuristic(st, cell);
-      if(h > best_h || (h == best_h && cell < best_cell)) {
-        best_h = h;
-        best_cell = cell;
-      }
+    // Softmax selection over move_heuristic scores (normalized)
+    double temp = params.softmax_temp;
+    if(temp < 1e-6) temp = 1e-6;
+    double inv_temp = 1.0 / temp;
+
+    array<double, 100> h_scores;
+    double max_h = -1e100;
+    double min_h = 1e100;
+    for(int i = 0; i < n; i++) {
+      h_scores[i] = move_heuristic(st, cand[i]);
+      if(h_scores[i] > max_h) max_h = h_scores[i];
+      if(h_scores[i] < min_h) min_h = h_scores[i];
     }
-    return best_cell;
+
+    // Normalize scores to [0, 1] range before applying temperature
+    double range = max_h - min_h;
+    if(range < 1e-12) {
+      // All scores are equal, pick uniformly
+      int j = (int) (r_sel * n);
+      if(j < 0) j = 0;
+      if(j >= n) j = n - 1;
+      return cand[j];
+    }
+    double inv_range = 1.0 / range;
+
+    // Compute cumulative softmax probabilities
+    array<double, 100> cum_prob;
+    double acc = 0.0;
+    for(int i = 0; i < n; i++) {
+      double z = (h_scores[i] - max_h) * inv_range * inv_temp;
+      if(z < -60.0) z = -60.0;
+      acc += exp(z);
+      cum_prob[i] = acc;
+    }
+
+    // Sample from the distribution
+    double threshold = r_sel * acc;
+    for(int i = 0; i < n; i++) {
+      if(cum_prob[i] >= threshold) return cand[i];
+    }
+    return cand[n - 1];
   }
 
   double rollout_once(const State& root, int first_move, int horizon, uint64_t sample_id) const {
@@ -738,45 +819,16 @@ struct Solver {
     return evaluate(st);
   }
 
-  pair<int, int> monte_carlo_rollout_decision(const State& root, double /*turn_start*/, double turn_end) const {
+  pair<int, int> monte_carlo_rollout_decision(const State& root, double turn_end) const {
     vector<int> moves;
-    enumerate_moves_my(root, moves);
-    if(moves.empty()) {
-      MoveList base = enumerate_moves(root, 0);
-      moves.reserve(base.n);
-      for(int i = 0; i < base.n; i++) moves.push_back(base.a[i]);
-    }
+    enumerate_root_moves(root, moves);
     if(moves.empty()) {
       return {root.pos[0].first, root.pos[0].second};
     }
 
     int remaining_turns = T - root.t;
-    int root_cap;
-    if(remaining_turns >= 70) root_cap = 20;
-    else if(remaining_turns >= 40) root_cap = 16;
-    else if(remaining_turns >= 20) root_cap = 12;
-    else root_cap = 9;
-    root_cap = min(root_cap, params.max_branch);
-    if(root_cap < 1) root_cap = 1;
-
-    if((int) moves.size() > root_cap) {
-      array<pair<double, int>, 100> scored;
-      int n = 0;
-      for(int mv : moves) scored[n++] = {move_heuristic(root, mv), mv};
-      nth_element(scored.begin(), scored.begin() + root_cap, scored.begin() + n,
-                  [](const pair<double, int>& a, const pair<double, int>& b) {
-                    if(a.first != b.first) return a.first > b.first;
-                    return a.second < b.second;
-                  });
-      sort(scored.begin(), scored.begin() + root_cap,
-           [](const pair<double, int>& a, const pair<double, int>& b) {
-             if(a.first != b.first) return a.first > b.first;
-             return a.second < b.second;
-           });
-      moves.clear();
-      moves.reserve(root_cap);
-      for(int i = 0; i < root_cap; i++) moves.push_back(scored[i].second);
-    }
+    int root_cap = root_candidate_cap(remaining_turns);
+    cap_moves_by_heuristic(root, moves, root_cap);
 
     int K = (int) moves.size();
     vector<double> sum(K, 0.0), sq_sum(K, 0.0);
@@ -788,34 +840,89 @@ struct Solver {
 
     int best_idx = 0;
     double best_value = -1e100;
-    auto robust_value = [&](int i) {
-      if(cnt[i] <= 0) return -1e100;
-      double mean = sum[i] / cnt[i];
-      double var = sq_sum[i] / cnt[i] - mean * mean;
-      if(var < 0.0) var = 0.0;
-      double phase = (T <= 1) ? 1.0 : (double) root.t / (double) (T - 1);
-      double lambda = 0.18 - 0.10 * phase;
-      if(lambda < 0.05) lambda = 0.05;
-      return mean - lambda * sqrt(var);
-    };
 
-    uint64_t sample_round = 0;
-    while(utility::mytm.elapsed() <= turn_end) {
-      bool progressed = false;
+    double C = params.ucb_c;
+    if(C < 0.0) C = 0.0;
+    int total_cnt = 0;
+
+    // Phase 1: Initialize each arm with one rollout
+    for(int i = 0; i < K; i++) {
+      if(utility::mytm.elapsed() > turn_end) break;
+      double val = rollout_once(root, moves[i], horizon, 0);
+      sum[i] += val;
+      sq_sum[i] += val * val;
+      cnt[i]++;
+      total_cnt++;
+    }
+
+    // Compute reward scale for UCB exploration normalization
+    // Use pooled stddev; fallback to range-based estimate if too few samples
+    double ucb_scale = 1.0;
+    if(total_cnt >= 2) {
+      double total_sum_all = 0.0, total_sq_all = 0.0;
+      double val_min = 1e100, val_max = -1e100;
       for(int i = 0; i < K; i++) {
-        if(utility::mytm.elapsed() > turn_end) break;
-        double val = rollout_once(root, moves[i], horizon, sample_round);
-        sum[i] += val;
-        sq_sum[i] += val * val;
-        cnt[i]++;
-        progressed = true;
+        if(cnt[i] <= 0) continue;
+        total_sum_all += sum[i];
+        total_sq_all += sq_sum[i];
+        double m = sum[i] / cnt[i];
+        if(m < val_min) val_min = m;
+        if(m > val_max) val_max = m;
       }
-      if(!progressed) break;
-      sample_round++;
+      double overall_mean = total_sum_all / total_cnt;
+      double overall_var = total_sq_all / total_cnt - overall_mean * overall_mean;
+      if(overall_var < 0.0) overall_var = 0.0;
+      ucb_scale = sqrt(overall_var);
+      // Fallback: if stddev is tiny, use range
+      if(ucb_scale < 1.0) {
+        ucb_scale = max(1.0, val_max - val_min);
+      }
+    }
+
+    // Phase 2: UCB1-based arm selection with scaled exploration
+    while(utility::mytm.elapsed() <= turn_end) {
+      // Select arm with highest UCB1 value
+      int sel = -1;
+      double best_ucb = -1e100;
+      double log_total = log((double) total_cnt);
+      for(int i = 0; i < K; i++) {
+        if(cnt[i] <= 0) {
+          // Uninitialized arm gets highest priority
+          sel = i;
+          break;
+        }
+        double mean_i = sum[i] / cnt[i];
+        double ucb = mean_i + C * ucb_scale * sqrt(log_total / cnt[i]);
+        if(ucb > best_ucb) {
+          best_ucb = ucb;
+          sel = i;
+        }
+      }
+      if(sel < 0) sel = 0;
+
+      double val = rollout_once(root, moves[sel], horizon, (uint64_t) cnt[sel]);
+      sum[sel] += val;
+      sq_sum[sel] += val * val;
+      cnt[sel]++;
+      total_cnt++;
+
+      // Periodically update scale (every 32 rollouts)
+      if((total_cnt & 31) == 0 && total_cnt >= 4) {
+        double ts = 0.0, tsq = 0.0;
+        for(int i = 0; i < K; i++) {
+          ts += sum[i];
+          tsq += sq_sum[i];
+        }
+        double om = ts / total_cnt;
+        double ov = tsq / total_cnt - om * om;
+        if(ov < 0.0) ov = 0.0;
+        double new_scale = sqrt(ov);
+        if(new_scale >= 1.0) ucb_scale = new_scale;
+      }
     }
 
     for(int i = 0; i < K; i++) {
-      double rv = robust_value(i);
+      double rv = robust_root_value(sum[i], sq_sum[i], cnt[i], root.t);
       if(rv > best_value || (rv == best_value && moves[i] < moves[best_idx])) {
         best_value = rv;
         best_idx = i;
@@ -848,7 +955,7 @@ struct Solver {
       if(turn_end < 0.0) turn_end = 0.0;
       if(turn_end < turn_start) turn_end = turn_start;
 
-      pair<int, int> decision = monte_carlo_rollout_decision(current, turn_start, turn_end);
+      pair<int, int> decision = monte_carlo_rollout_decision(current, turn_end);
       cout << decision.first << " " << decision.second << "\n" << flush;
       if(turn + 1 >= T) break;
 
