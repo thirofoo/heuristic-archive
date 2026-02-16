@@ -58,6 +58,11 @@ struct Solver {
   vector<array<double, 4>> enemy_candidates;
   vector<double> enemy_eps_candidates;
   vector<vector<double>> enemy_logp;
+  static constexpr int kPosteriorTop = 16;
+  static constexpr double kPosteriorTemp = 0.75;
+  vector<array<int, kPosteriorTop>> enemy_post_idx;
+  vector<array<double, kPosteriorTop>> enemy_post_cdf;
+  vector<uint8_t> enemy_post_size;
   mutable array<uint32_t, 100> visit_stamp{};
   mutable array<uint32_t, 100> block_stamp{};
   mutable uint32_t visit_epoch = 1;
@@ -164,12 +169,101 @@ struct Solver {
     int wcnt = (int) enemy_candidates.size();
     int ecnt = (int) enemy_eps_candidates.size();
     enemy_logp.assign(max(0, M - 1), vector<double>(wcnt * ecnt, 0.0));
+    enemy_post_idx.assign(max(0, M - 1), array<int, kPosteriorTop>{});
+    enemy_post_cdf.assign(max(0, M - 1), array<double, kPosteriorTop>{});
+    enemy_post_size.assign(max(0, M - 1), 0);
+
+    constexpr double mu_w = 0.65;
+    constexpr double mu_e = 0.30;
+    constexpr double inv_2sig2_w = 1.0 / (2.0 * 0.22 * 0.22);
+    constexpr double inv_2sig2_e = 1.0 / (2.0 * 0.13 * 0.13);
+    for(int ai = 0; ai < max(0, M - 1); ai++) {
+      vector<double>& logp = enemy_logp[ai];
+      for(int wi = 0; wi < wcnt; wi++) {
+        const auto& cand = enemy_candidates[wi];
+        double dw2 = (cand[0] - mu_w) * (cand[0] - mu_w) + (cand[1] - mu_w) * (cand[1] - mu_w)
+                     + (cand[2] - mu_w) * (cand[2] - mu_w) + (cand[3] - mu_w) * (cand[3] - mu_w);
+        for(int ei = 0; ei < ecnt; ei++) {
+          double de = enemy_eps_candidates[ei] - mu_e;
+          logp[wi * ecnt + ei] = -dw2 * inv_2sig2_w - de * de * inv_2sig2_e;
+        }
+      }
+    }
+
     for(int p = 1; p < M; p++) {
-      enemy[p].wa = 0.65;
-      enemy[p].wb = 0.65;
-      enemy[p].wc = 0.65;
-      enemy[p].wd = 0.65;
-      enemy[p].eps = kDefaultEps;
+      int ai_idx = p - 1;
+      int best_idx = 0;
+      const vector<double>& logp = enemy_logp[ai_idx];
+      for(int i = 1; i < (int) logp.size(); i++) {
+        if(logp[i] > logp[best_idx]) best_idx = i;
+      }
+      int best_wi = best_idx / ecnt;
+      int best_ei = best_idx % ecnt;
+      const auto& best = enemy_candidates[best_wi];
+      enemy[p].wa = best[0];
+      enemy[p].wb = best[1];
+      enemy[p].wc = best[2];
+      enemy[p].wd = best[3];
+      enemy[p].eps = enemy_eps_candidates[best_ei];
+      rebuild_enemy_posterior(ai_idx);
+    }
+  }
+
+  void rebuild_enemy_posterior(int ai_idx) {
+    if(ai_idx < 0 || ai_idx >= (int) enemy_logp.size()) return;
+    const vector<double>& logp = enemy_logp[ai_idx];
+    if(logp.empty()) {
+      enemy_post_size[ai_idx] = 0;
+      return;
+    }
+
+    array<int, kPosteriorTop> best_idx{};
+    array<double, kPosteriorTop> best_log{};
+    int sz = 0;
+    for(int i = 0; i < (int) logp.size(); i++) {
+      double v = logp[i];
+      int pos = sz;
+      if(pos < kPosteriorTop) {
+        best_idx[pos] = i;
+        best_log[pos] = v;
+        sz++;
+      } else if(v > best_log[sz - 1]) {
+        pos = sz - 1;
+        best_idx[pos] = i;
+        best_log[pos] = v;
+      } else {
+        continue;
+      }
+      while(pos > 0 && best_log[pos] > best_log[pos - 1]) {
+        swap(best_log[pos], best_log[pos - 1]);
+        swap(best_idx[pos], best_idx[pos - 1]);
+        pos--;
+      }
+    }
+    if(sz <= 0) {
+      enemy_post_size[ai_idx] = 0;
+      return;
+    }
+
+    enemy_post_size[ai_idx] = (uint8_t) sz;
+    double mx = best_log[0];
+    double inv_temp = 1.0 / kPosteriorTemp;
+    double acc = 0.0;
+    for(int j = 0; j < sz; j++) {
+      enemy_post_idx[ai_idx][j] = best_idx[j];
+      double z = (best_log[j] - mx) * inv_temp;
+      if(z < -60.0) z = -60.0;
+      acc += exp(z);
+      enemy_post_cdf[ai_idx][j] = acc;
+    }
+    if(acc <= 0.0) {
+      enemy_post_size[ai_idx] = 1;
+      enemy_post_idx[ai_idx][0] = best_idx[0];
+      enemy_post_cdf[ai_idx][0] = 1.0;
+      return;
+    }
+    for(int j = 0; j < sz; j++) {
+      enemy_post_cdf[ai_idx][j] /= acc;
     }
   }
 
@@ -224,6 +318,7 @@ struct Solver {
       enemy[p].wc = best[2];
       enemy[p].wd = best[3];
       enemy[p].eps = enemy_eps_candidates[best_ei];
+      rebuild_enemy_posterior(ai_idx);
     }
   }
 
@@ -449,85 +544,6 @@ struct Solver {
     double sad = (double) smax;
     double abs_score = 1e5 * log2(1.0 + sad / s0d);
     double score = -abs_score;
-    double phase = (T <= 1) ? 1.0 : (double) st.t / (double) (T - 1);
-
-    int mx = st.pos[0].first;
-    int my = st.pos[0].second;
-    const double max_md = max(1.0, 2.0 * (N - 1));
-
-    if(M >= 4) {
-      int edge_dist = min(min(mx, N - 1 - mx), min(my, N - 1 - my));
-      int max_edge_dist = max(1, (N - 1) / 2);
-      double edge_pref = (double) (max_edge_dist - edge_dist) / (double) max_edge_dist;
-      double edge_w = (3400.0 + 2200.0 * (1.0 - phase)) * (double) (M - 3);
-      score += edge_w * edge_pref;
-
-      int near2 = 0;
-      int near4 = 0;
-      array<char, 4> quadrant;
-      quadrant.fill(0);
-      double ex_sum = 0.0;
-      double ey_sum = 0.0;
-      int enemy_cnt = 0;
-      for(int p = 1; p < M; p++) {
-        int ex = st.pos[p].first;
-        int ey = st.pos[p].second;
-        int md = abs(ex - mx) + abs(ey - my);
-        if(md <= 2) near2++;
-        if(md <= 4) near4++;
-        int q = (ex >= mx ? 1 : 0) | (ey >= my ? 2 : 0);
-        quadrant[q] = 1;
-        ex_sum += ex;
-        ey_sum += ey;
-        enemy_cnt++;
-      }
-      int qcnt = quadrant[0] + quadrant[1] + quadrant[2] + quadrant[3];
-      score -= (2400.0 + 500.0 * phase) * near2;
-      score -= (650.0 + 250.0 * phase) * near4;
-      if(qcnt >= 3) score -= (1700.0 + 800.0 * phase) * (qcnt - 2);
-
-      int pair_cnt = 0;
-      double pair_sum = 0.0;
-      for(int a = 1; a < M; a++) {
-        for(int b = a + 1; b < M; b++) {
-          pair_sum += abs(st.pos[a].first - st.pos[b].first) + abs(st.pos[a].second - st.pos[b].second);
-          pair_cnt++;
-        }
-      }
-      if(pair_cnt > 0) {
-        double avg_pair = pair_sum / pair_cnt;
-        double cluster = 1.0 - avg_pair / max_md;
-        score += (3200.0 + 1200.0 * phase) * cluster;
-      }
-
-      if(enemy_cnt > 0) {
-        double ecx = ex_sum / enemy_cnt;
-        double ecy = ey_sum / enemy_cnt;
-        double d_enemy = fabs(mx - ecx) + fabs(my - ecy);
-        score += (2200.0 + 700.0 * (1.0 - phase)) * (d_enemy / max_md);
-      }
-
-      double d_value = fabs(mx - value_cx) + fabs(my - value_cy);
-      score += (1200.0 + 900.0 * (1.0 - phase)) * (d_value / max_md);
-    } else {
-      int nearest_enemy = 100;
-      for(int p = 1; p < M; p++) {
-        int md = abs(st.pos[p].first - mx) + abs(st.pos[p].second - my);
-        nearest_enemy = min(nearest_enemy, md);
-      }
-      if(nearest_enemy < 100) {
-        double desired_dist = (phase < 0.7) ? 3.5 : 2.0;
-        score -= 380.0 * fabs((double) nearest_enemy - desired_dist);
-      }
-
-      if(phase < 0.75) {
-        double lead = ((double) s0 - (double) smax) / max(1.0, (double) (s0 + smax));
-        if(lead > 0.0) {
-          score -= 14000.0 * lead * (0.75 - phase);
-        }
-      }
-    }
-
     return score;
   }
 
@@ -552,12 +568,37 @@ struct Solver {
     return h;
   }
 
-  int sample_enemy_move_rollout(const State& st, int p, double r_eps, double r_sel) const {
+  EnemyParam sample_enemy_param_rollout(int p, double r_model) const {
+    if(p <= 0 || p >= M) return EnemyParam();
+    int ai_idx = p - 1;
+    if(ai_idx < 0 || ai_idx >= (int) enemy_post_size.size()) return enemy[p];
+    int sz = (int) enemy_post_size[ai_idx];
+    if(sz <= 0) return enemy[p];
+
+    int pick = 0;
+    while(pick + 1 < sz && r_model > enemy_post_cdf[ai_idx][pick]) pick++;
+    int flat_idx = enemy_post_idx[ai_idx][pick];
+    int ecnt = (int) enemy_eps_candidates.size();
+    if(ecnt <= 0) return enemy[p];
+    int wi = flat_idx / ecnt;
+    int ei = flat_idx % ecnt;
+    if(wi < 0 || wi >= (int) enemy_candidates.size() || ei < 0 || ei >= ecnt) return enemy[p];
+
+    EnemyParam model;
+    model.wa = enemy_candidates[wi][0];
+    model.wb = enemy_candidates[wi][1];
+    model.wc = enemy_candidates[wi][2];
+    model.wd = enemy_candidates[wi][3];
+    model.eps = enemy_eps_candidates[ei];
+    return model;
+  }
+
+  int sample_enemy_move_rollout(const State& st, int p, const EnemyParam& model, double r_eps, double r_sel) const {
     MoveList moves = enumerate_moves(st, p);
     int msz = moves.n;
     if(msz <= 1) return moves.a[0];
 
-    double eps = enemy[p].eps;
+    double eps = model.eps;
     if(eps < 0.0) eps = 0.0;
     if(eps > 0.5) eps = 0.5;
     if(r_eps < eps) {
@@ -572,7 +613,7 @@ struct Solver {
     double max_score = -1e100;
     for(int i = 0; i < msz; i++) {
       int cell = moves.a[i];
-      double a = enemy_eval_cell(st, p, cell, enemy[p].wa, enemy[p].wb, enemy[p].wc, enemy[p].wd);
+      double a = enemy_eval_cell(st, p, cell, model.wa, model.wb, model.wc, model.wd);
       if(best_count == 0 || a > max_score) {
         max_score = a;
         best_cells[0] = cell;
@@ -639,6 +680,13 @@ struct Solver {
 
   double rollout_once(const State& root, int first_move, int horizon, uint64_t sample_id) const {
     State st = root;
+    uint64_t root_seed = state_seed(root);
+    array<EnemyParam, 8> sampled_enemy;
+    for(int p = 1; p < M; p++) {
+      uint64_t z = root_seed ^ (0x9e3779b97f4a7c15ULL * (sample_id + 1)) ^ (0xbf58476d1ce4e5b9ULL * (uint64_t) (p + 1));
+      double r_model = rand01_det(z ^ 0x94d049bb133111ebULL);
+      sampled_enemy[p] = sample_enemy_param_rollout(p, r_model);
+    }
     for(int d = 0; d < horizon && st.t < T; d++) {
       uint64_t step_seed = state_seed(st);
       array<int, 8> target;
@@ -654,7 +702,7 @@ struct Solver {
         base ^= 0x94d049bb133111ebULL * (uint64_t) (p + 1);
         double r1 = rand01_det(base ^ 0x243f6a8885a308d3ULL);
         double r2 = rand01_det(base ^ 0x13198a2e03707344ULL);
-        target[p] = sample_enemy_move_rollout(st, p, r1, r2);
+        target[p] = sample_enemy_move_rollout(st, p, sampled_enemy[p], r1, r2);
       }
       apply_turn_targets_inplace(st, target);
     }
