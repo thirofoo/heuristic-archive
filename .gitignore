@@ -6,3 +6,4 @@ main
 local_visualizer
 venv
 output*
+/**/__pycache__/
