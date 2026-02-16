@@ -15,28 +15,14 @@ namespace utility {
   } mytm;
 }
 
-inline unsigned int rand_int() {
-  static unsigned int tx = 123456789, ty = 362436069, tz = 521288629, tw = 88675123;
-  unsigned int tt = (tx ^ (tx << 11));
-  tx = ty, ty = tz, tz = tw;
-  return (tw = (tw ^ (tw >> 19)) ^ (tt ^ (tt >> 8)));
-}
-
-inline uint64_t rand_u64() {
-  uint64_t hi = (uint64_t) rand_int();
-  uint64_t lo = (uint64_t) rand_int();
-  return (hi << 32) ^ lo;
-}
-
 struct State {
   array<int, 100> owner;
   array<int, 100> level;
   array<pair<int, int>, 8> pos;
   int t;
   array<long long, 8> score_p;
-  uint64_t hash;
 
-  State() : t(0), hash(0) {
+  State() : t(0) {
     owner.fill(-1);
     level.fill(0);
     pos.fill({0, 0});
@@ -64,10 +50,6 @@ struct Solver {
   bool initialized = false;
 
   Params params = {};
-  vector<vector<uint64_t>> z_owner;
-  vector<vector<uint64_t>> z_level;
-  vector<vector<uint64_t>> z_pos;
-  mutable vector<unordered_map<uint64_t, vector<int>>> move_cache;
   vector<array<double, 4>> enemy_candidates;
   vector<double> enemy_eps_candidates;
   vector<vector<double>> enemy_logp;
@@ -124,10 +106,7 @@ struct Solver {
     current.t = 0;
     initialized = true;
     params = params_for_m(M);
-    init_zobrist();
-    init_scores_and_hash(current);
-    move_cache.assign(M, {});
-    for(auto& mp : move_cache) mp.reserve(4096);
+    init_scores(current);
     init_enemy_estimator();
   }
 
@@ -153,7 +132,7 @@ struct Solver {
     }
     if(update_enemy_model) update_enemy_params(prev, selected);
     st.t += 1;
-    init_scores_and_hash(st);
+    init_scores(st);
     return true;
   }
 
@@ -189,7 +168,7 @@ struct Solver {
     for(int p = 1; p < M; p++) {
       int obs = selected[p];
       if(obs < 0) continue;
-      const vector<int>& moves = enumerate_moves(prev, p);
+      vector<int> moves = enumerate_moves(prev, p);
       if(moves.empty()) continue;
       int ai_idx = p - 1;
       vector<double>& logp = enemy_logp[ai_idx];
@@ -254,34 +233,12 @@ struct Solver {
     return (level == 1) ? (V[cell] * wc) : (V[cell] * wd);
   }
 
-  void init_zobrist() {
-    z_owner.assign(9, vector<uint64_t>(N * N, 0));
-    z_level.assign(U + 1, vector<uint64_t>(N * N, 0));
-    z_pos.assign(M, vector<uint64_t>(N * N, 0));
-    for(int o = 0; o < (int) z_owner.size(); o++) {
-      for(int i = 0; i < N * N; i++) z_owner[o][i] = rand_u64();
-    }
-    for(int l = 0; l < (int) z_level.size(); l++) {
-      for(int i = 0; i < N * N; i++) z_level[l][i] = rand_u64();
-    }
-    for(int p = 0; p < M; p++) {
-      for(int i = 0; i < N * N; i++) z_pos[p][i] = rand_u64();
-    }
-  }
-
-  void init_scores_and_hash(State& st) const {
+  void init_scores(State& st) const {
     st.score_p.fill(0);
-    st.hash = 0;
     for(int i = 0; i < N * N; i++) {
       int owner = st.owner[i];
       int level = st.level[i];
       if(owner != -1) st.score_p[owner] += (long long) V[i] * level;
-      st.hash ^= z_owner[owner + 1][i];
-      st.hash ^= z_level[level][i];
-    }
-    for(int p = 0; p < M; p++) {
-      int cell = idx(st.pos[p].first, st.pos[p].second);
-      st.hash ^= z_pos[p][cell];
     }
   }
 
@@ -290,10 +247,6 @@ struct Solver {
     int old_level = st.level[cell];
     if(old_owner != -1) st.score_p[old_owner] -= (long long) V[cell] * old_level;
     if(new_owner != -1) st.score_p[new_owner] += (long long) V[cell] * new_level;
-    st.hash ^= z_owner[old_owner + 1][cell];
-    st.hash ^= z_level[old_level][cell];
-    st.hash ^= z_owner[new_owner + 1][cell];
-    st.hash ^= z_level[new_level][cell];
     st.owner[cell] = new_owner;
     st.level[cell] = new_level;
   }
@@ -301,17 +254,10 @@ struct Solver {
   void update_pos(State& st, int p, int new_cell) const {
     int old_cell = idx(st.pos[p].first, st.pos[p].second);
     if(old_cell == new_cell) return;
-    st.hash ^= z_pos[p][old_cell];
-    st.hash ^= z_pos[p][new_cell];
     st.pos[p] = {new_cell / N, new_cell % N};
   }
 
-  const vector<int>& enumerate_moves(const State& st, int p) const {
-    uint64_t key = st.hash ^ (0x3c6ef372fe94f82aULL * (uint64_t) (p + 1));
-    auto& cache = move_cache[p];
-    auto it = cache.find(key);
-    if(it != cache.end()) return it->second;
-
+  vector<int> enumerate_moves(const State& st, int p) const {
     array<char, 100> visited;
     visited.fill(0);
     array<char, 100> blocked;
@@ -350,8 +296,7 @@ struct Solver {
     }
 
     if(moves.empty()) moves.push_back(start);
-    auto [inserted_it, _] = cache.emplace(key, std::move(moves));
-    return inserted_it->second;
+    return moves;
   }
 
   template <class TargetContainer>
@@ -434,7 +379,7 @@ struct Solver {
   }
 
   void enumerate_moves_my(const State& st, vector<int>& moves) const {
-    const vector<int>& base_moves = enumerate_moves(st, 0);
+    vector<int> base_moves = enumerate_moves(st, 0);
     moves.clear();
     if((int) moves.capacity() < (int) base_moves.size()) moves.reserve(base_moves.size());
     for(int cell : base_moves) {
@@ -567,8 +512,17 @@ struct Solver {
     return (double) (z >> 11) * (1.0 / 9007199254740992.0);
   }
 
+  inline uint64_t state_seed(const State& st) const {
+    uint64_t h = 0x9e3779b97f4a7c15ULL ^ (uint64_t) (st.t + 1);
+    for(int p = 0; p < M; p++) {
+      int cell = idx(st.pos[p].first, st.pos[p].second);
+      h ^= splitmix64((uint64_t) (cell + 1) ^ (0xbf58476d1ce4e5b9ULL * (uint64_t) (p + 1)));
+    }
+    return h;
+  }
+
   int sample_enemy_move_rollout(const State& st, int p, double r_eps, double r_sel) const {
-    const vector<int>& moves = enumerate_moves(st, p);
+    vector<int> moves = enumerate_moves(st, p);
     int msz = (int) moves.size();
     if(msz <= 1) return moves[0];
 
@@ -606,7 +560,7 @@ struct Solver {
   }
 
   int choose_my_rollout_move(const State& st, uint64_t sample_id, int depth) const {
-    const vector<int>& base_moves = enumerate_moves(st, 0);
+    vector<int> base_moves = enumerate_moves(st, 0);
     int fallback = idx(st.pos[0].first, st.pos[0].second);
     if(base_moves.empty()) return fallback;
 
@@ -621,7 +575,7 @@ struct Solver {
     }
     if(n == 1) return cand[0];
 
-    uint64_t seed = st.hash;
+    uint64_t seed = state_seed(st);
     seed ^= 0x632be59bd9b4e019ULL * (sample_id + 1);
     seed ^= 0x9e3779b97f4a7c15ULL * (uint64_t) (depth + 1);
     double r_mode = rand01_det(seed ^ 0x243f6a8885a308d3ULL);
@@ -660,7 +614,7 @@ struct Solver {
         target[0] = choose_my_rollout_move(st, sample_id, d);
       }
       for(int p = 1; p < M; p++) {
-        uint64_t base = st.hash;
+        uint64_t base = state_seed(st);
         base ^= 0x9e3779b97f4a7c15ULL * (sample_id + 1);
         base ^= 0xbf58476d1ce4e5b9ULL * (uint64_t) (d + 1);
         base ^= 0x94d049bb133111ebULL * (uint64_t) (p + 1);
@@ -677,7 +631,7 @@ struct Solver {
     vector<int> moves;
     enumerate_moves_my(root, moves);
     if(moves.empty()) {
-      const vector<int>& base = enumerate_moves(root, 0);
+      vector<int> base = enumerate_moves(root, 0);
       moves.assign(base.begin(), base.end());
     }
     if(moves.empty()) {
@@ -769,7 +723,6 @@ struct Solver {
     if(hard_deadline < 0.0) hard_deadline = 0.0;
     double ema_read_ms = 7.0;
     for(int turn = 0; turn < T; turn++) {
-      for(auto& mp : move_cache) mp.clear();
       double turn_start = utility::mytm.elapsed();
       int rem_turns = T - turn;
       int rem_reads = max(0, rem_turns - 1);
