@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 import argparse
 import os
+import queue
 import re
+import shlex
+import shutil
 import subprocess
 import sys
+import threading
+import time
 from dataclasses import dataclass
 
 import optuna
@@ -58,18 +63,66 @@ inline const Params& params_for_m(int m) {{
 
 
 def run_pahcer(cmd: str, timeout_sec: int) -> float:
-    proc = subprocess.run(
-        cmd,
+    run_argv = shlex.split(cmd)
+    if not run_argv:
+        raise RuntimeError("empty pahcer command")
+    proc = subprocess.Popen(
+        run_argv,
         cwd=ROOT_DIR,
-        shell=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        timeout=timeout_sec,
         text=True,
+        bufsize=1,
     )
-    out = proc.stdout
+    if proc.stdout is None:
+        raise RuntimeError("failed to capture pahcer stdout")
+
+    q: queue.Queue[str] = queue.Queue()
+
+    def _reader(pipe, qq: queue.Queue[str]) -> None:
+        for line in iter(pipe.readline, ""):
+            qq.put(line)
+        pipe.close()
+
+    t = threading.Thread(target=_reader, args=(proc.stdout, q), daemon=True)
+    t.start()
+
+    deadline = time.monotonic() + timeout_sec
+    lines: list[str] = []
+    while True:
+        while True:
+            try:
+                line = q.get_nowait()
+            except queue.Empty:
+                break
+            print(line, end="")
+            lines.append(line)
+
+        rc = proc.poll()
+        if rc is not None:
+            break
+        if time.monotonic() > deadline:
+            proc.kill()
+            while True:
+                try:
+                    line = q.get_nowait()
+                except queue.Empty:
+                    break
+                print(line, end="")
+                lines.append(line)
+            raise RuntimeError(f"pahcer timeout after {timeout_sec}s")
+        time.sleep(0.05)
+
+    while True:
+        try:
+            line = q.get_nowait()
+        except queue.Empty:
+            break
+        print(line, end="")
+        lines.append(line)
+
+    out = "".join(lines)
     if proc.returncode != 0:
-        print(out)
         raise RuntimeError(f"pahcer failed (exit={proc.returncode})")
 
     m = REL_SCORE_RE.search(out) or REL_ALT_RE.search(out)
@@ -86,8 +139,17 @@ def objective(trial: optuna.Trial, pahcer_cmd: str, timeout_sec: int) -> float:
         self_random_eps=trial.suggest_float("self_random_eps", 0.0, 0.35),
         time_limit_ms=5000.0,
     )
+    print(
+        f"[trial {trial.number}] start: "
+        f"max_branch={params.max_branch}, "
+        f"rollout_horizon={params.rollout_horizon}, "
+        f"self_random_eps={params.self_random_eps:.6f}, "
+        f"time_limit_ms={params.time_limit_ms:.1f}",
+        flush=True,
+    )
     write_params(params)
     score = run_pahcer(pahcer_cmd, timeout_sec)
+    print(f"[trial {trial.number}] done: relative_score={score:.6f}", flush=True)
     return score
 
 
@@ -103,6 +165,11 @@ def main() -> int:
     parser.add_argument("--study-name", default="ahc061")
     args = parser.parse_args()
 
+    pahcer_resolved = shutil.which("pahcer") or "(not found)"
+    print(f"[env] python={sys.executable}", flush=True)
+    print(f"[env] pahcer={pahcer_resolved}", flush=True)
+    print(f"[env] pahcer_cmd={args.pahcer_cmd}", flush=True)
+
     study = optuna.create_study(
         study_name=args.study_name,
         storage=args.storage,
@@ -113,6 +180,7 @@ def main() -> int:
     study.optimize(
         lambda t: objective(t, args.pahcer_cmd, args.timeout),
         n_trials=args.trials,
+        show_progress_bar=True,
     )
 
     best = study.best_trial
