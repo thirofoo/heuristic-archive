@@ -24,6 +24,8 @@ REL_ALT_RE = re.compile(r"^\s*Relative\s*=\s*([0-9.]+)\s*$", re.IGNORECASE | re.
 class TrialParams:
     cap_hi: int
     cap_lo: int
+    beam_depth: int
+    beam_width: int
     rollout_horizon: int
     self_random_eps: float
     eval_potential_w: float
@@ -32,14 +34,20 @@ class TrialParams:
 
 
 def write_params(p: TrialParams) -> None:
-    entry = "{cap_hi}, {cap_lo}, {rollout_horizon}, {self_random_eps:.6f}, {eval_potential_w:.6f}, {softmax_temp:.6f}, {ucb_c:.6f}".format(
+    entry = "{cap_hi}, {cap_lo}, {beam_depth}, {beam_width}, {rollout_horizon}, {self_random_eps:.6f}, {eval_potential_w:.6f}, {softmax_temp:.6f}, {ucb_c:.6f}, {eval_reinforce_w:.6f}, {eval_capture_w:.6f}, {eval_piece_pos_w:.6f}, {eval_threat_temp:.6f}".format(
         cap_hi=p.cap_hi,
         cap_lo=p.cap_lo,
+        beam_depth=p.beam_depth,
+        beam_width=p.beam_width,
         rollout_horizon=p.rollout_horizon,
         self_random_eps=p.self_random_eps,
         eval_potential_w=p.eval_potential_w,
         softmax_temp=p.softmax_temp,
         ucb_c=p.ucb_c,
+        eval_reinforce_w=0.5,
+        eval_capture_w=0.7,
+        eval_piece_pos_w=0.15,
+        eval_threat_temp=500.0,
     )
     entries = ",\n".join([f"  {{{entry}}}"] * 9)
     template = """#pragma once
@@ -49,11 +57,17 @@ def write_params(p: TrialParams) -> None:
 struct Params {{
   int cap_hi;
   int cap_lo;
+  int beam_depth;
+  int beam_width;
   int rollout_horizon;
   double self_random_eps;
   double eval_potential_w;
   double softmax_temp;
   double ucb_c;
+  double eval_reinforce_w;
+  double eval_capture_w;
+  double eval_piece_pos_w;
+  double eval_threat_temp;
 }};
 
 static constexpr Params PARAMS_BY_M[9] = {{
@@ -154,6 +168,8 @@ def objective(trial: optuna.Trial, pahcer_cmd: str, timeout_sec: int, stream_pah
     params = TrialParams(
         cap_hi=cap_hi,
         cap_lo=trial.suggest_int("cap_lo", 4, cap_hi),
+        beam_depth=trial.suggest_int("beam_depth", 8, 15),
+        beam_width=trial.suggest_int("beam_width", 12, 64),
         rollout_horizon=trial.suggest_int("rollout_horizon", 10, 28),
         self_random_eps=trial.suggest_float("self_random_eps", 0.0, 0.35),
         eval_potential_w=trial.suggest_float("eval_potential_w", 0.0, 2.0),
@@ -164,6 +180,8 @@ def objective(trial: optuna.Trial, pahcer_cmd: str, timeout_sec: int, stream_pah
         f"[trial {trial.number}] start: "
         f"cap_hi={params.cap_hi}, "
         f"cap_lo={params.cap_lo}, "
+        f"beam_depth={params.beam_depth}, "
+        f"beam_width={params.beam_width}, "
         f"rollout_horizon={params.rollout_horizon}, "
         f"self_random_eps={params.self_random_eps:.6f}, "
         f"eval_potential_w={params.eval_potential_w:.6f}, "
@@ -218,6 +236,8 @@ def main() -> int:
     best_params = TrialParams(
         cap_hi=int(best.params.get("cap_hi", 20)),
         cap_lo=int(best.params.get("cap_lo", 9)),
+        beam_depth=int(best.params.get("beam_depth", 10)),
+        beam_width=int(best.params.get("beam_width", 24)),
         rollout_horizon=int(best.params.get("rollout_horizon", 20)),
         self_random_eps=float(best.params.get("self_random_eps", 0.30)),
         eval_potential_w=float(best.params.get("eval_potential_w", 0.0)),

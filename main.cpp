@@ -765,6 +765,154 @@ struct Solver {
     return best_cells[pick];
   }
 
+  int predict_enemy_move_greedy(const State& st, int p) const {
+    MoveList moves = enumerate_moves(st, p);
+    int msz = moves.n;
+    if(msz <= 1) return moves.a[0];
+
+    const EnemyParam& model = enemy[p];
+    int best_cell = moves.a[0];
+    double best_score = enemy_eval_cell(st, p, best_cell, model.wa, model.wb, model.wc, model.wd);
+    for(int i = 1; i < msz; i++) {
+      int cell = moves.a[i];
+      double score = enemy_eval_cell(st, p, cell, model.wa, model.wb, model.wc, model.wd);
+      if(score > best_score + 1e-12) {
+        best_score = score;
+        best_cell = cell;
+      } else if(fabs(score - best_score) <= 1e-12 && cell < best_cell) {
+        best_cell = cell;
+      }
+    }
+    return best_cell;
+  }
+
+  void apply_predicted_turn_inplace(State& st, int my_move) const {
+    array<int, 8> target;
+    target.fill(0);
+    target[0] = my_move;
+    for(int p = 1; p < M; p++) {
+      target[p] = predict_enemy_move_greedy(st, p);
+    }
+    apply_turn_targets_inplace(st, target);
+  }
+
+  struct BeamNode {
+    State st;
+    int first_move = -1;
+    double value = -1e100;
+  };
+
+  static bool better_beam_node(const BeamNode& a, const BeamNode& b) {
+    if(a.value != b.value) return a.value > b.value;
+    return a.first_move < b.first_move;
+  }
+
+  void keep_top_beam(vector<BeamNode>& nodes, int width) const {
+    if(width < 1) width = 1;
+    if((int) nodes.size() <= width) return;
+    nth_element(nodes.begin(), nodes.begin() + width, nodes.end(), better_beam_node);
+    sort(nodes.begin(), nodes.begin() + width, better_beam_node);
+    nodes.resize(width);
+  }
+
+  pair<int, int> beam_search_decision(const State& root, double turn_end) const {
+    int fallback_cell = idx(root.pos[0].first, root.pos[0].second);
+    int beam_width = params.beam_width;
+    if(beam_width < 1) beam_width = 1;
+    int max_depth = params.beam_depth;
+    if(max_depth < 1) max_depth = 1;
+    max_depth = min(max_depth, max(1, T - root.t));
+
+    vector<int> root_moves;
+    enumerate_moves_my(root, root_moves);
+    if(root_moves.empty()) return {fallback_cell / N, fallback_cell % N};
+    int root_cap = min(beam_width, root_candidate_cap(T - root.t));
+    cap_moves_by_heuristic(root, root_moves, root_cap);
+    if(root_moves.empty()) return {fallback_cell / N, fallback_cell % N};
+
+    int best_move = root_moves[0];
+    double best_value = -1e100;
+    for(int mv : root_moves) {
+      State st = root;
+      apply_predicted_turn_inplace(st, mv);
+      double v = evaluate(st);
+      if(v > best_value || (v == best_value && mv < best_move)) {
+        best_value = v;
+        best_move = mv;
+      }
+    }
+
+    int layer_cap = beam_width * 4;
+    if(layer_cap < beam_width) layer_cap = beam_width;
+    if(layer_cap > 12000) layer_cap = 12000;
+
+    vector<vector<BeamNode>> layers(max_depth + 1);
+    for(auto& v : layers) v.reserve(layer_cap);
+    BeamNode root_node;
+    root_node.st = root;
+    root_node.first_move = -1;
+    root_node.value = evaluate(root);
+    layers[0].push_back(move(root_node));
+
+    auto pop_best_batch = [&](vector<BeamNode>& layer, int k, vector<BeamNode>& out) {
+      if(layer.empty() || k <= 0) return;
+      sort(layer.begin(), layer.end(), better_beam_node);
+      if((int)layer.size() > layer_cap) layer.resize(layer_cap);
+      k = min(k, (int)layer.size());
+      out.clear();
+      out.reserve(k);
+      for(int i = 0; i < k; i++) out.push_back(move(layer[i]));
+      layer.erase(layer.begin(), layer.begin() + k);
+    };
+
+    vector<BeamNode> batch;
+    batch.reserve(beam_width);
+
+    while(utility::mytm.elapsed() <= turn_end) {
+      bool progressed = false;
+      for(int depth = 0; depth < max_depth; depth++) {
+        if(utility::mytm.elapsed() > turn_end) break;
+        auto& cur_layer = layers[depth];
+        auto& nxt_layer = layers[depth + 1];
+        if(cur_layer.empty()) continue;
+
+        pop_best_batch(cur_layer, beam_width, batch);
+        if(batch.empty()) continue;
+        progressed = true;
+
+        for(const BeamNode& parent : batch) {
+          if(utility::mytm.elapsed() > turn_end) break;
+          vector<int> moves;
+          enumerate_moves_my(parent.st, moves);
+          if(moves.empty()) continue;
+          int cap = min(beam_width, root_candidate_cap(T - parent.st.t));
+          cap_moves_by_heuristic(parent.st, moves, cap);
+
+          for(int mv : moves) {
+            if(utility::mytm.elapsed() > turn_end) break;
+            BeamNode child;
+            child.st = parent.st;
+            apply_predicted_turn_inplace(child.st, mv);
+            child.first_move = (parent.first_move < 0) ? mv : parent.first_move;
+            child.value = evaluate(child.st);
+            if(child.value > best_value || (child.value == best_value && child.first_move < best_move)) {
+              best_value = child.value;
+              best_move = child.first_move;
+            }
+            nxt_layer.push_back(move(child));
+          }
+        }
+
+        if((int)nxt_layer.size() > layer_cap) {
+          keep_top_beam(nxt_layer, layer_cap);
+        }
+      }
+      if(!progressed) break;
+    }
+
+    return {best_move / N, best_move % N};
+  }
+
   int choose_my_rollout_move(const State& st, double r_mode, double r_sel) const {
     MoveList base_moves = enumerate_moves(st, 0);
     int fallback = idx(st.pos[0].first, st.pos[0].second);
@@ -963,7 +1111,7 @@ struct Solver {
     constexpr double kHarnessOverheadMs = 120.0;
     constexpr double kSafetyMs = 80.0;
     constexpr double kPostMoveMs = 5.0;
-    constexpr double kTimeLimitMs = 1900.0;
+    constexpr double kTimeLimitMs = 8100.0;
     double hard_deadline = kTimeLimitMs - kSafetyMs - kHarnessOverheadMs;
     if(hard_deadline < 0.0) hard_deadline = 0.0;
     double ema_read_ms = 7.0;
@@ -981,7 +1129,9 @@ struct Solver {
       if(turn_end < 0.0) turn_end = 0.0;
       if(turn_end < turn_start) turn_end = turn_start;
 
-      pair<int, int> decision = monte_carlo_rollout_decision(current, turn_end);
+      pair<int, int> decision = (M == 2)
+          ? beam_search_decision(current, turn_end)
+          : monte_carlo_rollout_decision(current, turn_end);
       cout << decision.first << " " << decision.second << "\n" << flush;
       if(turn + 1 >= T) break;
 
