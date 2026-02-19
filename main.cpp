@@ -496,6 +496,106 @@ struct Solver {
     for(int i = 0; i < cap; i++) moves.push_back(scored[i].second);
   }
 
+  double estimation_information_score(const State& st) const {
+    if(enemy_candidates.empty() || enemy_eps_candidates.empty()) return 0.0;
+    int ecnt = (int) enemy_eps_candidates.size();
+    if(ecnt <= 0) return 0.0;
+
+    double total = 0.0;
+    for(int p = 1; p < M; p++) {
+      int ai_idx = p - 1;
+      if(ai_idx < 0 || ai_idx >= (int) enemy_post_size.size()) continue;
+      int sz = (int) enemy_post_size[ai_idx];
+      if(sz <= 0) continue;
+
+      MoveList moves = enumerate_moves(st, p);
+      int msz = moves.n;
+      if(msz <= 1) continue;
+
+      array<double, 100> q_greedy;
+      q_greedy.fill(0.0);
+
+      double prev_cdf = 0.0;
+      for(int j = 0; j < sz; j++) {
+        int flat_idx = enemy_post_idx[ai_idx][j];
+        if(flat_idx < 0) continue;
+        double cdf = enemy_post_cdf[ai_idx][j];
+        double mass = cdf - prev_cdf;
+        prev_cdf = cdf;
+        if(mass <= 1e-12) continue;
+
+        int wi = flat_idx / ecnt;
+        if(wi < 0 || wi >= (int) enemy_candidates.size()) continue;
+        const auto& cand = enemy_candidates[wi];
+
+        double best_score = -1e100;
+        array<int, 100> best_cells;
+        int best_count = 0;
+        for(int i = 0; i < msz; i++) {
+          int cell = moves.a[i];
+          double score = enemy_eval_cell(st, p, cell, cand[0], cand[1], cand[2], cand[3]);
+          if(best_count == 0 || score > best_score + 1e-12) {
+            best_score = score;
+            best_cells[0] = cell;
+            best_count = 1;
+          } else if(fabs(score - best_score) <= 1e-12) {
+            best_cells[best_count++] = cell;
+          }
+        }
+        if(best_count <= 0) continue;
+        double share = mass / (double) best_count;
+        for(int i = 0; i < best_count; i++) q_greedy[best_cells[i]] += share;
+      }
+
+      double eps = enemy[p].eps;
+      if(eps < 0.0) eps = 0.0;
+      if(eps > 0.5) eps = 0.5;
+
+      double inv_m = 1.0 / (double) msz;
+      double H = 0.0;
+      for(int i = 0; i < msz; i++) {
+        int cell = moves.a[i];
+        double prob = (1.0 - eps) * q_greedy[cell] + eps * inv_m;
+        if(prob > 1e-15) H -= prob * log(prob);
+      }
+      double Hnorm = H / log((double) msz);
+      total += Hnorm * (1.0 - eps);
+    }
+    return total;
+  }
+
+  void cap_root_moves_with_info_probe(const State& root, vector<int>& moves, int cap) const {
+    if(cap < 1) cap = 1;
+    if((int) moves.size() <= cap) return;
+
+    constexpr int kInfoProbeTurns = 24;
+    if(M <= 2 || root.t >= kInfoProbeTurns) {
+      cap_moves_by_heuristic(root, moves, cap);
+      return;
+    }
+
+    double phase = 1.0 - (double) root.t / (double) kInfoProbeTurns;
+    if(phase < 0.0) phase = 0.0;
+    if(phase > 1.0) phase = 1.0;
+    constexpr double kInfoScale = 260.0;
+
+    array<pair<double, int>, 100> scored;
+    int scored_size = 0;
+    for(int cell : moves) {
+      State st1 = root;
+      apply_predicted_turn_with_cache(st1, cell);
+      double info = estimation_information_score(st1);
+      double base = move_heuristic(root, cell);
+      scored[scored_size++] = {base + phase * kInfoScale * info, cell};
+    }
+
+    nth_element(scored.begin(), scored.begin() + cap, scored.begin() + scored_size, better_scored_cell);
+    sort(scored.begin(), scored.begin() + cap, better_scored_cell);
+    moves.clear();
+    moves.reserve(cap);
+    for(int i = 0; i < cap; i++) moves.push_back(scored[i].second);
+  }
+
   int root_candidate_cap(int remaining_turns) const {
     int hi = params.cap_hi;
     int lo = params.cap_lo;
@@ -1018,7 +1118,7 @@ struct Solver {
 
     int remaining_turns = T - root.t;
     int root_cap = root_candidate_cap(remaining_turns);
-    cap_moves_by_heuristic(root, moves, root_cap);
+    cap_root_moves_with_info_probe(root, moves, root_cap);
 
     int K = (int) moves.size();
     vector<double> sum(K, 0.0), sq_sum(K, 0.0);
@@ -1135,7 +1235,7 @@ struct Solver {
     utility::mytm.CodeStart();
     constexpr double kHarnessOverheadMs = 120.0;
     constexpr double kSafetyMs = 80.0;
-    constexpr double kTimeLimitMs = 8100.0;
+    constexpr double kTimeLimitMs = 2100.0;
     double hard_deadline = kTimeLimitMs - kSafetyMs - kHarnessOverheadMs;
     if(hard_deadline < 0.0) hard_deadline = 0.0;
     double ema_read_ms = 7.0;
