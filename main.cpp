@@ -296,6 +296,10 @@ struct Solver {
     return x * N + y;
   }
 
+  inline pair<int, int> xy(int cell) const {
+    return {cell / N, cell % N};
+  }
+
   void build_neighbors() {
     for(int x = 0; x < N; x++) {
       for(int y = 0; y < N; y++) {
@@ -429,7 +433,7 @@ struct Solver {
     array<pair<int, int>, 8> moved_pos = st.pos;
     for(int p = 0; p < M; p++) {
       int cell = target[p];
-      moved_pos[p] = {cell / N, cell % N};
+      moved_pos[p] = xy(cell);
     }
 
     array<char, 8> returned;
@@ -458,7 +462,7 @@ struct Solver {
     for(int p = 0; p < M; p++) {
       int new_cell = returned[p] ? idx(start_pos[p].first, start_pos[p].second)
                                  : idx(moved_pos[p].first, moved_pos[p].second);
-      st.pos[p] = {new_cell / N, new_cell % N};
+      st.pos[p] = xy(new_cell);
     }
     st.t += 1;
   }
@@ -730,6 +734,47 @@ struct Solver {
     return model;
   }
 
+  int collect_enemy_best_cells(
+      const State& st,
+      int p,
+      const EnemyParam& model,
+      const MoveList& moves,
+      array<int, 100>& best_cells) const {
+    int msz = moves.n;
+    if(msz <= 0) return 0;
+
+    int best_count = 0;
+    double max_score = -1e100;
+    for(int i = 0; i < msz; i++) {
+      int cell = moves.a[i];
+      double score = enemy_eval_cell(st, p, cell, model.wa, model.wb, model.wc, model.wd);
+      if(best_count == 0 || score > max_score) {
+        max_score = score;
+        best_cells[0] = cell;
+        best_count = 1;
+      } else {
+        double tol = 1e-12 * max(1.0, fabs(max_score));
+        if(fabs(score - max_score) <= tol) {
+          best_cells[best_count++] = cell;
+        }
+      }
+    }
+    return best_count;
+  }
+
+  int predict_enemy_move_greedy(const State& st, int p) const {
+    MoveList moves = enumerate_moves(st, p);
+    if(moves.n <= 1) return moves.a[0];
+
+    array<int, 100> best_cells;
+    int best_count = collect_enemy_best_cells(st, p, enemy[p], moves, best_cells);
+    if(best_count <= 0) return moves.a[0];
+
+    int best_cell = best_cells[0];
+    for(int i = 1; i < best_count; i++) best_cell = min(best_cell, best_cells[i]);
+    return best_cell;
+  }
+
   int sample_enemy_move_rollout(const State& st, int p, const EnemyParam& model, double r_eps, double r_sel) const {
     MoveList moves = enumerate_moves(st, p);
     int msz = moves.n;
@@ -738,62 +783,31 @@ struct Solver {
     double eps = model.eps;
     if(eps < 0.0) eps = 0.0;
     if(eps > 0.5) eps = 0.5;
-    if(r_eps < eps) {
-      int j = pick_index(r_sel, msz);
-      return moves.a[j];
-    }
+    if(r_eps < eps) return moves.a[pick_index(r_sel, msz)];
 
     array<int, 100> best_cells;
-    int best_count = 0;
-    double max_score = -1e100;
-    for(int i = 0; i < msz; i++) {
-      int cell = moves.a[i];
-      double a = enemy_eval_cell(st, p, cell, model.wa, model.wb, model.wc, model.wd);
-      if(best_count == 0 || a > max_score) {
-        max_score = a;
-        best_cells[0] = cell;
-        best_count = 1;
-      } else {
-        double tol = 1e-12 * max(1.0, fabs(max_score));
-        if(fabs(a - max_score) <= tol) {
-          best_cells[best_count++] = cell;
-        }
-      }
-    }
+    int best_count = collect_enemy_best_cells(st, p, model, moves, best_cells);
     if(best_count <= 0) return moves.a[0];
-    int pick = pick_index(r_sel, best_count);
-    return best_cells[pick];
+    return best_cells[pick_index(r_sel, best_count)];
   }
 
-  int predict_enemy_move_greedy(const State& st, int p) const {
-    MoveList moves = enumerate_moves(st, p);
-    int msz = moves.n;
-    if(msz <= 1) return moves.a[0];
-
-    const EnemyParam& model = enemy[p];
-    int best_cell = moves.a[0];
-    double best_score = enemy_eval_cell(st, p, best_cell, model.wa, model.wb, model.wc, model.wd);
-    for(int i = 1; i < msz; i++) {
-      int cell = moves.a[i];
-      double score = enemy_eval_cell(st, p, cell, model.wa, model.wb, model.wc, model.wd);
-      if(score > best_score + 1e-12) {
-        best_score = score;
-        best_cell = cell;
-      } else if(fabs(score - best_score) <= 1e-12 && cell < best_cell) {
-        best_cell = cell;
-      }
-    }
-    return best_cell;
-  }
-
-  void apply_predicted_turn_inplace(State& st, int my_move) const {
+  void apply_predicted_turn_with_cache(State& st, int my_move, int cached_enemy_move = -1) const {
     array<int, 8> target;
     target.fill(0);
     target[0] = my_move;
-    for(int p = 1; p < M; p++) {
-      target[p] = predict_enemy_move_greedy(st, p);
+    if(cached_enemy_move >= 0 && M == 2) {
+      target[1] = cached_enemy_move;
+    } else {
+      for(int p = 1; p < M; p++) target[p] = predict_enemy_move_greedy(st, p);
     }
     apply_turn_targets_inplace(st, target);
+  }
+
+  static void update_best_choice(double value, int move, double& best_value, int& best_move) {
+    if(value > best_value || (value == best_value && move < best_move)) {
+      best_value = value;
+      best_move = move;
+    }
   }
 
   struct BeamNode {
@@ -825,21 +839,19 @@ struct Solver {
 
     vector<int> root_moves;
     enumerate_moves_my(root, root_moves);
-    if(root_moves.empty()) return {fallback_cell / N, fallback_cell % N};
+    if(root_moves.empty()) return xy(fallback_cell);
     int root_cap = min(beam_width, root_candidate_cap(T - root.t));
     cap_moves_by_heuristic(root, root_moves, root_cap);
-    if(root_moves.empty()) return {fallback_cell / N, fallback_cell % N};
+    if(root_moves.empty()) return xy(fallback_cell);
 
     int best_move = root_moves[0];
     double best_value = -1e100;
+    int root_enemy_move = (M == 2) ? predict_enemy_move_greedy(root, 1) : -1;
     for(int mv : root_moves) {
       State st = root;
-      apply_predicted_turn_inplace(st, mv);
+      apply_predicted_turn_with_cache(st, mv, root_enemy_move);
       double v = evaluate(st);
-      if(v > best_value || (v == best_value && mv < best_move)) {
-        best_value = v;
-        best_move = mv;
-      }
+      update_best_choice(v, mv, best_value, best_move);
     }
 
     int layer_cap = beam_width * 4;
@@ -887,18 +899,15 @@ struct Solver {
           if(moves.empty()) continue;
           int cap = min(beam_width, root_candidate_cap(T - parent.st.t));
           cap_moves_by_heuristic(parent.st, moves, cap);
-
+          int cached_enemy_move = (M == 2) ? predict_enemy_move_greedy(parent.st, 1) : -1;
           for(int mv : moves) {
             if(utility::mytm.elapsed() > turn_end) break;
             BeamNode child;
             child.st = parent.st;
-            apply_predicted_turn_inplace(child.st, mv);
+            apply_predicted_turn_with_cache(child.st, mv, cached_enemy_move);
             child.first_move = (parent.first_move < 0) ? mv : parent.first_move;
             child.value = evaluate(child.st);
-            if(child.value > best_value || (child.value == best_value && child.first_move < best_move)) {
-              best_value = child.value;
-              best_move = child.first_move;
-            }
+            update_best_choice(child.value, child.first_move, best_value, best_move);
             nxt_layer.push_back(move(child));
           }
         }
@@ -910,7 +919,7 @@ struct Solver {
       if(!progressed) break;
     }
 
-    return {best_move / N, best_move % N};
+    return xy(best_move);
   }
 
   int choose_my_rollout_move(const State& st, double r_mode, double r_sel) const {
@@ -1102,7 +1111,23 @@ struct Solver {
       }
     }
     int best_move = moves[best_idx];
-    return {best_move / N, best_move % N};
+    return xy(best_move);
+  }
+
+  double compute_turn_end(double turn_start, int rem_turns, double ema_read_ms, double hard_deadline) const {
+    constexpr double kPostMoveMs = 5.0;
+    int rem_reads = max(0, rem_turns - 1);
+    double reserve_reads = ema_read_ms * (double) rem_reads;
+    double remaining_budget = hard_deadline - turn_start - reserve_reads;
+    if(remaining_budget < 0.0) remaining_budget = 0.0;
+
+    double sumw = (double) rem_turns * (double) (rem_turns + 1) * 0.5;
+    double alloc = (sumw > 0.0) ? (remaining_budget * rem_turns / sumw) : 0.0;
+    double turn_end = turn_start + alloc - kPostMoveMs;
+    if(turn_end > hard_deadline - kPostMoveMs) turn_end = hard_deadline - kPostMoveMs;
+    if(turn_end < 0.0) turn_end = 0.0;
+    if(turn_end < turn_start) turn_end = turn_start;
+    return turn_end;
   }
 
   void solve() {
@@ -1110,7 +1135,6 @@ struct Solver {
     utility::mytm.CodeStart();
     constexpr double kHarnessOverheadMs = 120.0;
     constexpr double kSafetyMs = 80.0;
-    constexpr double kPostMoveMs = 5.0;
     constexpr double kTimeLimitMs = 8100.0;
     double hard_deadline = kTimeLimitMs - kSafetyMs - kHarnessOverheadMs;
     if(hard_deadline < 0.0) hard_deadline = 0.0;
@@ -1118,16 +1142,7 @@ struct Solver {
     for(int turn = 0; turn < T; turn++) {
       double turn_start = utility::mytm.elapsed();
       int rem_turns = T - turn;
-      int rem_reads = max(0, rem_turns - 1);
-      double reserve_reads = ema_read_ms * (double) rem_reads;
-      double remaining_budget = hard_deadline - turn_start - reserve_reads;
-      if(remaining_budget < 0.0) remaining_budget = 0.0;
-      double sumw = (double) rem_turns * (double) (rem_turns + 1) * 0.5;
-      double alloc = (sumw > 0.0) ? (remaining_budget * rem_turns / sumw) : 0.0;
-      double turn_end = turn_start + alloc - kPostMoveMs;
-      if(turn_end > hard_deadline - kPostMoveMs) turn_end = hard_deadline - kPostMoveMs;
-      if(turn_end < 0.0) turn_end = 0.0;
-      if(turn_end < turn_start) turn_end = turn_start;
+      double turn_end = compute_turn_end(turn_start, rem_turns, ema_read_ms, hard_deadline);
 
       pair<int, int> decision = (M == 2)
           ? beam_search_decision(current, turn_end)
