@@ -22,12 +22,12 @@ static constexpr Params PARAMS_BY_M[9] = {
   {-1, -1, -1,   -1, -1, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0},
   {-1, -1, -1,   -1, -1, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0},
   {50, 50, 10,  100, -1, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0},
-  {20,  9, -1,   -1, 15, 0.15, 0.10, 0.50, 0.65,  0.5,  0.7, 0.15, 500.0},
-  {20,  9, -1,   -1, 15, 0.15, 0.10, 0.50, 0.65,  0.5,  0.7, 0.15, 500.0},
-  {20,  9, -1,   -1, 15, 0.15, 0.10, 0.50, 0.65,  0.5,  0.7, 0.15, 500.0},
-  {20,  9, -1,   -1, 15, 0.15, 0.10, 0.50, 0.65,  0.5,  0.7, 0.15, 500.0},
-  {20,  9, -1,   -1, 15, 0.15, 0.10, 0.50, 0.65,  0.5,  0.7, 0.15, 500.0},
-  {20,  9, -1,   -1, 15, 0.15, 0.10, 0.50, 0.65,  0.5,  0.7, 0.15, 500.0}
+  {20,  9, -1,   -1, 15, 0.15, 0.10, 0.50, 1.00,  0.5,  0.1, 0.15, 500.0},
+  {20,  9, -1,   -1, 15, 0.15, 0.10, 0.50, 1.00,  0.5,  0.1, 0.15, 500.0},
+  {20,  9, -1,   -1, 15, 0.15, 0.10, 0.50, 1.00,  0.5,  0.1, 0.15, 500.0},
+  {20,  9, -1,   -1, 15, 0.15, 0.10, 0.50, 1.00,  0.5,  0.1, 0.15, 500.0},
+  {20,  9, -1,   -1, 15, 0.15, 0.10, 0.50, 1.00,  0.5,  0.1, 0.15, 500.0},
+  {20,  9, -1,   -1, 15, 0.15, 0.10, 0.50, 1.00,  0.5,  0.1, 0.15, 500.0}
 };
 
 inline const Params& params_for_m(int m) {
@@ -792,6 +792,27 @@ struct Solver {
     return -1e5 * log2(1.0 + sa_adj / s0_adj);
   }
 
+  inline double fast_eval_rollout(const State& st) const {
+    // Lightweight ranking objective for rollouts.
+    long long s0 = st.score_p[0];
+    long long se = 1;
+    for(int p = 1; p < M; p++) se = max(se, st.score_p[p]);
+
+    int me = idx(st.pos[0].first, st.pos[0].second);
+    double local = 0.0;
+    int deg = (int) neighbor_deg[me];
+    for(int di = 0; di < deg; di++) {
+      int ni = neighbors[me][di];
+      int o = st.owner[ni];
+      if(o == -1) {
+        local += (double) V[ni];
+      } else if(o != 0 && st.level[ni] == 1) {
+        local += 0.5 * (double) V[ni];
+      }
+    }
+    return (double) (s0 - se) + 0.05 * local;
+  }
+
   struct XorShift32 {
     unsigned int tx;
     unsigned int ty;
@@ -1142,7 +1163,7 @@ struct Solver {
       }
       apply_turn_targets_inplace(st, target);
     }
-    return evaluate(st);
+    return fast_eval_rollout(st);
   }
 
   pair<int, int> monte_carlo_rollout_decision(const State& root, double turn_end) const {
@@ -1257,8 +1278,7 @@ struct Solver {
     double remaining_budget = hard_deadline - turn_start - reserve_reads;
     if(remaining_budget < 0.0) remaining_budget = 0.0;
 
-    double sumw = (double) rem_turns * (double) (rem_turns + 1) * 0.5;
-    double alloc = (sumw > 0.0) ? (remaining_budget * rem_turns / sumw) : 0.0;
+    double alloc = (rem_turns > 0) ? (remaining_budget / (double) rem_turns) : 0.0;
     double turn_end = turn_start + alloc - kPostMoveMs;
     if(turn_end > hard_deadline - kPostMoveMs) turn_end = hard_deadline - kPostMoveMs;
     if(turn_end < 0.0) turn_end = 0.0;

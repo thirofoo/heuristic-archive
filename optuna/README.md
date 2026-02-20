@@ -12,6 +12,21 @@ python -m pip install -r optuna/requirements.txt
 python optuna/optuna_tune.py --trials 50
 ```
 
+## Run (per-M tuning, recommended)
+
+Tune only one `M` row in `params.hpp` using seeds with matching `M`.
+
+```bash
+python optuna/optuna_tune_by_m.py --target-m 2 --trials 50 --seed-count 24
+python optuna/optuna_tune_by_m.py --target-m 3 --trials 50 --seed-count 24
+```
+
+Optional: fix `U` and optimize robust objective `mean - lambda * std`.
+
+```bash
+python optuna/optuna_tune_by_m.py --target-m 3 --target-u 2 --risk-lambda 0.30
+```
+
 If you want to pass a config explicitly:
 
 ```bash
