@@ -9,25 +9,20 @@ struct Params {
   int beam_width;
   int rollout_horizon;
   double self_random_eps;
-  double eval_potential_w;
   double softmax_temp;
   double ucb_c;
-  double eval_reinforce_w;
-  double eval_capture_w;
-  double eval_piece_pos_w;
-  double eval_threat_temp;
 };
 
 static constexpr Params PARAMS_BY_M[9] = {
-  {-1, -1, -1,   -1, -1, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0},
-  {-1, -1, -1,   -1, -1, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0},
-  {50, 50, 10,  100, -1, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0},
-  {20,  9, -1,   -1, 15, 0.15, 0.10, 0.50, 1.00,  0.5,  0.1, 0.15, 500.0},
-  {20,  9, -1,   -1, 15, 0.15, 0.10, 0.50, 1.00,  0.5,  0.1, 0.15, 500.0},
-  {20,  9, -1,   -1, 15, 0.15, 0.10, 0.50, 1.00,  0.5,  0.1, 0.15, 500.0},
-  {20,  9, -1,   -1, 15, 0.15, 0.10, 0.50, 1.00,  0.5,  0.1, 0.15, 500.0},
-  {20,  9, -1,   -1, 15, 0.15, 0.10, 0.50, 1.00,  0.5,  0.1, 0.15, 500.0},
-  {20,  9, -1,   -1, 15, 0.15, 0.10, 0.50, 1.00,  0.5,  0.1, 0.15, 500.0}
+  {-1, -1, -1,   -1, -1, -1.0, -1.0, -1.0},
+  {-1, -1, -1,   -1, -1, -1.0, -1.0, -1.0},
+  {50, 50, 10,  100, -1, -1.0, -1.0, -1.0},
+  {20,  9, -1,   -1, 15, 0.15, 0.50, 1.00},
+  {20,  9, -1,   -1, 15, 0.15, 0.50, 1.00},
+  {20,  9, -1,   -1, 15, 0.15, 0.50, 1.00},
+  {20,  9, -1,   -1, 15, 0.15, 0.50, 1.00},
+  {20,  9, -1,   -1, 15, 0.15, 0.50, 1.00},
+  {20,  9, -1,   -1, 15, 0.15, 0.50, 1.00}
 };
 
 inline const Params& params_for_m(int m) {
@@ -71,6 +66,11 @@ struct Solver {
     int n = 0;
     array<int, 100> a{};
   };
+  struct EnemyGreedySummary {
+    array<int, 4> best_cell{};
+    array<int, 4> best_v{};
+    int fallback_cell = 0;
+  };
 
   int N = 0;
   int M = 0;
@@ -92,8 +92,11 @@ struct Solver {
   vector<array<double, 4>> enemy_candidates;
   vector<double> enemy_eps_candidates;
   vector<vector<double>> enemy_logp;
-  static constexpr int kPosteriorTop = 16;
+  static constexpr int kPosteriorTop = 4;
   static constexpr double kPosteriorTemp = 0.75;
+  static constexpr double kEnemyGridLo = 0.3;
+  static constexpr double kEnemyGridHi = 1.0;
+  static constexpr int kEnemyGridDivisions = 7;
   vector<array<int, kPosteriorTop>> enemy_post_idx;
   vector<array<double, kPosteriorTop>> enemy_post_cdf;
   vector<uint8_t> enemy_post_size;
@@ -136,7 +139,8 @@ struct Solver {
 
   bool read_turn_state(State& st, bool update_enemy_model = true) {
     int tx, ty;
-    State prev = st;
+    State prev;
+    if(update_enemy_model) prev = st;
     array<int, 8> selected;
     selected.fill(-1);
     for(int p = 0; p < M; p++) {
@@ -160,7 +164,14 @@ struct Solver {
   }
 
   void init_enemy_estimator() {
-    const array<double, 8> grid = {0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0};
+    int div = kEnemyGridDivisions;
+    if(div < 1) div = 1;
+    vector<double> grid;
+    grid.reserve(div);
+    for(int i = 0; i < div; i++) {
+      double t = ((double) i + 0.5) / (double) div;
+      grid.push_back(kEnemyGridLo + (kEnemyGridHi - kEnemyGridLo) * t);
+    }
     enemy_candidates.clear();
     for(double wa : grid) {
       for(double wb : grid) {
@@ -282,27 +293,36 @@ struct Solver {
       if(obs < 0) continue;
       MoveList moves = enumerate_moves(prev, p);
       if(moves.n <= 0) continue;
+      EnemyGreedySummary summary = build_enemy_greedy_summary(prev, p, moves);
       int ai_idx = p - 1;
       vector<double>& logp = enemy_logp[ai_idx];
       double inv_m = 1.0 / (double) moves.n;
+      int obs_cat = enemy_move_category(prev, p, obs);
+      int obs_v = (obs >= 0 && obs < N * N) ? V[obs] : -1;
       for(int wi = 0; wi < wcnt; wi++) {
         const auto& cand = enemy_candidates[wi];
         double max_score = -1e100;
         int best_count = 0;
-        bool obs_best = false;
-        for(int mi = 0; mi < moves.n; mi++) {
-          int cell = moves.a[mi];
-          double a = enemy_eval_cell(prev, p, cell, cand[0], cand[1], cand[2], cand[3]);
+        int best_mask = 0;
+        for(int cat = 0; cat < 4; cat++) {
+          if(summary.best_cell[cat] < 0) continue;
+          double a = (double) summary.best_v[cat] * cand[cat];
           if(a > max_score + 1e-12) {
             max_score = a;
             best_count = 1;
-            obs_best = (cell == obs);
+            best_mask = (1 << cat);
           } else if(fabs(a - max_score) <= 1e-12) {
             best_count++;
-            if(cell == obs) obs_best = true;
+            best_mask |= (1 << cat);
           }
         }
-        best_count = max(1, best_count);
+        bool obs_best = false;
+        if(best_count <= 0) {
+          best_count = 1;
+          obs_best = (obs == summary.fallback_cell);
+        } else if(obs_cat >= 0 && (best_mask & (1 << obs_cat)) && obs_v == summary.best_v[obs_cat]) {
+          obs_best = true;
+        }
         for(int ei = 0; ei < ecnt; ei++) {
           double eps = enemy_eps_candidates[ei];
           double prob = eps * inv_m;
@@ -363,6 +383,56 @@ struct Solver {
     if(owner == -1) return V[cell] * wa;
     if(owner == p) return (level < U) ? (V[cell] * wb) : 0.0;
     return (level == 1) ? (V[cell] * wc) : (V[cell] * wd);
+  }
+
+  inline int enemy_move_category(const State& st, int p, int cell) const {
+    int owner = st.owner[cell];
+    if(owner == -1) return 0;
+    if(owner == p) return (st.level[cell] < U) ? 1 : -1; // Full-owned cells are ignored for greedy categories.
+    return (st.level[cell] == 1) ? 2 : 3;
+  }
+
+  EnemyGreedySummary build_enemy_greedy_summary(const State& st, int p, const MoveList& moves) const {
+    EnemyGreedySummary summary;
+    summary.best_cell.fill(-1);
+    summary.best_v.fill(-1);
+    summary.fallback_cell = (moves.n > 0) ? moves.a[0] : idx(st.pos[p].first, st.pos[p].second);
+    for(int i = 0; i < moves.n; i++) {
+      int cell = moves.a[i];
+      int cat = enemy_move_category(st, p, cell);
+      if(cat < 0) continue;
+      int v = V[cell];
+      if(v > summary.best_v[cat] || (v == summary.best_v[cat] && (summary.best_cell[cat] < 0 || cell < summary.best_cell[cat]))) {
+        summary.best_v[cat] = v;
+        summary.best_cell[cat] = cell;
+      }
+    }
+    return summary;
+  }
+
+  int collect_enemy_best_cells_from_summary(
+      const EnemyGreedySummary& summary,
+      const EnemyParam& model,
+      array<int, 100>& best_cells) const {
+    array<double, 4> w = {model.wa, model.wb, model.wc, model.wd};
+    int best_count = 0;
+    double max_score = -1e100;
+    for(int cat = 0; cat < 4; cat++) {
+      if(summary.best_cell[cat] < 0) continue;
+      double score = (double) summary.best_v[cat] * w[cat];
+      if(best_count == 0 || score > max_score + 1e-12) {
+        max_score = score;
+        best_cells[0] = summary.best_cell[cat];
+        best_count = 1;
+      } else if(fabs(score - max_score) <= 1e-12) {
+        best_cells[best_count++] = summary.best_cell[cat];
+      }
+    }
+    if(best_count <= 0) {
+      best_cells[0] = summary.fallback_cell;
+      return 1;
+    }
+    return best_count;
   }
 
   void init_scores(State& st) const {
@@ -547,6 +617,7 @@ struct Solver {
       MoveList moves = enumerate_moves(st, p);
       int msz = moves.n;
       if(msz <= 1) continue;
+      EnemyGreedySummary summary = build_enemy_greedy_summary(st, p, moves);
 
       array<double, 100> q_greedy;
       q_greedy.fill(0.0);
@@ -563,21 +634,13 @@ struct Solver {
         int wi = flat_idx / ecnt;
         if(wi < 0 || wi >= (int) enemy_candidates.size()) continue;
         const auto& cand = enemy_candidates[wi];
-
-        double best_score = -1e100;
         array<int, 100> best_cells;
-        int best_count = 0;
-        for(int i = 0; i < msz; i++) {
-          int cell = moves.a[i];
-          double score = enemy_eval_cell(st, p, cell, cand[0], cand[1], cand[2], cand[3]);
-          if(best_count == 0 || score > best_score + 1e-12) {
-            best_score = score;
-            best_cells[0] = cell;
-            best_count = 1;
-          } else if(fabs(score - best_score) <= 1e-12) {
-            best_cells[best_count++] = cell;
-          }
-        }
+        EnemyParam model;
+        model.wa = cand[0];
+        model.wb = cand[1];
+        model.wc = cand[2];
+        model.wd = cand[3];
+        int best_count = collect_enemy_best_cells_from_summary(summary, model, best_cells);
         if(best_count <= 0) continue;
         double share = mass / (double) best_count;
         for(int i = 0; i < best_count; i++) q_greedy[best_cells[i]] += share;
@@ -653,7 +716,7 @@ struct Solver {
     double var = sq_sum / cnt - mean * mean;
     if(var < 0.0) var = 0.0;
     double phase = (T <= 1) ? 1.0 : (double) turn / (double) (T - 1);
-    double lambda = 0.18 - 0.10 * phase;
+    double lambda = 0.0;
     if(lambda < 0.05) lambda = 0.05;
     return mean - lambda * sqrt(var);
   }
@@ -672,124 +735,14 @@ struct Solver {
     }
   }
 
-  double compute_piece_position_bonus(const State& st) const {
-    int start = idx(st.pos[0].first, st.pos[0].second);
-    array<int8_t, 100> dist;
-    dist.fill(-1);
-    int qbuf[100];
-    int head = 0, tail = 0;
-    dist[start] = 0;
-    qbuf[tail++] = start;
-    double bonus = 0.0;
-    constexpr int kMaxDepth = 4;
-    while(head < tail) {
-      int v = qbuf[head++];
-      int d = dist[v];
-      if(d >= kMaxDepth) continue;
-      int deg = (int) neighbor_deg[v];
-      for(int di = 0; di < deg; di++) {
-        int ni = neighbors[v][di];
-        if(dist[ni] >= 0) continue;
-        dist[ni] = d + 1;
-        int no = st.owner[ni];
-        if(no == 0) {
-          qbuf[tail++] = ni;
-        } else {
-          double decay = 1.0 / (double)(d + 1);
-          if(no == -1) {
-            bonus += (double) V[ni] * decay;
-          } else if(st.level[ni] == 1) {
-            bonus += (double) V[ni] * decay * 0.8;
-          } else {
-            bonus += (double) V[ni] * decay * 0.3;
-          }
-        }
-      }
-    }
-    return bonus * params.eval_piece_pos_w;
-  }
-
   double evaluate(const State& st) const {
-    long long s0 = st.score_p[0];
-    int remaining = T - st.t;
-
-    if(remaining <= 0 || params.eval_potential_w <= 0.0) {
-      double s0d = max(1.0, (double) s0);
-      double sad = 1.0;
-      for(int p = 1; p < M; p++) {
-        double sp = max(1.0, (double) st.score_p[p]);
-        if(sp > sad) sad = sp;
-      }
-      return -1e5 * log2(1.0 + sad / s0d);
-    }
-
-    // Per-player potential
-    array<double, 8> potential;
-    potential.fill(0.0);
-
-    for(int i = 0; i < N * N; i++) {
-      int owner = st.owner[i];
-      int lv = st.level[i];
-      double v = (double) V[i];
-
-      if(owner == -1) {
-        // Unowned: expand potential for adjacent owners
-        int deg = (int) neighbor_deg[i];
-        uint8_t seen = 0;
-        for(int d = 0; d < deg; d++) {
-          int ni = neighbors[i][d];
-          int no = st.owner[ni];
-          if(no >= 0 && !(seen & (1u << no))) {
-            potential[no] += v;
-            seen |= (1u << no);
-          }
-        }
-      } else {
-        // Owned: reinforce potential
-        if(lv < U) {
-          potential[owner] += v * (U - lv) * params.eval_reinforce_w;
-        }
-        // Capture potential for adjacent enemies
-        int deg = (int) neighbor_deg[i];
-        uint8_t seen = 0;
-        for(int d = 0; d < deg; d++) {
-          int ni = neighbors[i][d];
-          int no = st.owner[ni];
-          if(no >= 0 && no != owner && !(seen & (1u << no))) {
-            double capture_v = (lv == 1) ? v : v / (double) lv;
-            potential[no] += capture_v * params.eval_capture_w;
-            seen |= (1u << no);
-          }
-        }
-      }
-    }
-
-    // Piece position bonus for player 0
-    potential[0] += compute_piece_position_bonus(st);
-
-    // Adjusted scores
-    double phase = (double) remaining / (double) T;
-    double w = phase * params.eval_potential_w;
-    double s0_adj = max(1.0, (double) s0 + w * potential[0]);
-
-    // LogSumExp over enemies (smooth max)
-    double threat_temp = params.eval_threat_temp;
-    if(threat_temp < 1.0) threat_temp = 1.0;
-    double max_sa = -1e100;
+    double s0d = max(1.0, (double) st.score_p[0]);
+    double sad = 1.0;
     for(int p = 1; p < M; p++) {
-      double sp_adj = max(1.0, (double) st.score_p[p] + w * potential[p]);
-      if(sp_adj > max_sa) max_sa = sp_adj;
+      double sp = max(1.0, (double) st.score_p[p]);
+      if(sp > sad) sad = sp;
     }
-    double lse_sum = 0.0;
-    for(int p = 1; p < M; p++) {
-      double sp_adj = max(1.0, (double) st.score_p[p] + w * potential[p]);
-      double z = (sp_adj - max_sa) / threat_temp;
-      if(z < -60.0) z = -60.0;
-      lse_sum += exp(z);
-    }
-    double sa_adj = max(1.0, max_sa + threat_temp * log(max(1e-30, lse_sum)));
-
-    return -1e5 * log2(1.0 + sa_adj / s0_adj);
+    return -1e5 * log2(1.0 + sad / s0d);
   }
 
   inline double fast_eval_rollout(const State& st) const {
@@ -897,26 +850,9 @@ struct Solver {
       const EnemyParam& model,
       const MoveList& moves,
       array<int, 100>& best_cells) const {
-    int msz = moves.n;
-    if(msz <= 0) return 0;
-
-    int best_count = 0;
-    double max_score = -1e100;
-    for(int i = 0; i < msz; i++) {
-      int cell = moves.a[i];
-      double score = enemy_eval_cell(st, p, cell, model.wa, model.wb, model.wc, model.wd);
-      if(best_count == 0 || score > max_score) {
-        max_score = score;
-        best_cells[0] = cell;
-        best_count = 1;
-      } else {
-        double tol = 1e-12 * max(1.0, fabs(max_score));
-        if(fabs(score - max_score) <= tol) {
-          best_cells[best_count++] = cell;
-        }
-      }
-    }
-    return best_count;
+    if(moves.n <= 0) return 0;
+    EnemyGreedySummary summary = build_enemy_greedy_summary(st, p, moves);
+    return collect_enemy_best_cells_from_summary(summary, model, best_cells);
   }
 
   int predict_enemy_move_greedy(const State& st, int p) const {
@@ -1021,7 +957,7 @@ struct Solver {
     root_node.st = root;
     root_node.first_move = -1;
     root_node.value = evaluate(root);
-    layers[0].push_back(move(root_node));
+    layers[0].push_back(std::move(root_node));
 
     auto pop_best_batch = [&](vector<BeamNode>& layer, int k, vector<BeamNode>& out) {
       if(layer.empty() || k <= 0) return;
@@ -1030,7 +966,7 @@ struct Solver {
       k = min(k, (int)layer.size());
       out.clear();
       out.reserve(k);
-      for(int i = 0; i < k; i++) out.push_back(move(layer[i]));
+      for(int i = 0; i < k; i++) out.push_back(std::move(layer[i]));
       layer.erase(layer.begin(), layer.begin() + k);
     };
 
@@ -1065,7 +1001,7 @@ struct Solver {
             child.first_move = (parent.first_move < 0) ? mv : parent.first_move;
             child.value = evaluate(child.st);
             update_best_choice(child.value, child.first_move, best_value, best_move);
-            nxt_layer.push_back(move(child));
+            nxt_layer.push_back(std::move(child));
           }
         }
 
@@ -1289,10 +1225,8 @@ struct Solver {
   void solve() {
     if(!initialized) return;
     utility::mytm.CodeStart();
-    constexpr double kHarnessOverheadMs = 120.0;
-    constexpr double kSafetyMs = 80.0;
-    constexpr double kTimeLimitMs = 2100.0;
-    double hard_deadline = kTimeLimitMs - kSafetyMs - kHarnessOverheadMs;
+    constexpr double kTimeLimitMs = 1900.0;
+    double hard_deadline = kTimeLimitMs;
     if(hard_deadline < 0.0) hard_deadline = 0.0;
     double ema_read_ms = 7.0;
     for(int turn = 0; turn < T; turn++) {
