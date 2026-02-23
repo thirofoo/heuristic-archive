@@ -551,6 +551,42 @@ struct Solver {
     return (level == 1) ? (2.0 * v) : v;
   }
 
+  double move_heuristic_m2_beam(const State& st, int cell) const {
+    int owner = st.owner[cell];
+    int level = st.level[cell];
+    double v = (double) V[cell];
+    if(owner == 1) {
+      constexpr int kM2StealBonusEndTurn = 30;
+      if(st.t < kM2StealBonusEndTurn) {
+        double decay = 1.0 - (double) st.t / (double) kM2StealBonusEndTurn;
+        if(decay < 0.0) decay = 0.0;
+        v += decay * (double) V[cell];
+      }
+    }
+    if(owner == -1) return v;
+    if(owner == 0) return (level < U) ? v : 0.0;
+    return (level == 1) ? (2.0 * v) : v;
+  }
+
+  void mark_enemy_top_reachable_my_cells_m2(const State& st, array<uint8_t, 100>& mark) const {
+    mark.fill(0);
+    if(M != 2) return;
+    MoveList enemy_moves = enumerate_moves(st, 1);
+    if(enemy_moves.n <= 0) return;
+    int top_v = -1;
+    for(int i = 0; i < enemy_moves.n; i++) {
+      int cell = enemy_moves.a[i];
+      if(V[cell] > top_v) top_v = V[cell];
+    }
+    if(top_v < 0) return;
+    for(int i = 0; i < enemy_moves.n; i++) {
+      int cell = enemy_moves.a[i];
+      if(V[cell] != top_v) continue;
+      if(st.owner[cell] != 0) continue;
+      mark[cell] = 1;
+    }
+  }
+
   static bool better_scored_cell(const pair<double, int>& a, const pair<double, int>& b) {
     if(a.first != b.first) return a.first > b.first;
     return a.second < b.second;
@@ -563,6 +599,25 @@ struct Solver {
     int scored_size = 0;
     for(int cell : moves) {
       scored[scored_size++] = {move_heuristic(st, cell), cell};
+    }
+    nth_element(scored.begin(), scored.begin() + cap, scored.begin() + scored_size, better_scored_cell);
+    sort(scored.begin(), scored.begin() + cap, better_scored_cell);
+    moves.clear();
+    moves.reserve(cap);
+    for(int i = 0; i < cap; i++) moves.push_back(scored[i].second);
+  }
+
+  void cap_moves_by_heuristic_m2_beam(const State& st, vector<int>& moves, int cap) const {
+    if(cap < 1) cap = 1;
+    if((int) moves.size() <= cap) return;
+    array<uint8_t, 100> m2_enemy_top_my_cells;
+    mark_enemy_top_reachable_my_cells_m2(st, m2_enemy_top_my_cells);
+    array<pair<double, int>, 100> scored;
+    int scored_size = 0;
+    for(int cell : moves) {
+      double h = move_heuristic_m2_beam(st, cell);
+      if(m2_enemy_top_my_cells[cell]) h *= 2.0;
+      scored[scored_size++] = {h, cell};
     }
     nth_element(scored.begin(), scored.begin() + cap, scored.begin() + scored_size, better_scored_cell);
     sort(scored.begin(), scored.begin() + cap, better_scored_cell);
@@ -702,6 +757,97 @@ struct Solver {
     if(moves.empty()) {
       for(int i = 0; i < base_moves.n; i++) moves.push_back(base_moves.a[i]);
     }
+  }
+
+  bool has_enemy_adjacent_to_my_territory_m2(const State& st) const {
+    if(M != 2) return true;
+    int cells = N * N;
+    for(int cell = 0; cell < cells; cell++) {
+      if(st.owner[cell] != 0) continue;
+      int deg = (int) neighbor_deg[cell];
+      for(int di = 0; di < deg; di++) {
+        int ni = neighbors[cell][di];
+        if(st.owner[ni] == 1) return true;
+      }
+    }
+    return false;
+  }
+
+  int choose_forced_contact_move_m2(const State& st, const vector<int>& legal_moves) const {
+    if(M != 2) return -1;
+    if(legal_moves.empty()) return -1;
+    if(has_enemy_adjacent_to_my_territory_m2(st)) return -1;
+
+    constexpr int INF = 1e9;
+    constexpr double NEG_INF = -1e100;
+    int cells = N * N;
+    array<int, 100> dist;
+    array<double, 100> best_path_value;
+    dist.fill(INF);
+    best_path_value.fill(NEG_INF);
+
+    int qbuf[100];
+    int head = 0, tail = 0;
+    for(int cell = 0; cell < cells; cell++) {
+      if(st.owner[cell] != 1) continue;
+      dist[cell] = 0;
+      best_path_value[cell] = (double) V[cell];
+      qbuf[tail++] = cell;
+    }
+    if(tail == 0) return -1;
+
+    while(head < tail) {
+      int v = qbuf[head++];
+      int deg = (int) neighbor_deg[v];
+      for(int di = 0; di < deg; di++) {
+        int ni = neighbors[v][di];
+        if(dist[ni] != INF) continue;
+        dist[ni] = dist[v] + 1;
+        qbuf[tail++] = ni;
+      }
+    }
+
+    int max_dist = 0;
+    for(int cell = 0; cell < cells; cell++) {
+      if(dist[cell] == INF) continue;
+      if(dist[cell] > max_dist) max_dist = dist[cell];
+    }
+    for(int d = 1; d <= max_dist; d++) {
+      for(int cell = 0; cell < cells; cell++) {
+        if(dist[cell] != d) continue;
+        double best_next = NEG_INF;
+        int deg = (int) neighbor_deg[cell];
+        for(int di = 0; di < deg; di++) {
+          int ni = neighbors[cell][di];
+          if(dist[ni] != d - 1) continue;
+          if(best_path_value[ni] > best_next) best_next = best_path_value[ni];
+        }
+        if(best_next > NEG_INF / 2.0) best_path_value[cell] = (double) V[cell] + best_next;
+      }
+    }
+
+    int chosen = -1;
+    int best_dist = INF;
+    double best_sum = NEG_INF;
+    int best_cell_value = -1;
+    for(int mv : legal_moves) {
+      if(mv < 0 || mv >= cells) continue;
+      int d = dist[mv];
+      if(d == INF) continue;
+      double path_sum = best_path_value[mv];
+      int cell_value = V[mv];
+      if(d < best_dist ||
+         (d == best_dist && (path_sum > best_sum + 1e-12 ||
+                             (fabs(path_sum - best_sum) <= 1e-12 &&
+                              (cell_value > best_cell_value ||
+                               (cell_value == best_cell_value && (chosen < 0 || mv < chosen))))))) {
+        chosen = mv;
+        best_dist = d;
+        best_sum = path_sum;
+        best_cell_value = cell_value;
+      }
+    }
+    return chosen;
   }
 
   double evaluate(const State& st) const {
@@ -902,13 +1048,15 @@ struct Solver {
     vector<int> root_moves;
     enumerate_moves_my(root, root_moves);
     if(root_moves.empty()) return xy(fallback_cell);
+    int forced_contact_move = choose_forced_contact_move_m2(root, root_moves);
+    if(forced_contact_move >= 0) return xy(forced_contact_move);
     int root_cap = min(beam_width, root_candidate_cap(T - root.t));
-    cap_moves_by_heuristic(root, root_moves, root_cap);
+    cap_moves_by_heuristic_m2_beam(root, root_moves, root_cap);
     if(root_moves.empty()) return xy(fallback_cell);
 
     int best_move = root_moves[0];
     double best_value = -1e100;
-    int root_enemy_move = (M == 2) ? predict_enemy_move_greedy(root, 1) : -1;
+    int root_enemy_move = predict_enemy_move_greedy(root, 1);
     for(int mv : root_moves) {
       State st = root;
       apply_predicted_turn_with_cache(st, mv, root_enemy_move);
@@ -960,8 +1108,8 @@ struct Solver {
           enumerate_moves_my(parent.st, moves);
           if(moves.empty()) continue;
           int cap = min(beam_width, root_candidate_cap(T - parent.st.t));
-          cap_moves_by_heuristic(parent.st, moves, cap);
-          int cached_enemy_move = (M == 2) ? predict_enemy_move_greedy(parent.st, 1) : -1;
+          cap_moves_by_heuristic_m2_beam(parent.st, moves, cap);
+          int cached_enemy_move = predict_enemy_move_greedy(parent.st, 1);
           for(int mv : moves) {
             if(utility::mytm.elapsed() > turn_end) break;
             BeamNode child;
@@ -1177,7 +1325,7 @@ struct Solver {
   }
 
   double compute_turn_end(double turn_start, int rem_turns, double ema_read_ms, double hard_deadline) const {
-    constexpr double kPostMoveMs = 5.0;
+    constexpr double kPostMoveMs = 2.0;
     int rem_reads = max(0, rem_turns - 1);
     double reserve_reads = ema_read_ms * (double) rem_reads;
     double remaining_budget = hard_deadline - turn_start - reserve_reads;
@@ -1194,10 +1342,10 @@ struct Solver {
   void solve() {
     if(!initialized) return;
     utility::mytm.CodeStart();
-    constexpr double kTimeLimitMs = 1900.0;
+    constexpr double kTimeLimitMs = 7900.0;
     double hard_deadline = kTimeLimitMs;
     if(hard_deadline < 0.0) hard_deadline = 0.0;
-    double ema_read_ms = 7.0;
+    double ema_read_ms = 2.0;
     for(int turn = 0; turn < T; turn++) {
       double turn_start = utility::mytm.elapsed();
       int rem_turns = T - turn;
