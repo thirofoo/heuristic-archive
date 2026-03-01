@@ -343,10 +343,375 @@ int main() {
         best_robots = seg;
     }
 
-    // SA on automaton: more aggressive search
-    // Use flat array for automaton transitions for speed
-    int aut_trans[1600][4];  // max states
+    // ============================================================
+    // Phase 1: Try zigzag automaton variants with all start positions
+    // The base zigzag: go straight, bounce at wall, shift one column, repeat
+    // ============================================================
+    {
+        // Base zigzag: S0=turn, S1=go straight, S2=shift+corner, S3=transition
+        // Original (vertical zigzag, shift right):
+        //   S0: w0→R,1  w1→R,1
+        //   S1: w0→F,3  w1→L,2
+        //   S2: w0→F,0  w1→R,2
+        //   S3: w0→L,2  w1→L,1
+        // We generate 8 variants: 4 rotations x 2 mirrors (shift left vs right)
 
+        // Action encoding: 0=F, 1=R, 2=L
+        // To rotate an automaton by 90 degrees CW, we swap R<->L in actions
+        // and rotate the start direction.
+        // Actually rotation doesn't change the automaton itself - it only changes
+        // the start direction. Mirror (swap R<->L) gives shift-left variant.
+
+        int zigzag_base[4][4] = {
+            {1, 1, 1, 1},  // S0: always R, goto S1
+            {0, 3, 2, 2},  // S1: w0→F,S3  w1→L,S2
+            {0, 0, 1, 2},  // S2: w0→F,S0  w1→R,S2
+            {2, 2, 2, 1},  // S3: w0→L,S2  w1→L,S1
+        };
+
+        // Mirror variant: swap R(1)<->L(2) in actions
+        int zigzag_mirror[4][4];
+        for (int s = 0; s < 4; s++) {
+            for (int k = 0; k < 4; k += 2) {
+                int a = zigzag_base[s][k];
+                if (a == 1)
+                    a = 2;
+                else if (a == 2)
+                    a = 1;
+                zigzag_mirror[s][k] = a;
+                zigzag_mirror[s][k + 1] = zigzag_base[s][k + 1];
+            }
+        }
+
+        int variants[2][4][4];
+        memcpy(variants[0], zigzag_base, sizeof(zigzag_base));
+        memcpy(variants[1], zigzag_mirror, sizeof(zigzag_mirror));
+
+        for (int v = 0; v < 2; v++) {
+            for (int sd = 0; sd < 4; sd++) {
+                for (int si = 0; si < N; si++) {
+                    for (int sj = 0; sj < N; sj++) {
+                        bool cov[N][N];
+                        int cover = simulate(variants[v], 4, si, sj, sd, cov);
+                        if (cover == N * N) {
+                            if (4 < best_M) {
+                                best_M = 4;
+                                best_robots.clear();
+                                RobotOut r;
+                                r.m = 4;
+                                r.si = si;
+                                r.sj = sj;
+                                r.sd = DIR_CHAR[sd];
+                                r.trans.resize(4);
+                                for (int s = 0; s < 4; s++)
+                                    r.trans[s] = {variants[v][s][0], variants[v][s][1],
+                                                  variants[v][s][2], variants[v][s][3]};
+                                best_robots = {r};
+                            }
+                        } else {
+                            int fb = segment_uncovered_cost(cov);
+                            if (4 + fb < best_M) {
+                                best_M = 4 + fb;
+                                best_robots.clear();
+                                RobotOut r;
+                                r.m = 4;
+                                r.si = si;
+                                r.sj = sj;
+                                r.sd = DIR_CHAR[sd];
+                                r.trans.resize(4);
+                                for (int s = 0; s < 4; s++)
+                                    r.trans[s] = {variants[v][s][0], variants[v][s][1],
+                                                  variants[v][s][2], variants[v][s][3]};
+                                best_robots = {r};
+                                bool cov2[N][N];
+                                memcpy(cov2, cov, sizeof(cov));
+                                vector<RobotOut> fb_r;
+                                segment_for_uncovered(cov2, fb_r);
+                                for (auto& fr : fb_r) best_robots.push_back(fr);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ============================================================
+    // Phase 1.5: Two zigzag robots with different start positions (M=8)
+    // When single zigzag can't cover all, try pairs
+    // ============================================================
+    if (best_M > 8) {
+        int zigzag_base[4][4] = {
+            {1, 1, 1, 1},
+            {0, 3, 2, 2},
+            {0, 0, 1, 2},
+            {2, 2, 2, 1},
+        };
+        int zigzag_mirror[4][4];
+        for (int s = 0; s < 4; s++) {
+            for (int k = 0; k < 4; k += 2) {
+                int a = zigzag_base[s][k];
+                if (a == 1)
+                    a = 2;
+                else if (a == 2)
+                    a = 1;
+                zigzag_mirror[s][k] = a;
+                zigzag_mirror[s][k + 1] = zigzag_base[s][k + 1];
+            }
+        }
+        int vars[2][4][4];
+        memcpy(vars[0], zigzag_base, sizeof(zigzag_base));
+        memcpy(vars[1], zigzag_mirror, sizeof(zigzag_mirror));
+
+        // Precompute coverage for all (variant, dir, i, j)
+        // Store which cells each config covers
+        struct ZConfig {
+            int v, sd, si, sj;
+            bool cov[N][N];
+            int cover;
+        };
+
+        // Too many configs to store all, so use greedy:
+        // Find best single zigzag, then find best complement
+        int best1_v = -1, best1_sd = -1, best1_si = -1, best1_sj = -1, best1_cover = 0;
+        bool best1_cov[N][N];
+
+        for (int v = 0; v < 2; v++)
+            for (int sd = 0; sd < 4; sd++)
+                for (int si = 0; si < N; si++)
+                    for (int sj = 0; sj < N; sj++) {
+                        bool cov[N][N];
+                        int cover = simulate(vars[v], 4, si, sj, sd, cov);
+                        if (cover > best1_cover) {
+                            best1_cover = cover;
+                            best1_v = v;
+                            best1_sd = sd;
+                            best1_si = si;
+                            best1_sj = sj;
+                            memcpy(best1_cov, cov, sizeof(cov));
+                        }
+                    }
+
+        // Now find best second robot to complement
+        if (best1_cover < N * N) {
+            int best_pair_uncov = N * N;
+            int b2_v = -1, b2_sd = -1, b2_si = -1, b2_sj = -1;
+
+            for (int v = 0; v < 2; v++)
+                for (int sd = 0; sd < 4; sd++)
+                    for (int si = 0; si < N; si++)
+                        for (int sj = 0; sj < N; sj++) {
+                            bool cov[N][N];
+                            simulate(vars[v], 4, si, sj, sd, cov);
+                            // Count uncovered cells (not covered by either robot)
+                            int uncov = 0;
+                            for (int i = 0; i < N; i++)
+                                for (int j = 0; j < N; j++)
+                                    if (!best1_cov[i][j] && !cov[i][j]) uncov++;
+                            if (uncov < best_pair_uncov) {
+                                best_pair_uncov = uncov;
+                                b2_v = v;
+                                b2_sd = sd;
+                                b2_si = si;
+                                b2_sj = sj;
+                            }
+                        }
+
+            // Compute actual M for this pair
+            bool combined[N][N];
+            {
+                bool cov2[N][N];
+                simulate(vars[b2_v], 4, b2_si, b2_sj, b2_sd, cov2);
+                for (int i = 0; i < N; i++)
+                    for (int j = 0; j < N; j++)
+                        combined[i][j] = best1_cov[i][j] || cov2[i][j];
+            }
+            int fb = segment_uncovered_cost(combined);
+            int total = 8 + fb;  // 4 states x 2 robots + fallback
+
+            if (total < best_M) {
+                best_M = total;
+                best_robots.clear();
+
+                RobotOut r1;
+                r1.m = 4;
+                r1.si = best1_si;
+                r1.sj = best1_sj;
+                r1.sd = DIR_CHAR[best1_sd];
+                r1.trans.resize(4);
+                for (int s = 0; s < 4; s++)
+                    r1.trans[s] = {vars[best1_v][s][0], vars[best1_v][s][1],
+                                   vars[best1_v][s][2], vars[best1_v][s][3]};
+                best_robots.push_back(r1);
+
+                RobotOut r2;
+                r2.m = 4;
+                r2.si = b2_si;
+                r2.sj = b2_sj;
+                r2.sd = DIR_CHAR[b2_sd];
+                r2.trans.resize(4);
+                for (int s = 0; s < 4; s++)
+                    r2.trans[s] = {vars[b2_v][s][0], vars[b2_v][s][1],
+                                   vars[b2_v][s][2], vars[b2_v][s][3]};
+                best_robots.push_back(r2);
+
+                vector<RobotOut> fb_r;
+                segment_for_uncovered(combined, fb_r);
+                for (auto& fr : fb_r) best_robots.push_back(fr);
+            }
+        }
+    }
+
+    // ============================================================
+    // Phase 2: SA starting from zigzag base (4-6 states) to handle wall cases
+    // Also try pure random SA for larger state counts
+    // ============================================================
+    int aut_trans[1600][4];
+
+    // SA with zigzag seed for small state counts (4-8)
+    {
+        int zigzag_base[4][4] = {
+            {1, 1, 1, 1},
+            {0, 3, 2, 2},
+            {0, 0, 1, 2},
+            {2, 2, 2, 1},
+        };
+        int zigzag_mirror[4][4];
+        for (int s = 0; s < 4; s++) {
+            for (int k = 0; k < 4; k += 2) {
+                int a = zigzag_base[s][k];
+                if (a == 1)
+                    a = 2;
+                else if (a == 2)
+                    a = 1;
+                zigzag_mirror[s][k] = a;
+                zigzag_mirror[s][k + 1] = zigzag_base[s][k + 1];
+            }
+        }
+
+        for (int num_states = 4; num_states <= 8 && elapsed_ms() < 1000; num_states++) {
+            for (int restart = 0; restart < 200 && elapsed_ms() < 1000; restart++) {
+                // Init with zigzag base + random extra states
+                int base_var = restart % 2;
+                for (int s = 0; s < 4; s++) {
+                    if (base_var == 0)
+                        memcpy(aut_trans[s], zigzag_base[s], sizeof(int) * 4);
+                    else
+                        memcpy(aut_trans[s], zigzag_mirror[s], sizeof(int) * 4);
+                }
+                for (int s = 4; s < num_states; s++) {
+                    aut_trans[s][0] = rng() % 3;
+                    aut_trans[s][1] = rng() % num_states;
+                    aut_trans[s][2] = 1 + rng() % 2;
+                    aut_trans[s][3] = rng() % num_states;
+                }
+                int si = rng() % N, sj = rng() % N, sd = rng() % 4;
+
+                bool cov[N][N];
+                simulate(aut_trans, num_states, si, sj, sd, cov);
+                int fb_m = segment_uncovered_cost(cov);
+                int total_m = num_states + fb_m;
+
+                int best_trans[1600][4];
+                memcpy(best_trans, aut_trans, sizeof(int) * 4 * num_states);
+                int bsi = si, bsj = sj, bsd = sd;
+                int best_total = total_m;
+
+                double temp = 3.0;
+                for (int it = 0; it < 3000 && elapsed_ms() < 1000; it++) {
+                    int old_trans[1600][4];
+                    memcpy(old_trans, aut_trans, sizeof(int) * 4 * num_states);
+                    int osi = si, osj = sj, osd = sd;
+
+                    int mv = rng() % 15;
+                    if (mv < 5) {
+                        int s = rng() % num_states, w = rng() % 2;
+                        if (w == 0) {
+                            if (rng() % 2)
+                                aut_trans[s][0] = rng() % 3;
+                            else
+                                aut_trans[s][1] = rng() % num_states;
+                        } else {
+                            if (rng() % 2)
+                                aut_trans[s][2] = 1 + rng() % 2;
+                            else
+                                aut_trans[s][3] = rng() % num_states;
+                        }
+                    } else if (mv < 8) {
+                        int s = rng() % num_states;
+                        aut_trans[s][0] = rng() % 3;
+                        aut_trans[s][1] = rng() % num_states;
+                        aut_trans[s][2] = 1 + rng() % 2;
+                        aut_trans[s][3] = rng() % num_states;
+                    } else if (mv < 11) {
+                        si = rng() % N;
+                        sj = rng() % N;
+                        sd = rng() % 4;
+                    } else {
+                        int cnt = 2 + rng() % 2;
+                        for (int c = 0; c < cnt; c++) {
+                            int s = rng() % num_states, w = rng() % 2;
+                            if (w == 0) {
+                                if (rng() % 2)
+                                    aut_trans[s][0] = rng() % 3;
+                                else
+                                    aut_trans[s][1] = rng() % num_states;
+                            } else {
+                                if (rng() % 2)
+                                    aut_trans[s][2] = 1 + rng() % 2;
+                                else
+                                    aut_trans[s][3] = rng() % num_states;
+                            }
+                        }
+                    }
+
+                    bool nc[N][N];
+                    simulate(aut_trans, num_states, si, sj, sd, nc);
+                    int nfb = segment_uncovered_cost(nc);
+                    int nt = num_states + nfb;
+
+                    double delta = nt - total_m;
+                    if (delta < 0 || (rng() % 10000 < 10000 * exp(-delta / temp))) {
+                        total_m = nt;
+                        if (nt < best_total) {
+                            best_total = nt;
+                            memcpy(best_trans, aut_trans, sizeof(int) * 4 * num_states);
+                            bsi = si;
+                            bsj = sj;
+                            bsd = sd;
+                        }
+                    } else {
+                        memcpy(aut_trans, old_trans, sizeof(int) * 4 * num_states);
+                        si = osi;
+                        sj = osj;
+                        sd = osd;
+                    }
+                    temp *= 0.999;
+                }
+
+                if (best_total < best_M) {
+                    best_M = best_total;
+                    bool fcov[N][N];
+                    simulate(best_trans, num_states, bsi, bsj, bsd, fcov);
+                    best_robots.clear();
+                    RobotOut mr;
+                    mr.m = num_states;
+                    mr.si = bsi;
+                    mr.sj = bsj;
+                    mr.sd = DIR_CHAR[bsd];
+                    mr.trans.resize(num_states);
+                    for (int s = 0; s < num_states; s++)
+                        mr.trans[s] = {best_trans[s][0], best_trans[s][1], best_trans[s][2], best_trans[s][3]};
+                    best_robots = {mr};
+                    vector<RobotOut> fb;
+                    segment_for_uncovered(fcov, fb);
+                    for (auto& r : fb) best_robots.push_back(r);
+                }
+            }
+        }
+    }
+
+    // Phase 3: Random SA (remaining time)
     for (int num_states = 2; num_states <= 30 && elapsed_ms() < 1900; num_states++) {
         int max_restarts = (num_states <= 10) ? 100 : 30;
         for (int restart = 0; restart < max_restarts && elapsed_ms() < 1900; restart++) {
