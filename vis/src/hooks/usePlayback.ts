@@ -50,6 +50,18 @@ export function usePlayback(maxStep: number) {
     [maxStep]
   );
 
+  const jumpToStart = useCallback(() => {
+    setStep(0);
+    setPlaying(false);
+    clearTimer();
+  }, [clearTimer]);
+
+  const jumpToEnd = useCallback(() => {
+    setStep(maxStep);
+    setPlaying(false);
+    clearTimer();
+  }, [maxStep, clearTimer]);
+
   return {
     step,
     playing,
@@ -60,5 +72,7 @@ export function usePlayback(maxStep: number) {
     stepForward,
     stepBackward,
     jumpTo,
+    jumpToStart,
+    jumpToEnd,
   };
 }

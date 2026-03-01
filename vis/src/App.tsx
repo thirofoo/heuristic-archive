@@ -91,6 +91,40 @@ export default function App() {
     }
   }, [outputText, doSimulate]);
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      const pb = playbackRef.current;
+      switch (e.key) {
+        case " ":
+          e.preventDefault();
+          pb.playing ? pb.pause() : pb.play();
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          pb.stepForward();
+          break;
+        case "ArrowLeft":
+          e.preventDefault();
+          pb.stepBackward();
+          break;
+        case "Home":
+          e.preventDefault();
+          pb.jumpToStart();
+          break;
+        case "End":
+          e.preventDefault();
+          pb.jumpToEnd();
+          break;
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
   if (!ready) {
     return (
       <div className="flex items-center justify-center h-screen text-xl">
@@ -100,29 +134,26 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="bg-[var(--surface)] p-3 text-center text-lg font-bold border-b border-[var(--primary)]">
-        Periodic Patrol Automata - Visualizer
-      </header>
-
+    <div className="h-screen flex flex-col overflow-hidden">
       <InputPanel
         onInput={handleInputText}
         onGenerate={handleGenerate}
         outputText={outputText}
+        input={input}
       />
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 min-h-0">
         <div className="flex-1 flex items-center justify-center p-4">
           {input ? (
             <Visualizer input={input} result={result} step={playback.step} />
           ) : (
-            <div className="text-[var(--text-muted)]">
+            <div className="text-[var(--text-muted)] text-sm">
               Generate or load an input file to begin
             </div>
           )}
         </div>
 
-        <ScorePanel result={result} step={playback.step} />
+        {result && <ScorePanel result={result} step={playback.step} />}
       </div>
 
       {result && result.states.length > 0 && (
@@ -137,6 +168,8 @@ export default function App() {
           onStepBackward={playback.stepBackward}
           onJumpTo={playback.jumpTo}
           onSpeedChange={playback.setSpeed}
+          onJumpToStart={playback.jumpToStart}
+          onJumpToEnd={playback.jumpToEnd}
         />
       )}
     </div>

@@ -16,11 +16,11 @@ const ROBOT_COLORS = [
 
 const CELL_SIZE = 30;
 const WALL_WIDTH = 3;
-const PADDING = 4;
+const LABEL_SIZE = 16;
 
 export function Visualizer({ input, result, step }: VisualizerProps) {
   const n = input.n;
-  const size = n * CELL_SIZE;
+  const gridSize = n * CELL_SIZE;
 
   const wallV = result ? result.wall_v : input.wall_v;
   const wallH = result ? result.wall_h : input.wall_h;
@@ -60,20 +60,53 @@ export function Visualizer({ input, result, step }: VisualizerProps) {
     return result.routes.map((route) => step >= route.head.length);
   }, [result, step]);
 
+  const totalW = gridSize + LABEL_SIZE + 4;
+  const totalH = gridSize + LABEL_SIZE + 4;
+
   return (
     <svg
-      width={size + 2 * PADDING}
-      height={size + 2 * PADDING}
-      viewBox={`${-PADDING} ${-PADDING} ${size + 2 * PADDING} ${size + 2 * PADDING}`}
+      width={totalW}
+      height={totalH}
+      viewBox={`${-LABEL_SIZE - 2} ${-LABEL_SIZE - 2} ${totalW + 4} ${totalH + 4}`}
       className="max-w-full max-h-full"
     >
+      {/* Column labels */}
+      {Array.from({ length: n }, (_, j) => (
+        <text
+          key={`cl-${j}`}
+          x={j * CELL_SIZE + CELL_SIZE / 2}
+          y={-4}
+          textAnchor="middle"
+          fontSize={8}
+          fill="var(--text-muted)"
+          fontFamily="monospace"
+        >
+          {j}
+        </text>
+      ))}
+
+      {/* Row labels */}
+      {Array.from({ length: n }, (_, i) => (
+        <text
+          key={`rl-${i}`}
+          x={-4}
+          y={i * CELL_SIZE + CELL_SIZE / 2 + 3}
+          textAnchor="end"
+          fontSize={8}
+          fill="var(--text-muted)"
+          fontFamily="monospace"
+        >
+          {i}
+        </text>
+      ))}
+
       {/* Cell backgrounds */}
       {Array.from({ length: n }, (_, i) =>
         Array.from({ length: n }, (_, j) => {
-          let fill = "#16213e";
+          let fill = "#1e2740";
           if (result) {
-            if (result.patrolled[i][j]) fill = "#1a3a1a";
-            if (visitedCells?.[i][j]) fill = "#264d26";
+            if (result.patrolled?.[i]?.[j]) fill = "#1a3a2a";
+            if (visitedCells?.[i]?.[j]) fill = "#2d5a3d";
           }
           return (
             <rect
@@ -83,7 +116,7 @@ export function Visualizer({ input, result, step }: VisualizerProps) {
               width={CELL_SIZE}
               height={CELL_SIZE}
               fill={fill}
-              stroke="#2a2a4a"
+              stroke="#2a3555"
               strokeWidth={0.5}
             />
           );
@@ -106,7 +139,7 @@ export function Visualizer({ input, result, step }: VisualizerProps) {
               y1={i * CELL_SIZE}
               x2={(j + 1) * CELL_SIZE}
               y2={(i + 1) * CELL_SIZE}
-              stroke={isNew ? "#ff6b35" : "#c8c8d0"}
+              stroke={isNew ? "#ff6b35" : "#b0b0c0"}
               strokeWidth={WALL_WIDTH}
               strokeLinecap="round"
             />
@@ -130,7 +163,7 @@ export function Visualizer({ input, result, step }: VisualizerProps) {
               y1={(i + 1) * CELL_SIZE}
               x2={(j + 1) * CELL_SIZE}
               y2={(i + 1) * CELL_SIZE}
-              stroke={isNew ? "#ff6b35" : "#c8c8d0"}
+              stroke={isNew ? "#ff6b35" : "#b0b0c0"}
               strokeWidth={WALL_WIDTH}
               strokeLinecap="round"
             />
@@ -142,10 +175,10 @@ export function Visualizer({ input, result, step }: VisualizerProps) {
       <rect
         x={0}
         y={0}
-        width={size}
-        height={size}
+        width={gridSize}
+        height={gridSize}
         fill="none"
-        stroke="#c8c8d0"
+        stroke="#b0b0c0"
         strokeWidth={WALL_WIDTH}
       />
 
@@ -190,7 +223,7 @@ export function Visualizer({ input, result, step }: VisualizerProps) {
             <polygon
               points={arrowPoints[robot.d]}
               fill={color}
-              stroke={isPeriodic ? "#fff" : "#888"}
+              stroke={isPeriodic ? "#fff" : "#666"}
               strokeWidth={isPeriodic ? 1.5 : 0.8}
               opacity={0.9}
             />
