@@ -1,5 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
-import mermaid from "mermaid";
+import { useEffect, useRef, useCallback, useState } from "react";
 import type { RobotAutomaton } from "../types";
 
 interface AutomatonPreviewProps {
@@ -10,24 +9,34 @@ interface AutomatonPreviewProps {
   onClose: () => void;
 }
 
-mermaid.initialize({
-  startOnLoad: false,
-  theme: "dark",
-  themeVariables: {
-    primaryColor: "#0f3460",
-    primaryTextColor: "#eee",
-    primaryBorderColor: "#45b7d1",
-    lineColor: "#999",
-    secondaryColor: "#16213e",
-    tertiaryColor: "#1a1a2e",
-    fontFamily: "monospace",
-    fontSize: "12px",
-  },
-  flowchart: {
-    curve: "basis",
-    padding: 12,
-  },
-});
+let mermaidInstance: typeof import("mermaid").default | null = null;
+let mermaidReady = false;
+
+async function getMermaid() {
+  if (mermaidReady && mermaidInstance) return mermaidInstance;
+  const mod = await import("mermaid");
+  mermaidInstance = mod.default;
+  mermaidInstance.initialize({
+    startOnLoad: false,
+    theme: "dark",
+    themeVariables: {
+      primaryColor: "#0f3460",
+      primaryTextColor: "#eee",
+      primaryBorderColor: "#45b7d1",
+      lineColor: "#999",
+      secondaryColor: "#16213e",
+      tertiaryColor: "#1a1a2e",
+      fontFamily: "monospace",
+      fontSize: "12px",
+    },
+    flowchart: {
+      curve: "basis",
+      padding: 12,
+    },
+  });
+  mermaidReady = true;
+  return mermaidInstance;
+}
 
 function buildMermaidDef(robot: RobotAutomaton, currentState: number | null): string {
   const lines: string[] = ["stateDiagram-v2"];
@@ -60,13 +69,16 @@ export function AutomatonPreview({
   onClose,
 }: AutomatonPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [loading, setLoading] = useState(true);
 
   const renderDiagram = useCallback(async () => {
     if (!containerRef.current) return;
-    const def = buildMermaidDef(robot, currentState);
-    const id = `mermaid-robot-${robotIndex}-${Date.now()}`;
+    setLoading(true);
     try {
-      const { svg } = await mermaid.render(id, def);
+      const mm = await getMermaid();
+      const def = buildMermaidDef(robot, currentState);
+      const id = `mermaid-robot-${robotIndex}-${Date.now()}`;
+      const { svg } = await mm.render(id, def);
       if (containerRef.current) {
         containerRef.current.innerHTML = svg;
       }
@@ -75,6 +87,8 @@ export function AutomatonPreview({
       if (containerRef.current) {
         containerRef.current.innerHTML = `<div class="text-red-400 text-xs p-2">Failed to render diagram</div>`;
       }
+    } finally {
+      setLoading(false);
     }
   }, [robot, robotIndex, currentState]);
 
@@ -125,7 +139,9 @@ export function AutomatonPreview({
         </div>
 
         {/* Diagram */}
-        <div ref={containerRef} className="p-4 flex justify-center min-h-[200px]" />
+        <div ref={containerRef} className="p-4 flex justify-center min-h-[200px] items-center">
+          {loading && <span className="text-[var(--text-muted)] text-sm">Loading diagram...</span>}
+        </div>
 
         {/* Transition table */}
         <div className="px-4 pb-4">
