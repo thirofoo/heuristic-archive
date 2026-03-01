@@ -1,4 +1,6 @@
 tools/in*
+tools/out*
+tools/err*
 tools/target
 node_modules
 vis/wasm/target
