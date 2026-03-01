@@ -4,6 +4,7 @@ import type { SimulationResult } from "../types";
 interface ScorePanelProps {
   result: SimulationResult | null;
   step: number;
+  onRobotClick?: (robotIndex: number) => void;
 }
 
 const DIR_NAMES = ["U", "R", "D", "L"];
@@ -27,7 +28,7 @@ function ProgressBar({ value, max, color }: { value: number; max: number; color:
   );
 }
 
-export function ScorePanel({ result, step }: ScorePanelProps) {
+export function ScorePanel({ result, step, onRobotClick }: ScorePanelProps) {
   if (!result) return null;
 
   const currentState = result.states[step];
@@ -151,9 +152,11 @@ export function ScorePanel({ result, step }: ScorePanelProps) {
             {currentState?.robots.map((robot, k) => {
               const phase = robotPhases[k];
               return (
-                <div
+                <button
                   key={k}
-                  className="flex items-center gap-1.5 text-[11px] bg-[var(--bg)] rounded px-2 py-1"
+                  onClick={() => onRobotClick?.(k)}
+                  className="w-full flex items-center gap-1.5 text-[11px] bg-[var(--bg)] rounded px-2 py-1 hover:bg-[var(--primary)] transition cursor-pointer text-left"
+                  title="Click to view automaton"
                 >
                   <span
                     className="w-2 h-2 rounded-full flex-shrink-0"
@@ -176,7 +179,7 @@ export function ScorePanel({ result, step }: ScorePanelProps) {
                   >
                     {phase?.isPeriodic ? "cycle" : "init"}
                   </span>
-                </div>
+                </button>
               );
             })}
           </div>

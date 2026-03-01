@@ -1,20 +1,36 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useWasm } from "./hooks/useWasm";
 import { usePlayback } from "./hooks/usePlayback";
 import { Controls } from "./components/Controls";
 import { InputPanel } from "./components/InputPanel";
 import { ScorePanel } from "./components/ScorePanel";
 import { Visualizer } from "./components/Visualizer";
+import { AutomatonPreview } from "./components/AutomatonPreview";
+import { parseAutomata } from "./parseAutomata";
 import type { SimulationResult, ProblemInput } from "./types";
+
+const ROBOT_COLORS = [
+  "#ff6b6b", "#4ecdc4", "#45b7d1", "#f9ca24", "#6ab04c",
+  "#eb4d4b", "#7ed6df", "#e056fd", "#f0932b", "#22a6b3",
+  "#be2edd", "#ffbe76", "#badc58", "#ff7979", "#686de0",
+  "#30336b", "#95afc0", "#f8c291", "#6a89cc", "#82ccdd",
+];
 
 export default function App() {
   const { wasm, ready } = useWasm();
   const [input, setInput] = useState<ProblemInput | null>(null);
   const [outputText, setOutputText] = useState<string>("");
   const [result, setResult] = useState<SimulationResult | null>(null);
+  const [selectedRobot, setSelectedRobot] = useState<number | null>(null);
 
   const maxStep = result ? result.states.length - 1 : 0;
   const playback = usePlayback(maxStep);
+
+  // Parse automata from output text
+  const automata = useMemo(() => {
+    if (!outputText) return null;
+    return parseAutomata(outputText);
+  }, [outputText]);
 
   // Refs for latest values (avoid stale closures)
   const outputTextRef = useRef(outputText);
@@ -133,6 +149,12 @@ export default function App() {
     );
   }
 
+  // Get current internal state for selected robot
+  const currentRobotState =
+    selectedRobot !== null && result?.states[playback.step]
+      ? result.states[playback.step].robots[selectedRobot]?.s ?? null
+      : null;
+
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       <InputPanel
@@ -153,7 +175,13 @@ export default function App() {
           )}
         </div>
 
-        {result && <ScorePanel result={result} step={playback.step} />}
+        {result && (
+          <ScorePanel
+            result={result}
+            step={playback.step}
+            onRobotClick={(k) => setSelectedRobot(k)}
+          />
+        )}
       </div>
 
       {result && result.states.length > 0 && (
@@ -170,6 +198,17 @@ export default function App() {
           onSpeedChange={playback.setSpeed}
           onJumpToStart={playback.jumpToStart}
           onJumpToEnd={playback.jumpToEnd}
+        />
+      )}
+
+      {/* Automaton preview modal */}
+      {selectedRobot !== null && automata && automata[selectedRobot] && (
+        <AutomatonPreview
+          robot={automata[selectedRobot]}
+          robotIndex={selectedRobot}
+          color={ROBOT_COLORS[selectedRobot % ROBOT_COLORS.length]}
+          currentState={currentRobotState}
+          onClose={() => setSelectedRobot(null)}
         />
       )}
     </div>

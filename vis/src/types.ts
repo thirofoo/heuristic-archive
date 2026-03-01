@@ -46,3 +46,16 @@ export interface ProblemInput {
   wall_v: number[][];
   wall_h: number[][];
 }
+
+export interface RobotAutomaton {
+  m: number;       // number of internal states
+  i0: number;      // initial row
+  j0: number;      // initial col
+  d0: string;      // initial direction (U/R/D/L)
+  transitions: {
+    a0: string;    // action when no wall (R/L/F)
+    b0: number;    // next state when no wall
+    a1: string;    // action when wall (R/L)
+    b1: number;    // next state when wall
+  }[];
+}
