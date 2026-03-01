@@ -1,2 +1,4 @@
 tools/in*
 tools/target
+node_modules
+vis/wasm/target
