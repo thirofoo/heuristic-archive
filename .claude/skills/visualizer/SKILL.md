@@ -77,6 +77,14 @@ vis/
 テンプレートの `Controls.tsx` と `usePlayback.ts` はそのまま使える。
 `InputPanel.tsx` は問題のバリアント名 (select の option) を変更する。
 
+### UX 方針 (自動リアクティブ)
+
+- **Generate / Simulate ボタンは不要** — 入力変更で自動実行する
+- **seed / problemType の変更で自動再生成** — `useEffect` で監視
+- **出力テキストの変更で自動シミュレート** — `useEffect` で監視
+- **出力テキストエリアは常時表示** — ファイルアップロード時はテキストエリアに反映
+- **ファイルアップロードもテキストエリアを経由** — controlled textarea で一元管理
+
 ## Step 3: WASM 移植
 
 tools/src/lib.rs のコードを vis/wasm/src/lib.rs に移植する。
@@ -125,9 +133,27 @@ npm run wasm:build
 
 1. `SimulationState` の型を `types.ts` に定義
 2. `Visualizer.tsx` を作成 (SVG 描画ロジック)
-3. `App.tsx` の TODO 箇所を置換して Visualizer を配置
+3. `App.tsx` を実装 (ref パターンで自動リアクティブ)
 4. `ScorePanel.tsx` に問題固有の情報を追加
 5. `InputPanel.tsx` のバリアント select を問題に合わせる
+
+### App.tsx の実装パターン
+
+App.tsx では **ref パターン** を使い、stale closure を回避しつつ自動リアクティブにする:
+
+- `wasmRef`, `inputRef`, `outputTextRef`, `playbackRef` で最新値を保持
+- `doSimulate` は依存なし `useCallback(() => {...}, [])` で定義
+- `handleGenerate` は `doSimulate` のみに依存
+- `handleInputText` は `doSimulate` のみに依存
+- `useEffect(() => { ... }, [outputText, doSimulate])` で出力変更時に自動シミュレート
+- Generate / Simulate ボタンは配置しない
+
+### InputPanel の実装パターン
+
+- `onGenerate` を ref で保持し、`useEffect(() => { onGenerateRef.current(seed, problemType) }, [seed, problemType])` で自動生成
+- 出力テキストエリアは `outputText` を props で受け取り、controlled textarea として常時表示
+- ファイルアップロード時は `onInput("output", text)` でテキストエリアに反映
+- Generate ボタンは不要
 
 ## Step 5: ビルド & 動作確認
 
@@ -139,12 +165,27 @@ npm run dev          # 開発サーバー起動
 
 ### 確認項目
 
-- [ ] seed 指定で入力が生成される
-- [ ] ファイルアップロードで入力/出力を読み込める
-- [ ] Simulate ボタンでスコアが表示される
+- [ ] seed / problemType 変更で入力が自動再生成される
+- [ ] ファイルアップロードで入力/出力を読み込める (テキストエリアに反映)
+- [ ] 出力テキスト入力・変更で自動シミュレートされる
 - [ ] ステップ再生 (前後) が動作する
 - [ ] 自動再生 + 速度調整が動作する
 - [ ] SVG が問題の状態を正しく描画している
+
+## デプロイ
+
+Cloudflare Pages 等の CI 環境には `cargo` / `wasm-pack` がないため、WASM はローカルで事前ビルドしてコミットする。
+
+1. ローカルで `npm run wasm:build` を実行し `src/wasm-pkg/` を生成
+2. `src/wasm-pkg/` を git にコミット
+3. CI のビルドコマンドは `npm run build` のみにする（`wasm:build` は含めない）
+
+```bash
+# .gitignore に wasm-pkg を含めないこと
+# Cloudflare Pages のビルド設定:
+#   Build command: npm run build
+#   Build output directory: dist
+```
 
 ## Resources
 

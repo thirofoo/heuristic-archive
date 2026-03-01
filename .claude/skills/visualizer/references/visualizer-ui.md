@@ -14,8 +14,7 @@ src/
 │   └── ScorePanel.tsx     # スコア表示
 ├── hooks/
 │   ├── useWasm.ts         # WASM 初期化・呼び出し
-│   ├── usePlayback.ts    # ステップ再生ロジック
-│   └── useSimulation.ts   # シミュレーション状態管理
+│   └── usePlayback.ts    # ステップ再生ロジック
 ├── wasm-pkg/              # wasm-pack 出力
 └── types.ts               # 型定義
 ```
@@ -247,12 +246,28 @@ function Controls(props: ControlsProps) {
 
 ## InputPanel パターン
 
+**UX 方針**: Generate ボタンは不要。seed / problemType の変更で自動再生成する。
+出力テキストエリアは常時表示し、ファイルアップロード時はテキストエリアに反映する (controlled textarea)。
+
 ```tsx
-function InputPanel({ onInput, onGenerate, wasm }) {
+interface InputPanelProps {
+  onInput: (type: "input" | "output", text: string) => void;
+  onGenerate: (seed: number, problemType: string) => void;
+  outputText: string; // controlled value for textarea
+}
+
+function InputPanel({ onInput, onGenerate, outputText }: InputPanelProps) {
   const [seed, setSeed] = useState(0);
   const [problemType, setProblemType] = useState('A');
+  const onGenerateRef = useRef(onGenerate);
+  onGenerateRef.current = onGenerate;
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'input' | 'output') => {
+  // seed / problemType 変更で自動再生成 (Generate ボタン不要)
+  useEffect(() => {
+    onGenerateRef.current(seed, problemType);
+  }, [seed, problemType]);
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>, type: 'input' | 'output') => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
@@ -267,17 +282,19 @@ function InputPanel({ onInput, onGenerate, wasm }) {
         <select value={problemType} onChange={e => setProblemType(e.target.value)}>
           {/* 問題タイプのオプション - 問題に応じて動的に変更 */}
         </select>
-        <button onClick={() => onGenerate(seed, problemType)}>Generate</button>
+        {/* Generate ボタンなし — useEffect で自動実行 */}
       </div>
       <div>
-        <label>Input: <input type="file" onChange={e => handleFileUpload(e, 'input')} /></label>
-        <label>Output: <input type="file" onChange={e => handleFileUpload(e, 'output')} /></label>
+        <label>Input: <input type="file" onChange={e => handleFile(e, 'input')} /></label>
+        <label>Output: <input type="file" onChange={e => handleFile(e, 'output')} /></label>
       </div>
-      <div>
-        <label>Output (paste):
-          <textarea onChange={e => onInput('output', e.target.value)} rows={4} />
-        </label>
-      </div>
+      {/* 出力テキストエリア — 常時表示、controlled */}
+      <textarea
+        placeholder="Output text (paste or load file)"
+        rows={4}
+        value={outputText}
+        onChange={e => onInput('output', e.target.value)}
+      />
     </div>
   );
 }
@@ -318,3 +335,87 @@ export default defineConfig({
 /* src/index.css */
 @import "tailwindcss";
 ```
+
+## App.tsx 自動リアクティブパターン
+
+**UX 方針**: ボタン操作なしで、入力変更 → 自動再生成、出力変更 → 自動シミュレートを実現する。
+stale closure を回避するため、ref パターンで最新値を保持する。
+
+```tsx
+export default function App() {
+  const { wasm, ready } = useWasm();
+  const [input, setInput] = useState<ProblemInput | null>(null);
+  const [outputText, setOutputText] = useState<string>("");
+  const [result, setResult] = useState<SimulationResult | null>(null);
+
+  const maxStep = result ? result.states.length - 1 : 0;
+  const playback = usePlayback(maxStep);
+
+  // Ref で最新値を保持 (stale closure 回避)
+  const outputTextRef = useRef(outputText);
+  outputTextRef.current = outputText;
+  const inputRef = useRef(input);
+  inputRef.current = input;
+  const wasmRef = useRef(wasm);
+  wasmRef.current = wasm;
+  const playbackRef = useRef(playback);
+  playbackRef.current = playback;
+
+  // コアのシミュレート関数 (依存なし)
+  const doSimulate = useCallback((inputRaw: string, outText: string) => {
+    if (!wasmRef.current || !outText) return;
+    try {
+      const res = wasmRef.current.simulate(inputRaw, outText);
+      setResult(res as unknown as SimulationResult);
+      playbackRef.current.jumpTo(0);
+    } catch (e) {
+      console.error("Simulate error:", e);
+    }
+  }, []);
+
+  // 入力生成ハンドラ — 出力があれば自動シミュレート
+  const handleGenerate = useCallback((seed: number, problemType: string) => {
+    if (!wasmRef.current) return;
+    const generated = wasmRef.current.generate(BigInt(seed), problemType) as unknown as ProblemInput;
+    setInput(generated);
+    if (outputTextRef.current) {
+      doSimulate(generated.raw, outputTextRef.current);
+    } else {
+      setResult(null);
+    }
+  }, [doSimulate]);
+
+  // 入力テキスト / 出力テキスト変更ハンドラ
+  const handleInputText = useCallback((type: "input" | "output", text: string) => {
+    if (type === "input" && wasmRef.current) {
+      const parsed = wasmRef.current.parse_input(text) as unknown as ProblemInput;
+      setInput(parsed);
+      if (outputTextRef.current) {
+        doSimulate(parsed.raw, outputTextRef.current);
+      } else {
+        setResult(null);
+      }
+    } else if (type === "output") {
+      setOutputText(text);
+    }
+  }, [doSimulate]);
+
+  // 出力テキスト変更時に自動シミュレート (Simulate ボタン不要)
+  useEffect(() => {
+    if (inputRef.current && outputText) {
+      doSimulate(inputRef.current.raw, outputText);
+    } else if (!outputText) {
+      setResult(null);
+    }
+  }, [outputText, doSimulate]);
+
+  // ... render with InputPanel, Visualizer, ScorePanel, Controls
+}
+```
+
+### ポイント
+
+- `doSimulate` は依存配列が空 `[]` なので、先に定義可能
+- `handleGenerate` / `handleInputText` は `doSimulate` のみに依存
+- `useEffect` で `outputText` を監視し、変更時に自動シミュレート
+- `InputPanel` に `outputText` を props で渡し、controlled textarea で管理

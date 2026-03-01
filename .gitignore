@@ -2,3 +2,6 @@ tools/in*
 tools/target
 node_modules
 vis/wasm/target
+vis/.vite
+vis/dist
+*.tsbuildinfo
