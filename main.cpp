@@ -146,14 +146,26 @@ void split(Node *t, int left_count, Node *&a, Node *&b) {
 }
 
 int index_of(Node *x) {
-  vector<Node *> ancestors;
-  for (Node *cur = x; cur != nullptr; cur = cur->p)
-    ancestors.push_back(cur);
-  for (int i = (int)ancestors.size() - 1; i >= 0; --i)
-    push(ancestors[i]);
+  Node *stack_buf[128];
+  int sz = 0;
+  Node *cur = x;
+  while (cur != nullptr && sz < 128) {
+    stack_buf[sz++] = cur;
+    cur = cur->p;
+  }
+  vector<Node *> spill;
+  spill.reserve(16);
+  while (cur != nullptr) {
+    spill.push_back(cur);
+    cur = cur->p;
+  }
+  for (int i = (int)spill.size() - 1; i >= 0; --i)
+    push(spill[i]);
+  for (int i = sz - 1; i >= 0; --i)
+    push(stack_buf[i]);
 
   int idx = node_size(x->l);
-  Node *cur = x;
+  cur = x;
   while (cur->p != nullptr) {
     if (cur == cur->p->r)
       idx += node_size(cur->p->l) + 1;
@@ -179,6 +191,17 @@ struct Move {
 };
 
 struct Solver {
+  struct MoveKeyHash {
+    size_t operator()(const array<int, 4> &k) const {
+      size_t h = 1469598103934665603ULL;
+      h ^= (size_t)k[0] + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
+      h ^= (size_t)k[1] + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
+      h ^= (size_t)k[2] + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
+      h ^= (size_t)k[3] + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
+      return h;
+    }
+  };
+
   static constexpr double TIME_LIMIT_MS = 2850.0;
   static constexpr double START_TEMP = 3.0e8;
   static constexpr double END_TEMP = 3.0e6;
@@ -501,7 +524,7 @@ struct Solver {
   }
 
   void add_move_instance(int old1, int old2, int new1, int new2,
-                         unordered_set<string> &seen) {
+                         unordered_set<array<int, 4>, MoveKeyHash> &seen) {
     if (old1 < 0 || old2 < 0 || new1 < 0 || new2 < 0)
       return;
     if (old1 == old2 || new1 == new2)
@@ -512,8 +535,7 @@ struct Solver {
     if (new1 > new2)
       swap(new1, new2);
 
-    const string key = to_string(old1) + ":" + to_string(old2) + "->" +
-                       to_string(new1) + ":" + to_string(new2);
+    const array<int, 4> key = {old1, old2, new1, new2};
     if (!seen.insert(key).second)
       return;
 
@@ -526,7 +548,9 @@ struct Solver {
   void build_moves() {
     moves.clear();
     incident_moves.assign(edges.size(), {});
-    unordered_set<string> seen;
+    moves.reserve((N - 1) * max(0, N / 2 - 1) * 4);
+    unordered_set<array<int, 4>, MoveKeyHash> seen;
+    seen.reserve((size_t)(N - 1) * max(0, N / 2 - 1) * 5);
 
     // Only use 2x2 neighborhoods across strip boundaries: (1,2), (3,4), ...
     for (int c = 1; c + 1 < N; c += 2) {
@@ -626,7 +650,7 @@ struct Solver {
     return exp((double)delta / temp) > rand_double();
   }
 
-  bool apply_move(int mid) {
+  bool apply_move(int mid, double temp) {
     const Move &move = moves[mid];
     const auto [u1, v1] = edges[move.old1];
     const auto [u2, v2] = edges[move.old2];
@@ -683,7 +707,6 @@ struct Solver {
     const long long delta =
         1LL * (node_size(mid_seg) - 1) * node_sum_weight(mid_seg) -
         2LL * node_sum_index_weight(mid_seg);
-    const double temp = temperature();
     if (!accept(delta, temp)) {
       root = merge(left, mid_seg);
       root = merge(root, right);
@@ -695,11 +718,18 @@ struct Solver {
     root = merge(root, right);
     current_objective += delta;
 
-    vector<int> changed = {move.old1, move.old2, new_e1, new_e2};
-    sort(changed.begin(), changed.end());
-    changed.erase(unique(changed.begin(), changed.end()), changed.end());
-
-    for (int eid : changed) {
+    const int changed[4] = {move.old1, move.old2, new_e1, new_e2};
+    for (int i = 0; i < 4; ++i) {
+      const int eid = changed[i];
+      bool duplicated = false;
+      for (int j = 0; j < i; ++j) {
+        if (changed[j] == eid) {
+          duplicated = true;
+          break;
+        }
+      }
+      if (duplicated)
+        continue;
       const bool should_use = (eid == new_e1 || eid == new_e2);
       if (edge_used[eid] == should_use)
         continue;
@@ -721,11 +751,14 @@ struct Solver {
     build_moves();
     build_initial_state(build_initial_order());
 
+    double temp = temperature();
     while (utility::timer.elapsed_ms() < TIME_LIMIT_MS &&
            !active_moves.empty()) {
       ++iterations;
+      if ((iterations & 255) == 0)
+        temp = temperature();
       const int mid = active_moves[rand_int() % active_moves.size()];
-      apply_move(mid);
+      apply_move(mid, temp);
     }
   }
 
