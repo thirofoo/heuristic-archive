@@ -193,10 +193,11 @@ void collect_order(Node *t, vector<int> &order) {
 
 struct Solver {
   static constexpr double TIME_LIMIT_MS = 2850.0;
-  static constexpr double START_TEMP = 2.0e7;
-  static constexpr double END_TEMP = 1.0e4;
-  static constexpr int MAX_REVERSE_LEN = 10;
+  static constexpr double START_TEMP = 2.0e0;
+  static constexpr double END_TEMP = 1.0e0;
+  static constexpr int MAX_REVERSE_LEN = 100;
   static constexpr int INITIAL_BLOCK_SIZE = 10;
+  static constexpr int OPTIMIZE_TAIL_LEN = 400;
 
   int N;
   int V;
@@ -215,8 +216,8 @@ struct Solver {
   vector<int> pos_of;
   vector<int> path_edge;
   vector<int> edge_pos;
-  long long current_score = 0;
-  long long best_score = 0;
+  long long current_objective = 0;
+  long long best_objective = 0;
   long long iterations = 0;
   vector<int> best_order;
 
@@ -501,6 +502,11 @@ struct Solver {
         {{{{0, 0}, {0, 1}, {0, 2}, {1, 1}}}, {{{0, 1}, {2, 3}}},
          {{{0, 3}, {1, 2}}}},
         seen_patterns, seen_moves);
+
+    add_pattern_family(
+        {{{{1, 0}, {0, 1}, {1, 2}, {2, 1}}}, {{{0, 1}, {2, 3}}},
+         {{{1, 2}, {0, 3}}}},
+        seen_patterns, seen_moves);
   }
 
   void activate_move(int mid) {
@@ -519,11 +525,21 @@ struct Solver {
     active_pos[mid] = -1;
   }
 
+  int optimize_start_pos() const { return max(0, V - OPTIMIZE_TAIL_LEN); }
+
   void refresh_move(int mid) {
     const Move &move = moves[mid];
-    if (edge_used[move.old1] && edge_used[move.old2] &&
-        abs(edge_pos[move.old1] - edge_pos[move.old2]) > 1 &&
-        abs(edge_pos[move.old1] - edge_pos[move.old2]) <= MAX_REVERSE_LEN) {
+    if (!edge_used[move.old1] || !edge_used[move.old2]) {
+      deactivate_move(mid);
+      return;
+    }
+
+    int i = edge_pos[move.old1];
+    int j = edge_pos[move.old2];
+    if (i > j) swap(i, j);
+
+    if (j - i > 1 && j - i <= MAX_REVERSE_LEN &&
+        i + 1 >= optimize_start_pos()) {
       activate_move(mid);
     } else {
       deactivate_move(mid);
@@ -556,10 +572,10 @@ struct Solver {
   void build_initial_state(const vector<int> &initial_order) {
     order = initial_order;
     pos_of.assign(V, -1);
-    current_score = 0;
+    current_objective = 0;
     for (int pos = 0; pos < V; ++pos) {
       const int vid = initial_order[pos];
-      current_score += 1LL * pos * A[vid];
+      current_objective += 1LL * pos * A[vid];
       pos_of[vid] = pos;
     }
 
@@ -577,12 +593,19 @@ struct Solver {
     active_moves.clear();
     for (int mid = 0; mid < (int)moves.size(); ++mid) refresh_move(mid);
 
-    best_score = current_score;
+    best_objective = current_objective;
     best_order = this->order;
   }
 
-  long long display_score(long long objective) const {
+  long long score_from_objective(long long objective) const {
     return (objective + V / 2) / V;
+  }
+
+  bool is_better_objective(long long lhs, long long rhs) const {
+    const long long lhs_score = score_from_objective(lhs);
+    const long long rhs_score = score_from_objective(rhs);
+    if (lhs_score != rhs_score) return lhs_score > rhs_score;
+    return lhs > rhs;
   }
 
   double temperature() const {
@@ -625,6 +648,7 @@ struct Solver {
 
     if (j <= i + 1) return false;
     if (j - i > MAX_REVERSE_LEN) return false;
+    if (i + 1 < optimize_start_pos()) return false;
     if (!is_adjacent(a, c) || !is_adjacent(b, d)) return false;
 
     const int new_e1 = find_edge_id(a, c);
@@ -641,16 +665,16 @@ struct Solver {
 
     const int l = i + 1;
     const int r = j;
-    const long long delta = calc_reverse_delta(l, r);
+    const long long objective_delta = calc_reverse_delta(l, r);
     const double temp = temperature();
-    if (!accept(delta, temp)) return false;
+    if (!accept(objective_delta, temp)) return false;
 
     vector<int> affected_edges;
     affected_edges.reserve(2 * MAX_REVERSE_LEN + 8);
     for (int pos = i; pos <= j; ++pos) affected_edges.push_back(path_edge[pos]);
 
     apply_reverse_segment(l, r);
-    current_score += delta;
+    current_objective += objective_delta;
 
     for (int pos = i; pos <= j; ++pos) {
       path_edge[pos] = find_edge_id(order[pos], order[pos + 1]);
@@ -674,8 +698,8 @@ struct Solver {
       refresh_incident(eid);
     }
 
-    if (current_score > best_score) {
-      best_score = current_score;
+    if (is_better_objective(current_objective, best_objective)) {
+      best_objective = current_objective;
       best_order = order;
     }
     return true;
@@ -692,8 +716,8 @@ struct Solver {
       apply_move(mid);
     }
     cerr << "iterations: " << iterations << '\n';
-    cerr << "best score: " << display_score(best_score) << '\n';
-    cerr << "best objective: " << best_score << '\n';
+    cerr << "best score: " << score_from_objective(best_objective) << '\n';
+    cerr << "best objective: " << best_objective << '\n';
   }
 
   void output() const {
