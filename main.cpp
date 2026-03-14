@@ -204,7 +204,7 @@ struct Solver {
 
   static constexpr double TIME_LIMIT_MS = 2950.0;
   static constexpr double START_TEMP = 2.0e8;
-  static constexpr double END_TEMP = 1.0e8;
+  static constexpr double END_TEMP = 1.0e6;
 
   int N = 0;
   int V = 0;
@@ -224,7 +224,8 @@ struct Solver {
 
   vector<Node *> node_of;
   Node *root = nullptr;
-  vector<int> vtx_pos;  // vtx_pos[v] = position of vertex v in the path
+  vector<int> vtx_pos;   // vtx_pos[v] = position of vertex v in the path
+  vector<int> cur_order; // cur_order[i] = vertex at position i
 
   long long current_objective = 0;
   long long best_objective = LLONG_MIN;
@@ -616,6 +617,7 @@ struct Solver {
     root = nullptr;
     current_objective = 0;
     vtx_pos.assign(V, 0);
+    cur_order = order;
 
     for (int p = 0; p < V; ++p) {
       const int v = order[p];
@@ -653,15 +655,77 @@ struct Solver {
     return exp((double)delta / temp) > rand_double();
   }
 
-  void update_pos_segment(Node *seg_root, int offset) {
-    // Traverse the segment subtree and update vtx_pos with correct global positions
-    if (seg_root == nullptr)
+  void collect_segment_order(Node *t, vector<int> &out) {
+    if (t == nullptr)
       return;
-    push(seg_root);
-    update_pos_segment(seg_root->l, offset);
-    const int local_idx = node_size(seg_root->l);
-    vtx_pos[seg_root->vid] = offset + local_idx;
-    update_pos_segment(seg_root->r, offset + local_idx + 1);
+    push(t);
+    collect_segment_order(t->l, out);
+    out.push_back(t->vid);
+    collect_segment_order(t->r, out);
+  }
+
+  void swap_adjacent_treap(int k) {
+    Node *left, *nk, *nk1, *right, *rest, *rest2;
+    split(root, k, left, rest);
+    split(rest, 1, nk, rest2);
+    split(rest2, 1, nk1, right);
+    root = merge(merge(merge(left, nk1), nk), right);
+  }
+
+  void update_edge(int old_eid, int new_eid) {
+    if (old_eid == new_eid)
+      return;
+    if (old_eid >= 0) {
+      edge_used[old_eid] = false;
+      refresh_incident(old_eid);
+    }
+    if (new_eid >= 0) {
+      edge_used[new_eid] = true;
+      refresh_incident(new_eid);
+    }
+  }
+
+  void greedy_strip_swaps(int lo, int hi) {
+    for (int k = lo; k < hi; ++k) {
+      const int u = cur_order[k];
+      const int v = cur_order[k + 1];
+      // Only horizontal pairs (same row, adjacent columns)
+      if (row_id[u] != row_id[v])
+        continue;
+      if (abs(col_id[u] - col_id[v]) != 1)
+        continue;
+      // Swap is beneficial if A[u] > A[v] (put larger A at later position k+1)
+      if (A[u] <= A[v])
+        continue;
+      // Check path connectivity after swap
+      if (k > 0 && !is_adjacent(cur_order[k - 1], v))
+        continue;
+      if (k + 2 < V && !is_adjacent(u, cur_order[k + 2]))
+        continue;
+
+      // Compute edge changes
+      const int old_e_left = (k > 0) ? find_edge_id(cur_order[k - 1], u) : -1;
+      const int new_e_left = (k > 0) ? find_edge_id(cur_order[k - 1], v) : -1;
+      const int old_e_right =
+          (k + 2 < V) ? find_edge_id(v, cur_order[k + 2]) : -1;
+      const int new_e_right =
+          (k + 2 < V) ? find_edge_id(u, cur_order[k + 2]) : -1;
+
+      // Apply swap
+      const long long swap_delta = A[u] - A[v];
+      cur_order[k] = v;
+      cur_order[k + 1] = u;
+      vtx_pos[v] = k;
+      vtx_pos[u] = k + 1;
+      current_objective += swap_delta;
+
+      // Update Treap
+      swap_adjacent_treap(k);
+
+      // Update edge_used
+      update_edge(old_e_left, new_e_left);
+      update_edge(old_e_right, new_e_right);
+    }
   }
 
   bool apply_move(int mid, double temp) {
@@ -728,8 +792,16 @@ struct Solver {
     }
 
     toggle_reverse(mid_seg);
-    // Update vtx_pos for the reversed segment while mid_seg is still isolated
-    update_pos_segment(mid_seg, i + 1);
+    // Collect and update cur_order/vtx_pos for the reversed segment
+    {
+      vector<int> seg;
+      seg.reserve(j - i);
+      collect_segment_order(mid_seg, seg);
+      for (int t = 0; t < (int)seg.size(); ++t) {
+        cur_order[i + 1 + t] = seg[t];
+        vtx_pos[seg[t]] = i + 1 + t;
+      }
+    }
     root = merge(left, mid_seg);
     root = merge(root, right);
     current_objective += delta;
@@ -753,11 +825,12 @@ struct Solver {
       refresh_incident(eid);
     }
 
+    // Greedy within-strip horizontal swaps in the reversed segment
+    greedy_strip_swaps(max(0, i), min(V - 1, j));
+
     if (current_objective > best_objective) {
       best_objective = current_objective;
-      best_order.clear();
-      best_order.reserve(V);
-      collect_order(root, best_order);
+      best_order = cur_order;
     }
     return true;
   }
