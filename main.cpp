@@ -56,6 +56,34 @@ struct Node {
         p(nullptr) {}
 };
 
+struct Move {
+  int old1;
+  int old2;
+  int new1;
+  int new2;
+};
+
+struct PatternTemplate {
+  array<pair<int, int>, 4> points;
+  array<pair<int, int>, 2> old_pairs;
+  array<pair<int, int>, 2> new_pairs;
+};
+
+static constexpr array<pair<int, int>, 100> BLOCK_DROP_PATH = {{
+    {0, 0}, {0, 1}, {1, 0}, {2, 0}, {1, 1}, {0, 2}, {0, 3}, {1, 2}, {2, 1},
+    {3, 0}, {4, 0}, {3, 1}, {2, 2}, {1, 3}, {0, 4}, {0, 5}, {1, 4}, {2, 3},
+    {3, 2}, {4, 1}, {5, 0}, {6, 0}, {5, 1}, {4, 2}, {3, 3}, {2, 4}, {1, 5},
+    {0, 6}, {0, 7}, {1, 6}, {2, 5}, {3, 4}, {4, 3}, {5, 2}, {6, 1}, {7, 0},
+    {8, 0}, {9, 0}, {9, 1}, {9, 2}, {8, 1}, {7, 1}, {6, 2}, {5, 3}, {4, 4},
+    {3, 5}, {2, 6}, {1, 7}, {0, 8}, {0, 9}, {1, 9}, {1, 8}, {2, 9}, {3, 9},
+    {2, 8}, {2, 7}, {3, 6}, {4, 5}, {5, 4}, {6, 3}, {7, 2}, {8, 2}, {9, 3},
+    {9, 4}, {8, 3}, {7, 3}, {6, 4}, {5, 5}, {4, 6}, {3, 7}, {3, 8}, {4, 9},
+    {5, 9}, {4, 8}, {4, 7}, {5, 6}, {5, 7}, {5, 8}, {6, 9}, {7, 9}, {6, 8},
+    {6, 7}, {7, 8}, {8, 9}, {9, 8}, {9, 7}, {9, 6}, {9, 5}, {8, 4}, {7, 4},
+    {6, 5}, {6, 6}, {7, 5}, {8, 5}, {7, 6}, {8, 6}, {7, 7}, {8, 7}, {8, 8},
+    {9, 9},
+}};
+
 inline int node_size(Node *t) { return t == nullptr ? 0 : t->sz; }
 
 inline long long node_sum_weight(Node *t) {
@@ -167,6 +195,8 @@ struct Solver {
   static constexpr double TIME_LIMIT_MS = 2850.0;
   static constexpr double START_TEMP = 2.0e7;
   static constexpr double END_TEMP = 1.0e4;
+  static constexpr int MAX_REVERSE_LEN = 10;
+  static constexpr int INITIAL_BLOCK_SIZE = 10;
 
   int N;
   int V;
@@ -176,15 +206,18 @@ struct Solver {
   vector<vector<int>> neighbors;
   vector<array<int, 9>> edge_id_dir;
   vector<pair<int, int>> edges;
-  vector<pair<int, int>> moves;
+  vector<Move> moves;
   vector<vector<int>> incident_moves;
   vector<char> edge_used;
   vector<int> active_moves;
   vector<int> active_pos;
-  vector<Node *> node_of;
-  Node *root = nullptr;
+  vector<int> order;
+  vector<int> pos_of;
+  vector<int> path_edge;
+  vector<int> edge_pos;
   long long current_score = 0;
   long long best_score = 0;
+  long long iterations = 0;
   vector<int> best_order;
 
   static constexpr int DR[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
@@ -226,7 +259,7 @@ struct Solver {
     return edge_id_dir[u][dir_code(row_id[v] - row_id[u], col_id[v] - col_id[u])];
   }
 
-  vector<int> build_initial_order() const {
+  vector<int> build_plain_snake_order() const {
     vector<int> order;
     order.reserve(V);
     for (int r = 0; r < N; ++r) {
@@ -237,6 +270,67 @@ struct Solver {
       }
     }
     return order;
+  }
+
+  void append_block_horizontal(vector<int> &initial_order, int base_r,
+                               int base_c, bool mirror_h) const {
+    for (int c = 0; c < INITIAL_BLOCK_SIZE; ++c) {
+      const int cc = mirror_h ? (INITIAL_BLOCK_SIZE - 1 - c) : c;
+      if ((c & 1) == 0) {
+        for (int r = 0; r < INITIAL_BLOCK_SIZE; ++r) {
+          initial_order.push_back(vertex_id(base_r + r, base_c + cc));
+        }
+      } else {
+        for (int r = INITIAL_BLOCK_SIZE - 1; r >= 0; --r) {
+          initial_order.push_back(vertex_id(base_r + r, base_c + cc));
+        }
+      }
+    }
+  }
+
+  void append_block_drop(vector<int> &initial_order, int base_r, int base_c,
+                         bool mirror_h) const {
+    for (auto [r, c] : BLOCK_DROP_PATH) {
+      const int cc = mirror_h ? (INITIAL_BLOCK_SIZE - 1 - c) : c;
+      initial_order.push_back(vertex_id(base_r + r, base_c + cc));
+    }
+  }
+
+  vector<int> build_initial_order() const {
+    if (N < INITIAL_BLOCK_SIZE || N % INITIAL_BLOCK_SIZE != 0) {
+      return build_plain_snake_order();
+    }
+
+    vector<int> initial_order;
+    initial_order.reserve(V);
+    const int block_rows = N / INITIAL_BLOCK_SIZE;
+    const int block_cols = N / INITIAL_BLOCK_SIZE;
+
+    for (int br = 0; br < block_rows; ++br) {
+      const int base_r = br * INITIAL_BLOCK_SIZE;
+      if ((br & 1) == 0) {
+        for (int bc = 0; bc < block_cols; ++bc) {
+          const int base_c = bc * INITIAL_BLOCK_SIZE;
+          const bool is_last = (bc + 1 == block_cols);
+          if (is_last) {
+            append_block_drop(initial_order, base_r, base_c, false);
+          } else {
+            append_block_horizontal(initial_order, base_r, base_c, false);
+          }
+        }
+      } else {
+        for (int bc = block_cols - 1; bc >= 0; --bc) {
+          const int base_c = bc * INITIAL_BLOCK_SIZE;
+          const bool is_last = (bc == 0);
+          if (is_last) {
+            append_block_drop(initial_order, base_r, base_c, true);
+          } else {
+            append_block_horizontal(initial_order, base_r, base_c, true);
+          }
+        }
+      }
+    }
+    return initial_order;
   }
 
   void build_board_graph() {
@@ -269,35 +363,144 @@ struct Solver {
     }
   }
 
-  void build_moves() {
-    incident_moves.assign(edges.size(), {});
-    vector<int> partners;
-    for (int eid = 0; eid < (int)edges.size(); ++eid) {
-      partners.clear();
-      const auto [u, v] = edges[eid];
-      for (int orientation = 0; orientation < 2; ++orientation) {
-        const int a = orientation == 0 ? u : v;
-        const int b = orientation == 0 ? v : u;
-        for (int c : neighbors[a]) {
-          if (c == a || c == b) continue;
-          for (int d : neighbors[b]) {
-            if (d == a || d == b || d == c) continue;
-            const int fid = find_edge_id(c, d);
-            if (fid < 0 || fid == eid) continue;
-            partners.push_back(fid);
+  static pair<int, int> rotate_point(pair<int, int> p, int rot) {
+    int r = p.first;
+    int c = p.second;
+    for (int k = 0; k < rot; ++k) {
+      const int nr = c;
+      const int nc = -r;
+      r = nr;
+      c = nc;
+    }
+    return {r, c};
+  }
+
+  static pair<int, int> transform_point(pair<int, int> p, int rot,
+                                        bool mirror) {
+    auto q = rotate_point(p, rot);
+    if (mirror) q.second = -q.second;
+    return q;
+  }
+
+  static PatternTemplate transform_pattern(const PatternTemplate &base, int rot,
+                                           bool mirror) {
+    PatternTemplate res = base;
+    int min_r = numeric_limits<int>::max();
+    int min_c = numeric_limits<int>::max();
+    for (int i = 0; i < 4; ++i) {
+      res.points[i] = transform_point(base.points[i], rot, mirror);
+      min_r = min(min_r, res.points[i].first);
+      min_c = min(min_c, res.points[i].second);
+    }
+    for (int i = 0; i < 4; ++i) {
+      res.points[i].first -= min_r;
+      res.points[i].second -= min_c;
+    }
+    return res;
+  }
+
+  static string pattern_signature(const PatternTemplate &pattern) {
+    string key;
+    for (int i = 0; i < 4; ++i) {
+      key += to_string(pattern.points[i].first);
+      key += ',';
+      key += to_string(pattern.points[i].second);
+      key += ';';
+    }
+    for (int i = 0; i < 2; ++i) {
+      key += 'o';
+      key += char('0' + pattern.old_pairs[i].first);
+      key += char('0' + pattern.old_pairs[i].second);
+      key += 'n';
+      key += char('0' + pattern.new_pairs[i].first);
+      key += char('0' + pattern.new_pairs[i].second);
+    }
+    return key;
+  }
+
+  void add_move_instance(int old1, int old2, int new1, int new2,
+                         unordered_set<string> &seen_moves) {
+    if (old1 == old2 || new1 == new2) return;
+    if (old1 > old2) swap(old1, old2);
+    if (new1 > new2) swap(new1, new2);
+    const string key = to_string(old1) + ":" + to_string(old2) + "->" +
+        to_string(new1) + ":" + to_string(new2);
+    if (!seen_moves.insert(key).second) return;
+    const int mid = (int)moves.size();
+    moves.push_back({old1, old2, new1, new2});
+    incident_moves[old1].push_back(mid);
+    incident_moves[old2].push_back(mid);
+  }
+
+  void add_pattern_family(const PatternTemplate &base,
+                          unordered_set<string> &seen_patterns,
+                          unordered_set<string> &seen_moves) {
+    for (int rot = 0; rot < 4; ++rot) {
+      for (int mirror = 0; mirror < 2; ++mirror) {
+        const PatternTemplate pattern =
+            transform_pattern(base, rot, mirror != 0);
+        if (!seen_patterns.insert(pattern_signature(pattern)).second) continue;
+
+        int max_r = 0;
+        int max_c = 0;
+        for (const auto &p : pattern.points) {
+          max_r = max(max_r, p.first);
+          max_c = max(max_c, p.second);
+        }
+
+        for (int br = 0; br + max_r < N; ++br) {
+          for (int bc = 0; bc + max_c < N; ++bc) {
+            array<int, 4> vids;
+            for (int i = 0; i < 4; ++i) {
+              vids[i] = vertex_id(br + pattern.points[i].first,
+                                  bc + pattern.points[i].second);
+            }
+
+            array<int, 2> old_edges;
+            array<int, 2> new_edges;
+            bool ok = true;
+            for (int i = 0; i < 2; ++i) {
+              old_edges[i] = find_edge_id(
+                  vids[pattern.old_pairs[i].first],
+                  vids[pattern.old_pairs[i].second]);
+              new_edges[i] = find_edge_id(
+                  vids[pattern.new_pairs[i].first],
+                  vids[pattern.new_pairs[i].second]);
+              if (old_edges[i] < 0 || new_edges[i] < 0) ok = false;
+            }
+            if (!ok) continue;
+
+            add_move_instance(old_edges[0], old_edges[1], new_edges[0],
+                              new_edges[1], seen_moves);
+            add_move_instance(new_edges[0], new_edges[1], old_edges[0],
+                              old_edges[1], seen_moves);
           }
         }
       }
-      sort(partners.begin(), partners.end());
-      partners.erase(unique(partners.begin(), partners.end()), partners.end());
-      for (int fid : partners) {
-        if (eid > fid) continue;
-        const int mid = (int)moves.size();
-        moves.push_back({eid, fid});
-        incident_moves[eid].push_back(mid);
-        incident_moves[fid].push_back(mid);
-      }
     }
+  }
+
+  void build_moves() {
+    incident_moves.assign(edges.size(), {});
+    moves.clear();
+
+    unordered_set<string> seen_patterns;
+    unordered_set<string> seen_moves;
+
+    add_pattern_family(
+        {{{{0, 0}, {0, 1}, {1, 0}, {1, 1}}}, {{{0, 1}, {2, 3}}},
+         {{{0, 3}, {1, 2}}}},
+        seen_patterns, seen_moves);
+
+    add_pattern_family(
+        {{{{0, 0}, {1, 1}, {0, 1}, {1, 2}}}, {{{0, 1}, {2, 3}}},
+         {{{0, 2}, {1, 3}}}},
+        seen_patterns, seen_moves);
+
+    add_pattern_family(
+        {{{{0, 0}, {0, 1}, {0, 2}, {1, 1}}}, {{{0, 1}, {2, 3}}},
+         {{{0, 3}, {1, 2}}}},
+        seen_patterns, seen_moves);
   }
 
   void activate_move(int mid) {
@@ -317,8 +520,10 @@ struct Solver {
   }
 
   void refresh_move(int mid) {
-    const auto [e1, e2] = moves[mid];
-    if (edge_used[e1] && edge_used[e2]) {
+    const Move &move = moves[mid];
+    if (edge_used[move.old1] && edge_used[move.old2] &&
+        abs(edge_pos[move.old1] - edge_pos[move.old2]) > 1 &&
+        abs(edge_pos[move.old1] - edge_pos[move.old2]) <= MAX_REVERSE_LEN) {
       activate_move(mid);
     } else {
       deactivate_move(mid);
@@ -329,22 +534,43 @@ struct Solver {
     for (int mid : incident_moves[eid]) refresh_move(mid);
   }
 
-  void build_initial_state(const vector<int> &order) {
-    node_of.assign(V, nullptr);
-    root = nullptr;
+  long long calc_reverse_delta(int l, int r) const {
+    long long delta = 0;
+    for (int offset = 0; l + offset <= r; ++offset) {
+      const int left_pos = l + offset;
+      const int right_pos = r - offset;
+      if (left_pos >= right_pos) break;
+      const int left_vid = order[left_pos];
+      const int right_vid = order[right_pos];
+      delta += 1LL * left_pos * (A[right_vid] - A[left_vid]);
+      delta += 1LL * right_pos * (A[left_vid] - A[right_vid]);
+    }
+    return delta;
+  }
+
+  void apply_reverse_segment(int l, int r) {
+    reverse(order.begin() + l, order.begin() + r + 1);
+    for (int pos = l; pos <= r; ++pos) pos_of[order[pos]] = pos;
+  }
+
+  void build_initial_state(const vector<int> &initial_order) {
+    order = initial_order;
+    pos_of.assign(V, -1);
     current_score = 0;
     for (int pos = 0; pos < V; ++pos) {
-      const int vid = order[pos];
+      const int vid = initial_order[pos];
       current_score += 1LL * pos * A[vid];
-      Node *node = new Node(vid, A[vid]);
-      node_of[vid] = node;
-      root = merge(root, node);
+      pos_of[vid] = pos;
     }
 
     edge_used.assign(edges.size(), false);
+    edge_pos.assign(edges.size(), -1);
+    path_edge.assign(V - 1, -1);
     for (int i = 0; i + 1 < V; ++i) {
-      const int eid = find_edge_id(order[i], order[i + 1]);
+      const int eid = find_edge_id(initial_order[i], initial_order[i + 1]);
+      path_edge[i] = eid;
       edge_used[eid] = true;
+      edge_pos[eid] = i;
     }
 
     active_pos.assign(moves.size(), -1);
@@ -352,7 +578,11 @@ struct Solver {
     for (int mid = 0; mid < (int)moves.size(); ++mid) refresh_move(mid);
 
     best_score = current_score;
-    best_order = order;
+    best_order = this->order;
+  }
+
+  long long display_score(long long objective) const {
+    return (objective + V / 2) / V;
   }
 
   double temperature() const {
@@ -367,14 +597,16 @@ struct Solver {
   }
 
   bool apply_move(int mid) {
-    const auto [e1, e2] = moves[mid];
+    const Move &move = moves[mid];
+    const int e1 = move.old1;
+    const int e2 = move.old2;
     const auto [u1, v1] = edges[e1];
     const auto [u2, v2] = edges[e2];
 
-    int pu1 = index_of(node_of[u1]);
-    int pv1 = index_of(node_of[v1]);
-    int pu2 = index_of(node_of[u2]);
-    int pv2 = index_of(node_of[v2]);
+    const int pu1 = pos_of[u1];
+    const int pv1 = pos_of[v1];
+    const int pu2 = pos_of[u2];
+    const int pv2 = pos_of[v2];
 
     if (abs(pu1 - pv1) != 1 || abs(pu2 - pv2) != 1) return false;
 
@@ -392,50 +624,59 @@ struct Solver {
     }
 
     if (j <= i + 1) return false;
+    if (j - i > MAX_REVERSE_LEN) return false;
     if (!is_adjacent(a, c) || !is_adjacent(b, d)) return false;
 
     const int new_e1 = find_edge_id(a, c);
     const int new_e2 = find_edge_id(b, d);
     if (new_e1 < 0 || new_e2 < 0) return false;
 
-    Node *left = nullptr;
-    Node *mid_seg = nullptr;
-    Node *right = nullptr;
-    Node *rest = nullptr;
-    split(root, i + 1, left, rest);
-    split(rest, j - i, mid_seg, right);
+    int actual1 = new_e1;
+    int actual2 = new_e2;
+    if (actual1 > actual2) swap(actual1, actual2);
+    int target1 = move.new1;
+    int target2 = move.new2;
+    if (target1 > target2) swap(target1, target2);
+    if (actual1 != target1 || actual2 != target2) return false;
 
-    const long long delta = 1LL * (node_size(mid_seg) - 1) *
-            node_sum_weight(mid_seg) -
-        2LL * node_sum_index_weight(mid_seg);
+    const int l = i + 1;
+    const int r = j;
+    const long long delta = calc_reverse_delta(l, r);
     const double temp = temperature();
-    if (!accept(delta, temp)) {
-      root = merge(left, mid_seg);
-      root = merge(root, right);
-      return false;
-    }
+    if (!accept(delta, temp)) return false;
 
-    toggle_reverse(mid_seg);
-    root = merge(left, mid_seg);
-    root = merge(root, right);
+    vector<int> affected_edges;
+    affected_edges.reserve(2 * MAX_REVERSE_LEN + 8);
+    for (int pos = i; pos <= j; ++pos) affected_edges.push_back(path_edge[pos]);
+
+    apply_reverse_segment(l, r);
     current_score += delta;
 
-    vector<int> changed = {e1, e2, new_e1, new_e2};
-    sort(changed.begin(), changed.end());
-    changed.erase(unique(changed.begin(), changed.end()), changed.end());
+    for (int pos = i; pos <= j; ++pos) {
+      path_edge[pos] = find_edge_id(order[pos], order[pos + 1]);
+      affected_edges.push_back(path_edge[pos]);
+    }
 
-    for (int eid : changed) {
-      const bool should_use = (eid == new_e1 || eid == new_e2);
-      if (edge_used[eid] == should_use) continue;
-      edge_used[eid] = should_use;
+    sort(affected_edges.begin(), affected_edges.end());
+    affected_edges.erase(unique(affected_edges.begin(), affected_edges.end()),
+                         affected_edges.end());
+
+    for (int eid : affected_edges) {
+      edge_used[eid] = false;
+      edge_pos[eid] = -1;
+    }
+    for (int pos = i; pos <= j; ++pos) {
+      const int eid = path_edge[pos];
+      edge_used[eid] = true;
+      edge_pos[eid] = pos;
+    }
+    for (int eid : affected_edges) {
       refresh_incident(eid);
     }
 
     if (current_score > best_score) {
       best_score = current_score;
-      best_order.clear();
-      best_order.reserve(V);
-      collect_order(root, best_order);
+      best_order = order;
     }
     return true;
   }
@@ -446,9 +687,13 @@ struct Solver {
     build_initial_state(build_initial_order());
 
     while (utility::timer.elapsed_ms() < TIME_LIMIT_MS && !active_moves.empty()) {
+      ++iterations;
       const int mid = active_moves[rand_int() % active_moves.size()];
       apply_move(mid);
     }
+    cerr << "iterations: " << iterations << '\n';
+    cerr << "best score: " << display_score(best_score) << '\n';
+    cerr << "best objective: " << best_score << '\n';
   }
 
   void output() const {

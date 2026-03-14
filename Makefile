@@ -1,6 +1,6 @@
 # コンパイラとオプションの設定
 CXX = g++
-CXXFLAGS = -Wshadow -std=c++2a
+CXXFLAGS = -Wshadow -std=c++2a -O2 -DNDEBUG
 
 # ターゲットとソースファイルの設定
 TARGET = main
