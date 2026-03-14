@@ -202,9 +202,9 @@ struct Solver {
     }
   };
 
-  static constexpr double TIME_LIMIT_MS = 2850.0;
-  static constexpr double START_TEMP = 3.0e8;
-  static constexpr double END_TEMP = 3.0e6;
+  static constexpr double TIME_LIMIT_MS = 2950.0;
+  static constexpr double START_TEMP = 2.0e8;
+  static constexpr double END_TEMP = 1.0e8;
 
   int N = 0;
   int V = 0;
@@ -224,6 +224,7 @@ struct Solver {
 
   vector<Node *> node_of;
   Node *root = nullptr;
+  vector<int> vtx_pos;  // vtx_pos[v] = position of vertex v in the path
 
   long long current_objective = 0;
   long long best_objective = LLONG_MIN;
@@ -614,10 +615,12 @@ struct Solver {
     node_of.assign(V, nullptr);
     root = nullptr;
     current_objective = 0;
+    vtx_pos.assign(V, 0);
 
-    for (int pos = 0; pos < V; ++pos) {
-      const int v = order[pos];
-      current_objective += 1LL * pos * A[v];
+    for (int p = 0; p < V; ++p) {
+      const int v = order[p];
+      current_objective += 1LL * p * A[v];
+      vtx_pos[v] = p;
       Node *node = new Node(v, A[v]);
       node_of[v] = node;
       root = merge(root, node);
@@ -650,15 +653,26 @@ struct Solver {
     return exp((double)delta / temp) > rand_double();
   }
 
+  void update_pos_segment(Node *seg_root, int offset) {
+    // Traverse the segment subtree and update vtx_pos with correct global positions
+    if (seg_root == nullptr)
+      return;
+    push(seg_root);
+    update_pos_segment(seg_root->l, offset);
+    const int local_idx = node_size(seg_root->l);
+    vtx_pos[seg_root->vid] = offset + local_idx;
+    update_pos_segment(seg_root->r, offset + local_idx + 1);
+  }
+
   bool apply_move(int mid, double temp) {
     const Move &move = moves[mid];
     const auto [u1, v1] = edges[move.old1];
     const auto [u2, v2] = edges[move.old2];
 
-    int pu1 = index_of(node_of[u1]);
-    int pv1 = index_of(node_of[v1]);
-    int pu2 = index_of(node_of[u2]);
-    int pv2 = index_of(node_of[v2]);
+    int pu1 = vtx_pos[u1];
+    int pv1 = vtx_pos[v1];
+    int pu2 = vtx_pos[u2];
+    int pv2 = vtx_pos[v2];
 
     if (abs(pu1 - pv1) != 1 || abs(pu2 - pv2) != 1)
       return false;
@@ -714,16 +728,18 @@ struct Solver {
     }
 
     toggle_reverse(mid_seg);
+    // Update vtx_pos for the reversed segment while mid_seg is still isolated
+    update_pos_segment(mid_seg, i + 1);
     root = merge(left, mid_seg);
     root = merge(root, right);
     current_objective += delta;
 
     const int changed[4] = {move.old1, move.old2, new_e1, new_e2};
-    for (int i = 0; i < 4; ++i) {
-      const int eid = changed[i];
+    for (int ii = 0; ii < 4; ++ii) {
+      const int eid = changed[ii];
       bool duplicated = false;
-      for (int j = 0; j < i; ++j) {
-        if (changed[j] == eid) {
+      for (int jj = 0; jj < ii; ++jj) {
+        if (changed[jj] == eid) {
           duplicated = true;
           break;
         }
