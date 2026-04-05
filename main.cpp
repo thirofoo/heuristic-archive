@@ -440,6 +440,94 @@ struct Solver {
         return path;
     }
 
+    vector<int> findPenalizedPathToTarget(const SnakeState& st, int targetColor, int foodPenalty) const {
+        if (st.body.empty()) {
+            return {};
+        }
+
+        const int n = st.N;
+        const int INF = 1e9;
+        vector<vector<int>> release(n, vector<int>(n, 0));
+        int k = (int)st.body.size();
+        for (int i = 1; i < k; ++i) {
+            auto [r, c] = st.body[i];
+            release[r][c] = max(release[r][c], k - i);
+        }
+
+        vector<vector<int>> dist(n, vector<int>(n, INF));
+        vector<vector<pair<int, int>>> parent(n, vector<pair<int, int>>(n, {-1, -1}));
+        vector<vector<int>> pdir(n, vector<int>(n, -1));
+
+        auto [hr, hc] = st.body.front();
+        pair<int, int> neck = {-1, -1};
+        if (st.body.size() >= 2) {
+            neck = st.body[1];
+        }
+
+        using Node = tuple<int, int, int>;
+        priority_queue<Node, vector<Node>, greater<Node>> pq;
+        dist[hr][hc] = 0;
+        pq.push({0, hr, hc});
+
+        pair<int, int> goal = {-1, -1};
+        while (!pq.empty()) {
+            auto [t, r, c] = pq.top();
+            pq.pop();
+            if (t != dist[r][c]) {
+                continue;
+            }
+            if (!(r == hr && c == hc) && st.grid[r][c] == targetColor) {
+                goal = {r, c};
+                break;
+            }
+
+            for (int d = 0; d < 4; ++d) {
+                int nr = r + DR[d];
+                int nc = c + DC[d];
+                if (!st.inBounds(nr, nc)) {
+                    continue;
+                }
+                if (r == hr && c == hc && make_pair(nr, nc) == neck) {
+                    continue;
+                }
+
+                int nt = t + 1;
+                if (nt < release[nr][nc]) {
+                    continue;
+                }
+
+                int food = st.grid[nr][nc];
+                int ncost = nt;
+                if (food != 0 && food != targetColor) {
+                    ncost += foodPenalty;
+                }
+
+                if (ncost < dist[nr][nc]) {
+                    dist[nr][nc] = ncost;
+                    parent[nr][nc] = {r, c};
+                    pdir[nr][nc] = d;
+                    pq.push({ncost, nr, nc});
+                }
+            }
+        }
+
+        if (goal.first == -1) {
+            return {};
+        }
+
+        vector<int> path;
+        int cr = goal.first;
+        int cc = goal.second;
+        while (!(cr == hr && cc == hc)) {
+            path.push_back(pdir[cr][cc]);
+            auto [pr, pc] = parent[cr][cc];
+            cr = pr;
+            cc = pc;
+        }
+        reverse(path.begin(), path.end());
+        return path;
+    }
+
     vector<int> bfsToTargetColor(
         const SnakeState& st,
         int targetColor,
@@ -1046,6 +1134,7 @@ struct Solver {
             int remaining = M - p;
             bool nearFinish = remaining <= 2;
 
+            // Strategy 1: Direct strict path (dynamic release, avoid non-target food)
             auto direct = findDynamicStrictPathToTarget(state, targetColor);
             if (!direct.empty()) {
                 if (!executeDir(direct.front())) {
@@ -1054,15 +1143,17 @@ struct Solver {
                 continue;
             }
 
+            // Strategy 2: Tail path (with stagnation gate to avoid infinite tail-chasing)
             auto tailPath = findDynamicStrictPathToTail(state, targetColor);
-            if (!tailPath.empty() && (nearFinish || stagnation < 80)) {
+            if (!tailPath.empty() && (nearFinish || stagnation < 60)) {
                 if (!executeDir(tailPath.front())) {
                     break;
                 }
                 continue;
             }
 
-            if (wanderBudget == 0 && stagnation >= 12) {
+            // Strategy 3: Wander to reposition
+            if (wanderBudget == 0 && stagnation >= 10) {
                 wanderBudget = 5;
             }
             if (wanderBudget > 0) {
@@ -1081,7 +1172,8 @@ struct Solver {
                 continue;
             }
 
-            int cutThreshold = nearFinish ? 180 : 70;
+            // Strategy 4: Cut (threshold reduced from 70 to 30)
+            int cutThreshold = nearFinish ? 120 : 30;
             if (stagnation >= cutThreshold) {
                 auto cutOpt = chooseBestCutCandidate(state, p, targetColor);
                 if (cutOpt.has_value()) {
@@ -1103,6 +1195,18 @@ struct Solver {
                 }
             }
 
+            // Strategy 5: Penalized path (allow non-target food with penalty, very high stagnation)
+            if (stagnation >= 80) {
+                auto penalized = findPenalizedPathToTarget(state, targetColor, N * 3);
+                if (!penalized.empty()) {
+                    if (!executeDir(penalized.front())) {
+                        break;
+                    }
+                    continue;
+                }
+            }
+
+            // Strategy 6: Explore
             int fallback = pickExploreMove(targetColor, p, true);
             if (fallback == -1) {
                 auto dirs = state.legalDirs();
@@ -1251,7 +1355,7 @@ struct Solver {
         }
 
         uniform_real_distribution<double> urand(0.0, 1.0);
-        if (randomized && urand(rng) < 0.2) {
+        if (randomized && urand(rng) < 0.15) {
             uniform_int_distribution<int> uid(0, (int)dirs.size() - 1);
             return dirs[uid(rng)];
         }
@@ -1285,17 +1389,17 @@ struct Solver {
             } else if (landingFood == targetColor) {
                 s += 8.0;
             } else {
-                s -= 4.0;
+                s -= 8.0;
             }
             if (ret.bite) {
-                s += 1.0;
+                s += 0.5;
             }
             if (pref < baseL) {
                 s -= 2000.0;
             }
             s += mobility * 0.6;
             if (nearTarget != INT_MAX) {
-                s -= nearTarget * 0.2;
+                s -= nearTarget * 0.4;
             }
             if (randomized) {
                 s += urand(rng);

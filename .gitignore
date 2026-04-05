@@ -3,6 +3,7 @@ _in
 _out
 _err
 main
+a.out
 local_visualizer
 venv
 output*
