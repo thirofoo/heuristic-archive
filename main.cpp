@@ -8,11 +8,11 @@ constexpr int DC[4] = {0, 0, -1, 1};
 constexpr char DCHAR[4] = {'U', 'D', 'L', 'R'};
 constexpr int TURN_LIMIT = 100000;
 constexpr int RANDOM_SEARCH_LIMIT = 100000;
-constexpr int BEAM_WIDTH = 100;
-constexpr int WANDER_LEN = 1;
+constexpr int BEAM_WIDTH = 20;
+constexpr int WANDER_LEN = 2;
 constexpr int BEAM_TIME_LIMIT_MS = 1900;
 constexpr int BEAM_PHASE_LIMIT_MS = 1600;
-constexpr int BEAM_CANDIDATE_TOP_K = 3;
+constexpr int BEAM_CANDIDATE_TOP_K = 2;
 
 struct MoveResult {
     bool ok = false;
@@ -258,6 +258,18 @@ struct Solver {
             }
         }
         return best;
+    }
+
+    int remainingFoodCount(const SnakeState& st) const {
+        int cnt = 0;
+        for (int i = 0; i < st.N; ++i) {
+            for (int j = 0; j < st.N; ++j) {
+                if (st.grid[i][j] != 0) {
+                    ++cnt;
+                }
+            }
+        }
+        return cnt;
     }
 
     bool lastTwoSwappedAtPrefix(int p) const {
@@ -1034,6 +1046,10 @@ struct Solver {
         if (p >= M) {
             return {};
         }
+        // When prefix is already broken, avoid greedily collecting the same target color.
+        if (p < (int)cur.st.colors.size()) {
+            return {};
+        }
         int targetColor = desired[p];
         auto paths = findDynamicStrictPathsToTarget(cur.st, targetColor, topK);
         if (paths.empty()) {
@@ -1272,6 +1288,7 @@ struct Solver {
             if (p >= M) {
                 break;
             }
+            bool prefixBroken = p < (int)state.colors.size();
 
             if (!recoveryMoves.empty()) {
                 int d = recoveryMoves.front();
@@ -1293,31 +1310,76 @@ struct Solver {
             int targetColor = desired[p];
             int remaining = M - p;
             bool nearFinish = remaining <= 2;
+            bool boardEmpty = remainingFoodCount(state) == 0;
 
-            // Strategy 1: Direct strict path (dynamic release, avoid non-target food)
-            auto direct = findDynamicStrictPathToTarget(state, targetColor);
-            if (!direct.empty()) {
-                if (!executeDir(direct.front())) {
+            // Emergency: if no foods remain on board but sequence is unfinished,
+            // force a bite to recreate foods from the mismatched suffix.
+            if (boardEmpty) {
+                auto cutOpt = chooseBestCutCandidate(state, p, targetColor);
+                if (!cutOpt.has_value()) {
+                    cutOpt = chooseRandomHalfCutCandidate(state, p, targetColor);
+                }
+                if (cutOpt.has_value()) {
+                    bool ok = true;
+                    for (int d : cutOpt->seq) {
+                        if (state.turn >= TURN_LIMIT || chrono::steady_clock::now() >= deadline) {
+                            break;
+                        }
+                        if (!executeDir(d)) {
+                            ok = false;
+                            break;
+                        }
+                    }
+                    if (!ok) {
+                        break;
+                    }
+                    stagnation = 0;
+                    wanderBudget = 0;
+                    continue;
+                }
+
+                // Even if we cannot find a bite sequence now, never freeze.
+                auto dirs = state.legalDirs();
+                if (dirs.empty()) {
+                    break;
+                }
+                if (!executeDir(dirs[0])) {
                     break;
                 }
                 continue;
             }
 
-            // Strategy 2: Tail path (with stagnation gate to avoid infinite tail-chasing)
-            auto tailPath = findDynamicStrictPathToTail(state, targetColor);
-            if (!tailPath.empty() && (nearFinish || stagnation < 60)) {
-                if (!executeDir(tailPath.front())) {
-                    break;
+            if (!prefixBroken) {
+                // Strategy 1: Direct strict path (dynamic release, avoid non-target food)
+                auto direct = findDynamicStrictPathToTarget(state, targetColor);
+                if (!direct.empty()) {
+                    if (!executeDir(direct.front())) {
+                        break;
+                    }
+                    continue;
                 }
-                continue;
+
+                // Strategy 2: Tail path (with stagnation gate to avoid infinite tail-chasing)
+                auto tailPath = findDynamicStrictPathToTail(state, targetColor);
+                if (!tailPath.empty() && (nearFinish || stagnation < 60)) {
+                    if (!executeDir(tailPath.front())) {
+                        break;
+                    }
+                    continue;
+                }
             }
 
             // Strategy 3: Wander to reposition
-            if (wanderBudget == 0 && stagnation >= 10) {
+            if (wanderBudget == 0 && (stagnation >= 10 || prefixBroken)) {
                 wanderBudget = 5;
             }
             if (wanderBudget > 0) {
-                int d = pickWanderMove(targetColor, p);
+                int d = -1;
+                if (prefixBroken) {
+                    d = pickExploreMove(targetColor, p, true, false);
+                } else {
+                    d = pickWanderMove(targetColor, p);
+                }
                 if (d == -1) {
                     auto dirs = state.legalDirs();
                     if (dirs.empty()) {
@@ -1334,6 +1396,9 @@ struct Solver {
 
             // Strategy 4: Cut (threshold reduced from 70 to 30)
             int cutThreshold = nearFinish ? 120 : 30;
+            if (prefixBroken) {
+                cutThreshold = min(cutThreshold, 18);
+            }
             if (stagnation >= cutThreshold) {
                 auto cutOpt = chooseBestCutCandidate(state, p, targetColor);
                 if (cutOpt.has_value()) {
@@ -1356,7 +1421,7 @@ struct Solver {
             }
 
             // Strategy 5: Penalized path (allow non-target food with penalty, very high stagnation)
-            if (stagnation >= 80) {
+            if (!prefixBroken && stagnation >= 80) {
                 auto penalized = findPenalizedPathToTarget(state, targetColor, N * 3);
                 if (!penalized.empty()) {
                     if (!executeDir(penalized.front())) {
@@ -1367,7 +1432,7 @@ struct Solver {
             }
 
             // Strategy 6: Explore
-            int fallback = pickExploreMove(targetColor, p, true);
+            int fallback = pickExploreMove(targetColor, p, true, !prefixBroken);
             if (fallback == -1) {
                 auto dirs = state.legalDirs();
                 if (dirs.empty()) {
@@ -1521,7 +1586,7 @@ struct Solver {
         return best;
     }
 
-    int pickExploreMove(int targetColor, int baseL, bool randomized) {
+    int pickExploreMove(int targetColor, int baseL, bool randomized, bool preferTargetColor = true) {
         auto dirs = state.legalDirs();
         if (dirs.empty()) {
             return -1;
@@ -1557,12 +1622,21 @@ struct Solver {
             int mobility = (int)nxt.legalDirs().size();
 
             double s = 0.0;
-            if (landingFood == 0) {
-                s += 2.5;
-            } else if (landingFood == targetColor) {
-                s += 8.0;
+            if (preferTargetColor) {
+                if (landingFood == 0) {
+                    s += 2.5;
+                } else if (landingFood == targetColor) {
+                    s += 8.0;
+                } else {
+                    s -= 8.0;
+                }
             } else {
-                s -= 8.0;
+                // Prefix-broken mode: any color is acceptable; prioritize exploration over color fixation.
+                if (landingFood == 0) {
+                    s += 2.0;
+                } else {
+                    s += 1.5;
+                }
             }
             if (ret.bite) {
                 s += 0.5;
@@ -1571,7 +1645,7 @@ struct Solver {
                 s -= 2000.0;
             }
             s += mobility * 0.6;
-            if (nearTarget != INT_MAX) {
+            if (preferTargetColor && nearTarget != INT_MAX) {
                 s -= nearTarget * 0.4;
             }
             if (randomized) {
