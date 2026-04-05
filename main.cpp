@@ -8,6 +8,10 @@ constexpr int DC[4] = {0, 0, -1, 1};
 constexpr char DCHAR[4] = {'U', 'D', 'L', 'R'};
 constexpr int TURN_LIMIT = 100000;
 constexpr int RANDOM_SEARCH_LIMIT = 100000;
+constexpr int BEAM_WIDTH = 100;
+constexpr int WANDER_LEN = 5;
+constexpr int BEAM_TIME_LIMIT_MS = 1900;
+constexpr int BEAM_PHASE_LIMIT_MS = 1600;
 
 struct MoveResult {
     bool ok = false;
@@ -130,6 +134,13 @@ struct Solver {
     int recoveryTargetPrefix = 0;
     vector<vector<int>> visitCount;
     int wanderBudget = 0;
+
+    struct BeamNode {
+        SnakeState st;
+        vector<int> path;
+        int maxPrefix = 0;
+        long long eval = (long long)4e18;
+    };
 
     Solver() {
         uint64_t seed = (uint64_t)chrono::steady_clock::now().time_since_epoch().count();
@@ -723,6 +734,516 @@ struct Solver {
         return cands[idxs[uid(rng)]];
     }
 
+    long long evaluateBeamState(const SnakeState& st, int maxPrefix) const {
+        int k = (int)st.body.size();
+        int pref = min(maxPrefix, k);
+        int E = k - pref;
+        return st.turn + 10000LL * (E + 2LL * (M - k));
+    }
+
+    uint64_t beamStateKey(const SnakeState& st, int maxPrefix) const {
+        uint64_t h = 1469598103934665603ULL;
+        auto mix = [&](uint64_t x) {
+            h ^= x + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
+        };
+        mix((uint64_t)st.turn);
+        mix((uint64_t)st.body.size());
+        mix((uint64_t)min(maxPrefix, M));
+        for (int i = 0; i < st.N; ++i) {
+            for (int j = 0; j < st.N; ++j) {
+                mix((uint64_t)st.grid[i][j] + 1ULL);
+            }
+        }
+        int k = (int)st.body.size();
+        for (int i = 0; i < k; ++i) {
+            auto [r, c] = st.body[i];
+            mix((uint64_t)(r * st.N + c + 1));
+            mix((uint64_t)st.colors[i] + 1ULL);
+        }
+        return h;
+    }
+
+    bool betterBeamNode(const BeamNode& a, const BeamNode& b) const {
+        if (a.eval != b.eval) {
+            return a.eval < b.eval;
+        }
+        if (a.maxPrefix != b.maxPrefix) {
+            return a.maxPrefix > b.maxPrefix;
+        }
+        return a.st.turn < b.st.turn;
+    }
+
+    int pickWanderStepForState(const SnakeState& st, int targetColor, int baseL) {
+        auto dirs = st.legalDirs();
+        if (dirs.empty()) {
+            return -1;
+        }
+
+        uniform_real_distribution<double> urand(0.0, 1.0);
+        struct ScoredMove {
+            double score;
+            int dir;
+        };
+        vector<ScoredMove> scored;
+        scored.reserve(dirs.size());
+
+        for (int d : dirs) {
+            auto [hr, hc] = st.body.front();
+            int nr = hr + DR[d];
+            int nc = hc + DC[d];
+            SnakeState nxt = st;
+            MoveResult ret = nxt.apply(d);
+            if (!ret.ok) {
+                continue;
+            }
+
+            int pref = nxt.prefixLen(desired);
+            int nearTarget = manhattanToNearestTarget(nxt, targetColor);
+            int food = st.grid[nr][nc];
+
+            double s = 0.0;
+            s += urand(rng) * 5.0;
+            s += urand(rng) * 5.0;
+            s += (food == 0 ? 1.0 : 2.0);
+            s += (int)nxt.legalDirs().size() * 0.5;
+            if (food == targetColor) {
+                s += 3.0;
+            }
+            if (ret.bite) {
+                s -= 5.0;
+            }
+            if (pref < baseL) {
+                s -= 8.0;
+            }
+            if (nearTarget != INT_MAX) {
+                s -= nearTarget * 0.05;
+            }
+            scored.push_back({s, d});
+        }
+
+        if (scored.empty()) {
+            return dirs[0];
+        }
+        sort(scored.begin(), scored.end(), [](const ScoredMove& a, const ScoredMove& b) {
+            return a.score > b.score;
+        });
+        int topK = min(3, (int)scored.size());
+        uniform_int_distribution<int> uid(0, topK - 1);
+        return scored[uid(rng)].dir;
+    }
+
+    optional<BeamNode> transitionGoTarget(
+        const BeamNode& cur,
+        chrono::steady_clock::time_point deadline
+    ) {
+        if (chrono::steady_clock::now() >= deadline) {
+            return nullopt;
+        }
+        int p = cur.st.prefixLen(desired);
+        if (p >= M) {
+            return nullopt;
+        }
+        int targetColor = desired[p];
+        auto path = findDynamicStrictPathToTarget(cur.st, targetColor);
+        if (path.empty()) {
+            return nullopt;
+        }
+
+        BeamNode nxt;
+        nxt.st = cur.st;
+        nxt.path = cur.path;
+        nxt.path.reserve(cur.path.size() + path.size());
+
+        for (int d : path) {
+            if (chrono::steady_clock::now() >= deadline) {
+                return nullopt;
+            }
+            if (nxt.st.turn >= TURN_LIMIT) {
+                break;
+            }
+            MoveResult ret = nxt.st.apply(d);
+            if (!ret.ok) {
+                return nullopt;
+            }
+            nxt.path.push_back(d);
+        }
+
+        int newPrefix = nxt.st.prefixLen(desired);
+        nxt.maxPrefix = max(cur.maxPrefix, newPrefix);
+        nxt.eval = evaluateBeamState(nxt.st, nxt.maxPrefix);
+        return nxt;
+    }
+
+    optional<BeamNode> transitionCutRecover(
+        const BeamNode& cur,
+        chrono::steady_clock::time_point deadline
+    ) {
+        if (chrono::steady_clock::now() >= deadline) {
+            return nullopt;
+        }
+        int p = cur.st.prefixLen(desired);
+        if (p >= M) {
+            return nullopt;
+        }
+        int targetColor = desired[p];
+        auto cutOpt = chooseBestCutCandidate(cur.st, p, targetColor);
+        if (!cutOpt.has_value()) {
+            cutOpt = chooseRandomHalfCutCandidate(cur.st, p, targetColor);
+        }
+        if (!cutOpt.has_value()) {
+            return nullopt;
+        }
+
+        BeamNode nxt;
+        nxt.st = cur.st;
+        nxt.path = cur.path;
+
+        bool bitten = false;
+        for (int d : cutOpt->seq) {
+            if (chrono::steady_clock::now() >= deadline) {
+                return nullopt;
+            }
+            if (nxt.st.turn >= TURN_LIMIT) {
+                break;
+            }
+            SnakeState beforeStep = nxt.st;
+            int prefixBeforeStep = beforeStep.prefixLen(desired);
+            MoveResult ret = nxt.st.apply(d);
+            if (!ret.ok) {
+                return nullopt;
+            }
+            nxt.path.push_back(d);
+            if (ret.bite) {
+                bitten = true;
+                auto recovery = buildRecoveryPathByOldBody(beforeStep, nxt.st, prefixBeforeStep);
+                for (int rd : recovery) {
+                    if (chrono::steady_clock::now() >= deadline) {
+                        return nullopt;
+                    }
+                    if (nxt.st.turn >= TURN_LIMIT) {
+                        break;
+                    }
+                    MoveResult rr = nxt.st.apply(rd);
+                    if (!rr.ok) {
+                        return nullopt;
+                    }
+                    nxt.path.push_back(rd);
+                }
+                break;
+            }
+        }
+        if (!bitten) {
+            return nullopt;
+        }
+
+        int newPrefix = nxt.st.prefixLen(desired);
+        nxt.maxPrefix = max(cur.maxPrefix, newPrefix);
+        nxt.eval = evaluateBeamState(nxt.st, nxt.maxPrefix);
+        return nxt;
+    }
+
+    optional<BeamNode> transitionWander(
+        const BeamNode& cur,
+        chrono::steady_clock::time_point deadline
+    ) {
+        if (chrono::steady_clock::now() >= deadline) {
+            return nullopt;
+        }
+        int p = cur.st.prefixLen(desired);
+        if (p >= M) {
+            return nullopt;
+        }
+        int targetColor = desired[p];
+
+        BeamNode nxt;
+        nxt.st = cur.st;
+        nxt.path = cur.path;
+
+        int moved = 0;
+        for (int t = 0; t < WANDER_LEN; ++t) {
+            if (chrono::steady_clock::now() >= deadline) {
+                break;
+            }
+            if (nxt.st.turn >= TURN_LIMIT) {
+                break;
+            }
+            int d = pickWanderStepForState(nxt.st, targetColor, p);
+            if (d == -1) {
+                break;
+            }
+            MoveResult ret = nxt.st.apply(d);
+            if (!ret.ok) {
+                break;
+            }
+            nxt.path.push_back(d);
+            ++moved;
+            if (nxt.st.prefixLen(desired) >= M) {
+                break;
+            }
+        }
+        if (moved == 0) {
+            return nullopt;
+        }
+
+        int newPrefix = nxt.st.prefixLen(desired);
+        nxt.maxPrefix = max(cur.maxPrefix, newPrefix);
+        nxt.eval = evaluateBeamState(nxt.st, nxt.maxPrefix);
+        return nxt;
+    }
+
+    bool isDoneNode(const BeamNode& node) const {
+        return node.st.prefixLen(desired) >= M;
+    }
+
+    bool betterFinalNode(const BeamNode& a, const BeamNode& b) const {
+        bool ad = isDoneNode(a);
+        bool bd = isDoneNode(b);
+        if (ad != bd) {
+            return ad;
+        }
+        return betterBeamNode(a, b);
+    }
+
+    BeamNode runLegacyFallbackPolicy(const SnakeState& initial, chrono::steady_clock::time_point deadline) {
+        state = initial;
+        moves.clear();
+        recoveryMoves.clear();
+        recoveryTargetPrefix = 0;
+        visitCount.assign(N, vector<int>(N, 0));
+        if (!state.body.empty()) {
+            auto [sr, sc] = state.body.front();
+            visitCount[sr][sc] = 1;
+        }
+        wanderBudget = 0;
+
+        int bestPrefix = state.prefixLen(desired);
+        int stagnation = 0;
+
+        while (state.turn < TURN_LIMIT && chrono::steady_clock::now() < deadline) {
+            int p = state.prefixLen(desired);
+            if (p >= M) {
+                break;
+            }
+
+            if (!recoveryMoves.empty()) {
+                int d = recoveryMoves.front();
+                recoveryMoves.pop_front();
+                if (!executeDir(d)) {
+                    recoveryMoves.clear();
+                }
+                continue;
+            }
+
+            if (p > bestPrefix) {
+                bestPrefix = p;
+                stagnation = 0;
+                wanderBudget = 0;
+            } else {
+                ++stagnation;
+            }
+
+            int targetColor = desired[p];
+            int remaining = M - p;
+            bool nearFinish = remaining <= 2;
+
+            auto direct = findDynamicStrictPathToTarget(state, targetColor);
+            if (!direct.empty()) {
+                if (!executeDir(direct.front())) {
+                    break;
+                }
+                continue;
+            }
+
+            auto tailPath = findDynamicStrictPathToTail(state, targetColor);
+            if (!tailPath.empty() && (nearFinish || stagnation < 80)) {
+                if (!executeDir(tailPath.front())) {
+                    break;
+                }
+                continue;
+            }
+
+            if (wanderBudget == 0 && stagnation >= 12) {
+                wanderBudget = 5;
+            }
+            if (wanderBudget > 0) {
+                int d = pickWanderMove(targetColor, p);
+                if (d == -1) {
+                    auto dirs = state.legalDirs();
+                    if (dirs.empty()) {
+                        break;
+                    }
+                    d = dirs[0];
+                }
+                if (!executeDir(d)) {
+                    break;
+                }
+                --wanderBudget;
+                continue;
+            }
+
+            int cutThreshold = nearFinish ? 180 : 70;
+            if (stagnation >= cutThreshold) {
+                auto cutOpt = chooseBestCutCandidate(state, p, targetColor);
+                if (cutOpt.has_value()) {
+                    bool ok = true;
+                    for (int d : cutOpt->seq) {
+                        if (state.turn >= TURN_LIMIT || chrono::steady_clock::now() >= deadline) {
+                            break;
+                        }
+                        if (!executeDir(d)) {
+                            ok = false;
+                            break;
+                        }
+                    }
+                    if (!ok) {
+                        break;
+                    }
+                    stagnation = max(0, stagnation - 15);
+                    continue;
+                }
+            }
+
+            int fallback = pickExploreMove(targetColor, p, true);
+            if (fallback == -1) {
+                auto dirs = state.legalDirs();
+                if (dirs.empty()) {
+                    break;
+                }
+                fallback = dirs[0];
+            }
+            if (!executeDir(fallback)) {
+                auto dirs = state.legalDirs();
+                if (dirs.empty()) {
+                    break;
+                }
+                if (!executeDir(dirs[0])) {
+                    break;
+                }
+            }
+        }
+
+        BeamNode out;
+        out.st = state;
+        out.maxPrefix = max(bestPrefix, out.st.prefixLen(desired));
+        out.eval = evaluateBeamState(out.st, out.maxPrefix);
+        out.path.reserve(moves.size());
+        for (char c : moves) {
+            if (c == 'U') {
+                out.path.push_back(0);
+            } else if (c == 'D') {
+                out.path.push_back(1);
+            } else if (c == 'L') {
+                out.path.push_back(2);
+            } else if (c == 'R') {
+                out.path.push_back(3);
+            }
+        }
+        return out;
+    }
+
+    optional<BeamNode> runBeamSearch(const SnakeState& initial, chrono::steady_clock::time_point deadline) {
+        BeamNode init;
+        init.st = initial;
+        init.maxPrefix = init.st.prefixLen(desired);
+        init.eval = evaluateBeamState(init.st, init.maxPrefix);
+
+        vector<BeamNode> beam;
+        beam.push_back(move(init));
+
+        bool hasBestDone = false;
+        BeamNode bestDone;
+
+        for (int depth = 0; depth < TURN_LIMIT && !beam.empty(); ++depth) {
+            if (chrono::steady_clock::now() >= deadline) {
+                break;
+            }
+            vector<BeamNode> expanded;
+            expanded.reserve(beam.size() * 3);
+
+            for (const auto& node : beam) {
+                if (chrono::steady_clock::now() >= deadline) {
+                    break;
+                }
+                int p = node.st.prefixLen(desired);
+                if (p >= M) {
+                    if (!hasBestDone || betterBeamNode(node, bestDone)) {
+                        hasBestDone = true;
+                        bestDone = node;
+                    }
+                    continue;
+                }
+
+                auto nxtA = transitionGoTarget(node, deadline);
+                if (nxtA.has_value()) {
+                    expanded.push_back(move(nxtA.value()));
+                }
+
+                if (chrono::steady_clock::now() >= deadline) {
+                    break;
+                }
+                auto nxtB = transitionCutRecover(node, deadline);
+                if (nxtB.has_value()) {
+                    expanded.push_back(move(nxtB.value()));
+                }
+
+                if (chrono::steady_clock::now() >= deadline) {
+                    break;
+                }
+                auto nxtC = transitionWander(node, deadline);
+                if (nxtC.has_value()) {
+                    expanded.push_back(move(nxtC.value()));
+                }
+            }
+
+            if (hasBestDone) {
+                break;
+            }
+            if (expanded.empty()) {
+                break;
+            }
+
+            unordered_map<uint64_t, int> bestByKey;
+            vector<BeamNode> uniq;
+            uniq.reserve(expanded.size());
+
+            for (auto& cand : expanded) {
+                uint64_t key = beamStateKey(cand.st, cand.maxPrefix);
+                auto it = bestByKey.find(key);
+                if (it == bestByKey.end()) {
+                    bestByKey[key] = (int)uniq.size();
+                    uniq.push_back(move(cand));
+                } else {
+                    int idx = it->second;
+                    if (betterBeamNode(cand, uniq[idx])) {
+                        uniq[idx] = move(cand);
+                    }
+                }
+            }
+
+            sort(uniq.begin(), uniq.end(), [&](const BeamNode& a, const BeamNode& b) {
+                return betterBeamNode(a, b);
+            });
+            if ((int)uniq.size() > BEAM_WIDTH) {
+                uniq.resize(BEAM_WIDTH);
+            }
+            beam = move(uniq);
+        }
+
+        if (hasBestDone) {
+            return bestDone;
+        }
+        if (beam.empty()) {
+            return nullopt;
+        }
+        BeamNode best = beam[0];
+        for (int i = 1; i < (int)beam.size(); ++i) {
+            if (betterBeamNode(beam[i], best)) {
+                best = beam[i];
+            }
+        }
+        return best;
+    }
+
     int pickExploreMove(int targetColor, int baseL, bool randomized) {
         auto dirs = state.legalDirs();
         if (dirs.empty()) {
@@ -918,163 +1439,41 @@ struct Solver {
     }
 
     void solve() {
-        int bestPrefix = state.prefixLen(desired);
-        int stagnation = 0;
+        auto start = chrono::steady_clock::now();
+        auto totalDeadline = start + chrono::milliseconds(BEAM_TIME_LIMIT_MS);
+        auto beamDeadline = min(totalDeadline, start + chrono::milliseconds(BEAM_PHASE_LIMIT_MS));
 
-        while (state.turn < TURN_LIMIT) {
-            int p = state.prefixLen(desired);
-            if (p >= M) {
-                break;
-            }
+        SnakeState initial = state;
+        optional<BeamNode> beamBest = nullopt;
+        if (chrono::steady_clock::now() < beamDeadline) {
+            beamBest = runBeamSearch(initial, beamDeadline);
+        }
 
-            if (!recoveryMoves.empty()) {
-                int d = recoveryMoves.front();
-                recoveryMoves.pop_front();
-                if (!executeDir(d)) {
-                    recoveryMoves.clear();
-                }
-                continue;
-            }
+        BeamNode best;
+        bool hasBest = false;
+        if (beamBest.has_value()) {
+            best = beamBest.value();
+            hasBest = true;
+        }
 
-            if (p > bestPrefix) {
-                bestPrefix = p;
-                stagnation = 0;
-                wanderBudget = 0;
-            } else {
-                ++stagnation;
+        bool beamSolved = beamBest.has_value() && isDoneNode(beamBest.value());
+        if (!beamSolved && chrono::steady_clock::now() < totalDeadline) {
+            BeamNode fallback = runLegacyFallbackPolicy(initial, totalDeadline);
+            if (!hasBest || betterFinalNode(fallback, best)) {
+                best = move(fallback);
+                hasBest = true;
             }
+        }
 
-            int targetColor = desired[p];
-            int remaining = M - p;
-            bool nearFinish = remaining <= 2;
-            bool swappedTailPair = nearFinish && lastTwoSwappedAtPrefix(p);
-            int nearFinishCutThreshold = swappedTailPair ? 8 : 25;
+        if (!hasBest) {
+            best.st = initial;
+            best.maxPrefix = initial.prefixLen(desired);
+            best.eval = evaluateBeamState(best.st, best.maxPrefix);
+        }
 
-            // 1) Reach target color without traversing non-target foods.
-            auto direct = findDynamicStrictPathToTarget(state, targetColor);
-            if (!direct.empty()) {
-                if (!executeDir(direct.front())) {
-                    break;
-                }
-                continue;
-            }
-
-            // 2) In the finishing phase, force self-cut early to break swap deadlocks.
-            if (nearFinish && stagnation >= nearFinishCutThreshold) {
-                auto cutOpt = chooseBestCutCandidate(state, p, targetColor);
-                if (!cutOpt.has_value()) {
-                    cutOpt = chooseRandomHalfCutCandidate(state, p, targetColor);
-                }
-                if (cutOpt.has_value()) {
-                    bool ok = true;
-                    for (int d : cutOpt->seq) {
-                        if (state.turn >= TURN_LIMIT) {
-                            break;
-                        }
-                        if (!executeDir(d)) {
-                            ok = false;
-                            break;
-                        }
-                    }
-                    if (!ok) {
-                        break;
-                    }
-                    stagnation = max(0, stagnation - 20);
-                    continue;
-                }
-            }
-
-            // 3) If direct reach is impossible now, prioritize tail-follow movement.
-            auto tailPath = findDynamicStrictPathToTail(state, targetColor);
-            if (!tailPath.empty() && ((!nearFinish && stagnation < 80) || (nearFinish && stagnation < nearFinishCutThreshold))) {
-                if (!executeDir(tailPath.front())) {
-                    break;
-                }
-                continue;
-            }
-
-            // 4) Wander to change environment and break loops.
-            if (wanderBudget == 0 && stagnation >= 12) {
-                wanderBudget = 5;
-            }
-            if (wanderBudget > 0) {
-                int d = pickWanderMove(targetColor, p);
-                if (d == -1) {
-                    auto dirs = state.legalDirs();
-                    if (dirs.empty()) {
-                        break;
-                    }
-                    d = dirs[0];
-                }
-                if (!executeDir(d)) {
-                    break;
-                }
-                --wanderBudget;
-                continue;
-            }
-
-            // 5) Timed self-cut (1..3 turns) only after enough stagnation.
-            int cutThreshold = nearFinish ? 180 : 70;
-            if (stagnation >= cutThreshold) {
-                auto cutOpt = chooseBestCutCandidate(state, p, targetColor);
-                if (cutOpt.has_value()) {
-                    bool ok = true;
-                    for (int d : cutOpt->seq) {
-                        if (state.turn >= TURN_LIMIT) {
-                            break;
-                        }
-                        if (!executeDir(d)) {
-                            ok = false;
-                            break;
-                        }
-                    }
-                    if (!ok) {
-                        break;
-                    }
-                    stagnation = max(0, stagnation - 15);
-                    continue;
-                }
-            }
-
-            // 6) Randomized exploration (never freeze).
-            if (nearFinish && stagnation > 1500) {
-                auto hardCut = chooseRandomHalfCutCandidate(state, p, targetColor);
-                if (hardCut.has_value()) {
-                    bool ok = true;
-                    for (int d : hardCut->seq) {
-                        if (state.turn >= TURN_LIMIT) {
-                            break;
-                        }
-                        if (!executeDir(d)) {
-                            ok = false;
-                            break;
-                        }
-                    }
-                    if (!ok) {
-                        break;
-                    }
-                    stagnation = max(0, stagnation - 50);
-                    continue;
-                }
-            }
-
-            int fallback = pickExploreMove(targetColor, p, true);
-            if (fallback == -1) {
-                auto dirs = state.legalDirs();
-                if (dirs.empty()) {
-                    break;
-                }
-                fallback = dirs[0];
-            }
-            if (!executeDir(fallback)) {
-                auto dirs = state.legalDirs();
-                if (dirs.empty()) {
-                    break;
-                }
-                if (!executeDir(dirs[0])) {
-                    break;
-                }
-            }
+        moves.clear();
+        for (int d : best.path) {
+            moves.push_back(DCHAR[d]);
         }
     }
 
