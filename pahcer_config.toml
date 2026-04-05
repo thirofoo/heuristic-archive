@@ -19,7 +19,7 @@ out_dir = "./pahcer"
 # Compile the user's program
 [[test.compile_steps]]
 program = "g++"
-args = ["-std=c++20", "-O2", "main.cpp"]
+args = ["-std=c++23", "-O2", "-march=native", "main.cpp"]
 
 # ==============================
 #           TEST STEPS
