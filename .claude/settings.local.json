@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(g++ -O2 -std=c++17 -o main main.cpp)",
+      "Bash(./main)",
+      "Read(//tmp/**)"
+    ]
+  }
+}

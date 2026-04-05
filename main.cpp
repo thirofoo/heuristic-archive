@@ -1,348 +1,1096 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-// Direction: 0=U, 1=D, 2=L, 3=R
-const int DR[] = {-1, 1, 0, 0};
-const int DC[] = {0, 0, -1, 1};
-const char DCHAR[] = "UDLR";
+namespace {
 
-int N, M, C;
-vector<int> desired;
-vector<vector<int>> grid;
+constexpr int DR[4] = {-1, 1, 0, 0};
+constexpr int DC[4] = {0, 0, -1, 1};
+constexpr char DCHAR[4] = {'U', 'D', 'L', 'R'};
+constexpr int TURN_LIMIT = 100000;
+constexpr int RANDOM_SEARCH_LIMIT = 100000;
 
-// Snake state
-// body[0] = head, body[k-1] = tail
-// colors[i] = color at logical position i (head=0, tail=k-1)
-deque<pair<int,int>> body;
-deque<int> colors;
-string moves;
+struct MoveResult {
+    bool ok = false;
+    bool ate = false;
+    bool bite = false;
+    int eatenColor = 0;
+};
 
-bool inBounds(int r, int c) {
-    return 0 <= r && r < N && 0 <= c && c < N;
-}
+struct SnakeState {
+    int N = 0;
+    vector<vector<int>> grid;
+    deque<pair<int, int>> body;   // head=0
+    deque<int> colors;            // logical index colors
+    int turn = 0;
 
-int recomputeProgress() {
-    int lim = min((int)colors.size(), M);
-    int p = 0;
-    while (p < lim && colors[p] == desired[p]) p++;
-    return p;
-}
-
-// Execute one move in direction d, update all state.
-// Returns true iff a bite happened.
-bool doMove(int d) {
-    auto [hr, hc] = body.front();
-    int nr = hr + DR[d], nc = hc + DC[d];
-    moves += DCHAR[d];
-
-    // Step 1: Move
-    body.push_front({nr, nc});
-
-    // Step 2: Eat
-    if (grid[nr][nc] != 0) {
-        colors.push_back(grid[nr][nc]);
-        grid[nr][nc] = 0;
-        return false; // eating and biting cannot coexist in this implementation
+    bool inBounds(int r, int c) const {
+        return 0 <= r && r < N && 0 <= c && c < N;
     }
 
-    // Step 3: Normal movement
-    body.pop_back();
+    int prefixLen(const vector<int>& desired) const {
+        int lim = min((int)colors.size(), (int)desired.size());
+        int p = 0;
+        while (p < lim && colors[p] == desired[p]) {
+            ++p;
+        }
+        return p;
+    }
 
-    // Step 4: Bite check — head collides with body (excluding tail)
-    int k = (int)body.size();
-    for (int h = 1; h <= k - 2; h++) {
-        if (body[0] == body[h]) {
-            // Bite off segments h+1 .. k-1, restore as food
-            while ((int)body.size() > h + 1) {
-                auto [bi, bj] = body.back();
-                grid[bi][bj] = colors.back();
-                body.pop_back();
-                colors.pop_back();
+    vector<int> legalDirs() const {
+        vector<int> dirs;
+        if (body.empty()) {
+            return dirs;
+        }
+        auto [hr, hc] = body.front();
+        pair<int, int> neck = {-1, -1};
+        if (body.size() >= 2) {
+            neck = body[1];
+        }
+        for (int d = 0; d < 4; ++d) {
+            int nr = hr + DR[d];
+            int nc = hc + DC[d];
+            if (!inBounds(nr, nc)) {
+                continue;
             }
-            return true;
+            if (make_pair(nr, nc) == neck) {
+                continue;
+            }
+            dirs.push_back(d);
         }
+        return dirs;
     }
-    return false;
-}
 
-// BFS to an arbitrary target cell.
-// avoidFood: skip cells with food (except target)
-// avoidBody: skip snake body cells
-// allowedBodyTarget: if target itself is a body cell, allow stepping onto that target even when avoidBody=true
-vector<int> findPathCell(pair<int,int> tgt, bool avoidFood, bool avoidBody, bool allowedBodyTarget = false) {
-    auto [tr, tc] = tgt;
-    auto [hr, hc] = body.front();
-    pair<int,int> neck = (body.size() >= 2 ? body[1] : make_pair(-1, -1));
-
-    vector<vector<char>> vis(N, vector<char>(N, 0));
-    vector<vector<pair<int,int>>> par(N, vector<pair<int,int>>(N, {-1, -1}));
-    vector<vector<int>> pdir(N, vector<int>(N, -1));
-    vector<vector<char>> blocked(N, vector<char>(N, 0));
-
-    if (avoidBody) {
-        for (int i = 1; i < (int)body.size(); i++) {
-            auto [r, c] = body[i];
-            blocked[r][c] = 1;
+    MoveResult apply(int d) {
+        MoveResult ret;
+        if (body.empty()) {
+            return ret;
         }
-        if (allowedBodyTarget) blocked[tr][tc] = 0;
-    }
 
-    queue<pair<int,int>> q;
-    q.push({hr, hc});
-    vis[hr][hc] = 1;
+        auto [hr, hc] = body.front();
+        int nr = hr + DR[d];
+        int nc = hc + DC[d];
 
-    while (!q.empty()) {
-        auto [r, c] = q.front();
-        q.pop();
-        if (r == tr && c == tc) break;
-
-        for (int d = 0; d < 4; d++) {
-            int nr = r + DR[d], nc = c + DC[d];
-            if (!inBounds(nr, nc) || vis[nr][nc]) continue;
-
-            // no immediate U-turn from head
-            if (r == hr && c == hc && make_pair(nr, nc) == neck) continue;
-
-            if (avoidBody && blocked[nr][nc]) continue;
-            if (avoidFood && grid[nr][nc] != 0 && make_pair(nr, nc) != tgt) continue;
-
-            vis[nr][nc] = 1;
-            par[nr][nc] = {r, c};
-            pdir[nr][nc] = d;
-            q.push({nr, nc});
+        if (!inBounds(nr, nc)) {
+            return ret;
         }
-    }
-
-    if (!vis[tr][tc]) return {};
-
-    vector<int> path;
-    int cr = tr, cc = tc;
-    while (!(cr == hr && cc == hc)) {
-        path.push_back(pdir[cr][cc]);
-        auto [pr, pc] = par[cr][cc];
-        cr = pr;
-        cc = pc;
-    }
-    reverse(path.begin(), path.end());
-    return path;
-}
-
-// Find all cells containing a color.
-vector<pair<int,int>> findFoodsOfColor(int color) {
-    vector<pair<int,int>> res;
-    for (int i = 0; i < N; i++) {
-        for (int j = 0; j < N; j++) {
-            if (grid[i][j] == color) res.push_back({i, j});
+        if (body.size() >= 2 && make_pair(nr, nc) == body[1]) {
+            return ret;
         }
+
+        body.push_front({nr, nc});
+
+        if (grid[nr][nc] != 0) {
+            ret.ate = true;
+            ret.eatenColor = grid[nr][nc];
+            grid[nr][nc] = 0;
+            colors.push_back(ret.eatenColor);
+        } else {
+            body.pop_back();
+        }
+
+        int k = (int)body.size();
+        for (int h = 1; h <= k - 2; ++h) {
+            if (body[h] == make_pair(nr, nc)) {
+                for (int p = h + 1; p < (int)body.size(); ++p) {
+                    auto [ri, ci] = body[p];
+                    grid[ri][ci] = colors[p];
+                }
+                body.resize(h + 1);
+                colors.resize(h + 1);
+                ret.bite = true;
+                break;
+            }
+        }
+
+        ++turn;
+        ret.ok = true;
+        return ret;
     }
-    return res;
-}
+};
 
-// Greedy direct plan to targetColor.
-// mode 0: avoid food + avoid body
-// mode 1: avoid food + allow body (bite may happen)
-// returns best path/cell under that mode
-pair<pair<int,int>, vector<int>> planToColor(int targetColor, int mode) {
-    auto foods = findFoodsOfColor(targetColor);
-    if (foods.empty()) return {{-1, -1}, {}};
+struct CutCandidate {
+    vector<int> seq;      // 1..3 moves, bite at end
+    SnakeState after;
+    int biteTurn = 0;
+    int prefixAfter = 0;
+    int anchorLen = 0;
+    bool adjacentToPrefix = false;
+    int directPathLen = INT_MAX;  // avoid body, avoid non-target foods
+    int loosePathLen = INT_MAX;   // allow body, avoid non-target foods
+};
 
-    auto [hr, hc] = body.front();
-    pair<int,int> bestCell = {-1, -1};
-    vector<int> bestPath;
-    int bestScore = INT_MAX;
+struct Solver {
+    int N = 0, M = 0, C = 0;
+    vector<int> desired;
 
-    for (auto cell : foods) {
+    SnakeState state;
+    string moves;
+    mt19937 rng;
+    deque<int> recoveryMoves;
+    int recoveryTargetPrefix = 0;
+    vector<vector<int>> visitCount;
+    int wanderBudget = 0;
+
+    Solver() {
+        uint64_t seed = (uint64_t)chrono::steady_clock::now().time_since_epoch().count();
+        seed ^= (uint64_t)(uintptr_t)this;
+        rng.seed((uint32_t)(seed ^ (seed >> 32)));
+    }
+
+    void readInput() {
+        ios::sync_with_stdio(false);
+        cin.tie(nullptr);
+
+        cin >> N >> M >> C;
+        desired.resize(M);
+        for (int i = 0; i < M; ++i) {
+            cin >> desired[i];
+        }
+
+        state.N = N;
+        state.grid.assign(N, vector<int>(N, 0));
+        for (int i = 0; i < N; ++i) {
+            for (int j = 0; j < N; ++j) {
+                cin >> state.grid[i][j];
+            }
+        }
+
+        state.body = {{4, 0}, {3, 0}, {2, 0}, {1, 0}, {0, 0}};
+        state.colors = {1, 1, 1, 1, 1};
+        state.turn = 0;
+        moves.clear();
+        recoveryMoves.clear();
+        recoveryTargetPrefix = 0;
+        visitCount.assign(N, vector<int>(N, 0));
+        auto [sr, sc] = state.body.front();
+        visitCount[sr][sc] = 1;
+        wanderBudget = 0;
+    }
+
+    int dirBetween(pair<int, int> a, pair<int, int> b) const {
+        for (int d = 0; d < 4; ++d) {
+            if (a.first + DR[d] == b.first && a.second + DC[d] == b.second) {
+                return d;
+            }
+        }
+        return -1;
+    }
+
+    vector<int> buildRecoveryPathByOldBody(
+        const SnakeState& beforeBite,
+        const SnakeState& afterBite,
+        int prefixBefore
+    ) const {
+        int lenAfter = (int)afterBite.body.size();
+        if (prefixBefore <= lenAfter) {
+            return {};
+        }
+        if (beforeBite.body.empty() || afterBite.body.empty()) {
+            return {};
+        }
+
+        int startIdx = lenAfter - 1;
+        int endIdx = prefixBefore - 2;
+        if (startIdx < 0 || endIdx < startIdx || endIdx >= (int)beforeBite.body.size()) {
+            return {};
+        }
+
+        vector<int> plan;
+        auto cur = afterBite.body.front();
+        for (int idx = startIdx; idx <= endIdx; ++idx) {
+            auto nxt = beforeBite.body[idx];
+            int d = dirBetween(cur, nxt);
+            if (d < 0) {
+                return {};
+            }
+            plan.push_back(d);
+            cur = nxt;
+        }
+        return plan;
+    }
+
+    bool executeDir(int d) {
+        SnakeState before = state;
+        int prefixBefore = before.prefixLen(desired);
+        MoveResult ret = state.apply(d);
+        if (!ret.ok) {
+            return false;
+        }
+        moves.push_back(DCHAR[d]);
+        auto [hr, hc] = state.body.front();
+        if (0 <= hr && hr < N && 0 <= hc && hc < N) {
+            ++visitCount[hr][hc];
+        }
+        if (ret.bite) {
+            auto recovery = buildRecoveryPathByOldBody(before, state, prefixBefore);
+            recoveryMoves.clear();
+            for (int mv : recovery) {
+                recoveryMoves.push_back(mv);
+            }
+            recoveryTargetPrefix = prefixBefore;
+        }
+        return true;
+    }
+
+    int manhattanToNearestTarget(const SnakeState& st, int targetColor) const {
+        if (st.body.empty()) {
+            return INT_MAX;
+        }
+        auto [hr, hc] = st.body.front();
+        int best = INT_MAX;
+        for (int i = 0; i < st.N; ++i) {
+            for (int j = 0; j < st.N; ++j) {
+                if (st.grid[i][j] == targetColor) {
+                    best = min(best, abs(i - hr) + abs(j - hc));
+                }
+            }
+        }
+        return best;
+    }
+
+    bool lastTwoSwappedAtPrefix(int p) const {
+        if (p + 1 >= M) {
+            return false;
+        }
+        if ((int)state.colors.size() <= p + 1) {
+            return false;
+        }
+        return state.colors[p] == desired[p + 1] && state.colors[p + 1] == desired[p];
+    }
+
+    vector<int> findDynamicStrictPathToTarget(const SnakeState& st, int targetColor) const {
+        if (st.body.empty()) {
+            return {};
+        }
+
+        const int n = st.N;
+        const int INF = 1e9;
+        vector<vector<int>> release(n, vector<int>(n, 0));
+        int k = (int)st.body.size();
+        for (int i = 1; i < k; ++i) {
+            auto [r, c] = st.body[i];
+            release[r][c] = max(release[r][c], k - i);
+        }
+
+        vector<vector<int>> dist(n, vector<int>(n, INF));
+        vector<vector<pair<int, int>>> parent(n, vector<pair<int, int>>(n, {-1, -1}));
+        vector<vector<int>> pdir(n, vector<int>(n, -1));
+
+        auto [hr, hc] = st.body.front();
+        pair<int, int> neck = {-1, -1};
+        if (st.body.size() >= 2) {
+            neck = st.body[1];
+        }
+
+        using Node = tuple<int, int, int>;  // time, r, c
+        priority_queue<Node, vector<Node>, greater<Node>> pq;
+        dist[hr][hc] = 0;
+        pq.push({0, hr, hc});
+
+        pair<int, int> goal = {-1, -1};
+        while (!pq.empty()) {
+            auto [t, r, c] = pq.top();
+            pq.pop();
+            if (t != dist[r][c]) {
+                continue;
+            }
+            if (!(r == hr && c == hc) && st.grid[r][c] == targetColor) {
+                goal = {r, c};
+                break;
+            }
+
+            for (int d = 0; d < 4; ++d) {
+                int nr = r + DR[d];
+                int nc = c + DC[d];
+                if (!st.inBounds(nr, nc)) {
+                    continue;
+                }
+                if (r == hr && c == hc && make_pair(nr, nc) == neck) {
+                    continue;
+                }
+                int food = st.grid[nr][nc];
+                if (food != 0 && food != targetColor) {
+                    continue;
+                }
+
+                int nt = t + 1;
+                if (nt < release[nr][nc]) {
+                    continue;
+                }
+                if (nt < dist[nr][nc]) {
+                    dist[nr][nc] = nt;
+                    parent[nr][nc] = {r, c};
+                    pdir[nr][nc] = d;
+                    pq.push({nt, nr, nc});
+                }
+            }
+        }
+
+        if (goal.first == -1) {
+            return {};
+        }
+
         vector<int> path;
-        if (mode == 0) path = findPathCell(cell, true, true, false);
-        else          path = findPathCell(cell, true, false, false);
-
-        if (path.empty()) continue;
-
-        // modestly better than Manhattan-only:
-        // prioritize short actual paths, tie-break by Manhattan
-        int man = abs(cell.first - hr) + abs(cell.second - hc);
-        int score = (int)path.size() * 1000 + man;
-        if (score < bestScore) {
-            bestScore = score;
-            bestCell = cell;
-            bestPath = move(path);
+        int cr = goal.first;
+        int cc = goal.second;
+        while (!(cr == hr && cc == hc)) {
+            path.push_back(pdir[cr][cc]);
+            auto [pr, pc] = parent[cr][cc];
+            cr = pr;
+            cc = pc;
         }
-    }
-    return {bestCell, bestPath};
-}
-
-// Intentional bite plan:
-// go to a body cell on purpose (without stepping on other food),
-// so that the suffix is restored and the snake gets shorter.
-// We score candidates by:
-//   - smaller path to bite
-//   - closer to next desired food after bite point
-//   - keep enough body length (avoid over-shrinking)
-vector<int> planIntentionalBite(int targetColor) {
-    auto foods = findFoodsOfColor(targetColor);
-    if (foods.empty()) return {};
-
-    int k = (int)body.size();
-    if (k <= 3) return {}; // too short to bite usefully
-
-    int bestScore = INT_MAX;
-    vector<int> bestPath;
-
-    // Choose a bite target among body segments.
-    // Avoid very shallow bites that do almost nothing, and very deep bites that destroy too much.
-    for (int idx = 2; idx <= k - 2; idx++) {
-        auto biteCell = body[idx];
-
-        // Path to the chosen body cell, while avoiding food and all other body cells.
-        vector<int> path = findPathCell(biteCell, true, true, true);
-        if (path.empty()) continue;
-
-        // Estimate distance from bite cell to nearest target-color food.
-        int nearFood = INT_MAX;
-        for (auto f : foods) {
-            nearFood = min(nearFood, abs(f.first - biteCell.first) + abs(f.second - biteCell.second));
-        }
-
-        // Remaining logical length after bite:
-        // after moving into body[idx], collision happens and suffix after collision point is removed.
-        // Exact remaining size depends on the shifted indices, but idx is still a reasonable proxy.
-        int remainingApprox = idx + 1;
-
-        // Prefer:
-        // - short path to bite
-        // - bite cell near target food
-        // - not over-shrinking
-        // strong penalty if too short
-        int penaltyShort = (remainingApprox < 4 ? 100000 : 0);
-
-        int score = (int)path.size() * 1000 + nearFood * 20 + penaltyShort - remainingApprox * 3;
-        if (score < bestScore) {
-            bestScore = score;
-            bestPath = move(path);
-        }
+        reverse(path.begin(), path.end());
+        return path;
     }
 
-    return bestPath;
-}
-
-int main() {
-    ios::sync_with_stdio(false);
-    cin.tie(nullptr);
-
-    cin >> N >> M >> C;
-    desired.resize(M);
-    for (auto& x : desired) cin >> x;
-
-    grid.assign(N, vector<int>(N, 0));
-    for (int i = 0; i < N; i++) {
-        for (int j = 0; j < N; j++) {
-            cin >> grid[i][j];
+    vector<int> findDynamicStrictPathToTail(const SnakeState& st, int targetColor) const {
+        if (st.body.empty()) {
+            return {};
         }
+
+        const int n = st.N;
+        const int INF = 1e9;
+        vector<vector<int>> release(n, vector<int>(n, 0));
+        int k = (int)st.body.size();
+        for (int i = 1; i < k; ++i) {
+            auto [r, c] = st.body[i];
+            release[r][c] = max(release[r][c], k - i);
+        }
+
+        auto goal = st.body.back();
+        auto [gr, gc] = goal;
+
+        vector<vector<int>> dist(n, vector<int>(n, INF));
+        vector<vector<pair<int, int>>> parent(n, vector<pair<int, int>>(n, {-1, -1}));
+        vector<vector<int>> pdir(n, vector<int>(n, -1));
+
+        auto [hr, hc] = st.body.front();
+        pair<int, int> neck = {-1, -1};
+        if (st.body.size() >= 2) {
+            neck = st.body[1];
+        }
+
+        using Node = tuple<int, int, int>;  // time, r, c
+        priority_queue<Node, vector<Node>, greater<Node>> pq;
+        dist[hr][hc] = 0;
+        pq.push({0, hr, hc});
+
+        while (!pq.empty()) {
+            auto [t, r, c] = pq.top();
+            pq.pop();
+            if (t != dist[r][c]) {
+                continue;
+            }
+            if (!(r == hr && c == hc) && r == gr && c == gc) {
+                break;
+            }
+
+            for (int d = 0; d < 4; ++d) {
+                int nr = r + DR[d];
+                int nc = c + DC[d];
+                if (!st.inBounds(nr, nc)) {
+                    continue;
+                }
+                if (r == hr && c == hc && make_pair(nr, nc) == neck) {
+                    continue;
+                }
+                int food = st.grid[nr][nc];
+                if (food != 0 && food != targetColor) {
+                    continue;
+                }
+
+                int nt = t + 1;
+                if (nt < release[nr][nc]) {
+                    continue;
+                }
+                if (nt < dist[nr][nc]) {
+                    dist[nr][nc] = nt;
+                    parent[nr][nc] = {r, c};
+                    pdir[nr][nc] = d;
+                    pq.push({nt, nr, nc});
+                }
+            }
+        }
+
+        if (dist[gr][gc] == INF) {
+            return {};
+        }
+
+        vector<int> path;
+        int cr = gr;
+        int cc = gc;
+        while (!(cr == hr && cc == hc)) {
+            path.push_back(pdir[cr][cc]);
+            auto [pr, pc] = parent[cr][cc];
+            cr = pr;
+            cc = pc;
+        }
+        reverse(path.begin(), path.end());
+        return path;
     }
 
-    // Initial snake: head=(4,0), tail=(0,0), all colors 1
-    body = {{4,0},{3,0},{2,0},{1,0},{0,0}};
-    colors = {1,1,1,1,1};
+    vector<int> bfsToTargetColor(
+        const SnakeState& st,
+        int targetColor,
+        bool avoidBody,
+        bool avoidNonTargetFood
+    ) const {
+        if (st.body.empty()) {
+            return {};
+        }
 
-    int p = recomputeProgress();
-    int stuckCnt = 0;
+        const int n = st.N;
+        vector<vector<int>> dist(n, vector<int>(n, -1));
+        vector<vector<pair<int, int>>> parent(n, vector<pair<int, int>>(n, {-1, -1}));
+        vector<vector<int>> pdir(n, vector<int>(n, -1));
+        vector<vector<char>> blocked(n, vector<char>(n, 0));
 
-    while (p < M && (int)moves.size() < 99000) {
-        int targetColor = desired[p];
+        if (avoidBody) {
+            for (int i = 1; i < (int)st.body.size(); ++i) {
+                auto [r, c] = st.body[i];
+                blocked[r][c] = 1;
+            }
+        }
 
-        // 1) Safe direct path
-        auto [best0, path0] = planToColor(targetColor, 0);
+        auto [hr, hc] = st.body.front();
+        pair<int, int> neck = {-1, -1};
+        if (st.body.size() >= 2) {
+            neck = st.body[1];
+        }
 
-        if (!path0.empty()) {
-            stuckCnt = 0;
-            bool bitten = false;
-            for (int d : path0) {
-                if ((int)moves.size() >= 99000) break;
-                bool bite = doMove(d);
-                if (bite) {
-                    bitten = true;
+        queue<pair<int, int>> q;
+        q.push({hr, hc});
+        dist[hr][hc] = 0;
+
+        pair<int, int> goal = {-1, -1};
+
+        while (!q.empty()) {
+            auto [r, c] = q.front();
+            q.pop();
+
+            if (!(r == hr && c == hc) && st.grid[r][c] == targetColor) {
+                goal = {r, c};
+                break;
+            }
+
+            for (int d = 0; d < 4; ++d) {
+                int nr = r + DR[d];
+                int nc = c + DC[d];
+                if (!st.inBounds(nr, nc) || dist[nr][nc] != -1) {
+                    continue;
+                }
+                if (r == hr && c == hc && make_pair(nr, nc) == neck) {
+                    continue;
+                }
+                if (avoidBody && blocked[nr][nc]) {
+                    continue;
+                }
+                int food = st.grid[nr][nc];
+                if (avoidNonTargetFood && food != 0 && food != targetColor) {
+                    continue;
+                }
+
+                dist[nr][nc] = dist[r][c] + 1;
+                parent[nr][nc] = {r, c};
+                pdir[nr][nc] = d;
+                q.push({nr, nc});
+            }
+        }
+
+        if (goal.first == -1) {
+            return {};
+        }
+
+        vector<int> path;
+        int cr = goal.first;
+        int cc = goal.second;
+        while (!(cr == hr && cc == hc)) {
+            path.push_back(pdir[cr][cc]);
+            auto [pr, pc] = parent[cr][cc];
+            cr = pr;
+            cc = pc;
+        }
+        reverse(path.begin(), path.end());
+        return path;
+    }
+
+    bool isTargetAdjacentToPrefixSegment(const SnakeState& st, int anchorLen, int targetColor) const {
+        if (anchorLen <= 0) {
+            return false;
+        }
+        if (anchorLen > (int)st.body.size()) {
+            return false;
+        }
+
+        auto [r, c] = st.body[anchorLen - 1];
+        for (int d = 0; d < 4; ++d) {
+            int nr = r + DR[d];
+            int nc = c + DC[d];
+            if (!st.inBounds(nr, nc)) {
+                continue;
+            }
+            if (st.grid[nr][nc] == targetColor) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    vector<CutCandidate> enumerateCutCandidates(
+        const SnakeState& src,
+        int baseL,
+        int targetColor,
+        int maxDepth = 3
+    ) const {
+        vector<CutCandidate> out;
+        vector<int> seq;
+
+        function<void(const SnakeState&, int)> dfs = [&](const SnakeState& cur, int depth) {
+            if (depth >= maxDepth) {
+                return;
+            }
+
+            auto dirs = cur.legalDirs();
+            for (int d : dirs) {
+                SnakeState nxt = cur;
+                MoveResult ret = nxt.apply(d);
+                if (!ret.ok) {
+                    continue;
+                }
+
+                seq.push_back(d);
+
+                if (ret.bite) {
+                    int pref = nxt.prefixLen(desired);
+                    int lenAfter = (int)nxt.body.size();
+                    if (lenAfter >= 3 && (lenAfter % 2 == 1)) {
+                        int anchorLen = min(baseL, lenAfter);
+                        CutCandidate cand;
+                        cand.seq = seq;
+                        cand.after = nxt;
+                        cand.biteTurn = (int)seq.size();
+                        cand.prefixAfter = pref;
+                        cand.anchorLen = anchorLen;
+                        cand.adjacentToPrefix = isTargetAdjacentToPrefixSegment(nxt, anchorLen, targetColor);
+
+                        auto directPath = findDynamicStrictPathToTarget(nxt, targetColor);
+                        auto loosePath = bfsToTargetColor(nxt, targetColor, false, true);
+                        cand.directPathLen = directPath.empty() ? INT_MAX : (int)directPath.size();
+                        cand.loosePathLen = loosePath.empty() ? INT_MAX : (int)loosePath.size();
+                        out.push_back(move(cand));
+                    }
+                } else {
+                    dfs(nxt, depth + 1);
+                }
+
+                seq.pop_back();
+            }
+        };
+
+        dfs(src, 0);
+        return out;
+    }
+
+    optional<CutCandidate> chooseBestCutCandidate(
+        const SnakeState& src,
+        int baseL,
+        int targetColor
+    ) {
+        auto cands = enumerateCutCandidates(src, baseL, targetColor, 3);
+        if (cands.empty()) {
+            return nullopt;
+        }
+
+        int curLen = (int)src.body.size();
+        int floorHalf = max(1, curLen / 2);
+        int halfOdd = floorHalf;
+        if (halfOdd % 2 == 0) {
+            --halfOdd;
+        }
+        halfOdd = max(3, halfOdd);
+
+        auto cutLenCost = [&](const CutCandidate& c) -> int {
+            int lenAfter = (int)c.after.body.size();
+            int cost = abs(lenAfter - halfOdd) * 100;
+            if (lenAfter > floorHalf) {
+                cost += (lenAfter - floorHalf) * 300;
+            }
+            return cost;
+        };
+
+        int bestLenCost = INT_MAX;
+        for (const auto& c : cands) {
+            bestLenCost = min(bestLenCost, cutLenCost(c));
+        }
+
+        auto eval = [&](const CutCandidate& c) -> long long {
+            bool reachable = c.adjacentToPrefix || c.directPathLen != INT_MAX || c.loosePathLen != INT_MAX;
+            if (!reachable) {
+                return (long long)4e18;
+            }
+
+            long long score = 0;
+            // Cut length preference is enforced before this scoring step.
+            score += 60'000LL * c.biteTurn;
+            if (c.adjacentToPrefix) {
+                score -= 120'000LL;
+            }
+            score += (c.directPathLen == INT_MAX ? 20'000 : c.directPathLen * 220);
+            score += (c.loosePathLen == INT_MAX ? 10'000 : c.loosePathLen * 30);
+            // Keep as much matched prefix as possible, but this is secondary to cut length.
+            score -= 300LL * c.prefixAfter;
+            return score;
+        };
+
+        auto pickBestIdx = [&](bool requireAdj) -> int {
+            long long bestScore = (long long)4e18;
+            vector<int> bestIdxs;
+            for (int i = 0; i < (int)cands.size(); ++i) {
+                if (cutLenCost(cands[i]) != bestLenCost) {
+                    continue;
+                }
+                if (requireAdj && !cands[i].adjacentToPrefix) {
+                    continue;
+                }
+                long long s = eval(cands[i]);
+                if (s < bestScore) {
+                    bestScore = s;
+                    bestIdxs.clear();
+                    bestIdxs.push_back(i);
+                } else if (s == bestScore) {
+                    bestIdxs.push_back(i);
+                }
+            }
+            if (bestIdxs.empty()) {
+                return -1;
+            }
+            uniform_int_distribution<int> uid(0, (int)bestIdxs.size() - 1);
+            return bestIdxs[uid(rng)];
+        };
+
+        int bestIdx = pickBestIdx(true);
+        if (bestIdx == -1) {
+            bestIdx = pickBestIdx(false);
+        }
+        if (bestIdx == -1) {
+            return nullopt;
+        }
+        return cands[bestIdx];
+    }
+
+    optional<CutCandidate> chooseRandomHalfCutCandidate(
+        const SnakeState& src,
+        int baseL,
+        int targetColor
+    ) {
+        auto cands = enumerateCutCandidates(src, baseL, targetColor, 3);
+        if (cands.empty()) {
+            return nullopt;
+        }
+
+        int curLen = (int)src.body.size();
+        int floorHalf = max(1, curLen / 2);
+        int halfOdd = floorHalf;
+        if (halfOdd % 2 == 0) {
+            --halfOdd;
+        }
+        halfOdd = max(3, halfOdd);
+
+        auto cutLenCost = [&](const CutCandidate& c) -> int {
+            int lenAfter = (int)c.after.body.size();
+            int cost = abs(lenAfter - halfOdd) * 100;
+            if (lenAfter > floorHalf) {
+                cost += (lenAfter - floorHalf) * 300;
+            }
+            return cost;
+        };
+
+        int bestLenCost = INT_MAX;
+        for (const auto& c : cands) {
+            bestLenCost = min(bestLenCost, cutLenCost(c));
+        }
+
+        vector<int> idxs;
+        for (int i = 0; i < (int)cands.size(); ++i) {
+            if (cutLenCost(cands[i]) == bestLenCost) {
+                idxs.push_back(i);
+            }
+        }
+        if (idxs.empty()) {
+            return nullopt;
+        }
+        uniform_int_distribution<int> uid(0, (int)idxs.size() - 1);
+        return cands[idxs[uid(rng)]];
+    }
+
+    int pickExploreMove(int targetColor, int baseL, bool randomized) {
+        auto dirs = state.legalDirs();
+        if (dirs.empty()) {
+            return -1;
+        }
+
+        uniform_real_distribution<double> urand(0.0, 1.0);
+        if (randomized && urand(rng) < 0.2) {
+            uniform_int_distribution<int> uid(0, (int)dirs.size() - 1);
+            return dirs[uid(rng)];
+        }
+
+        struct ScoredMove {
+            double score;
+            int dir;
+        };
+        vector<ScoredMove> scored;
+        scored.reserve(dirs.size());
+
+        for (int d : dirs) {
+            auto [hr, hc] = state.body.front();
+            int nr = hr + DR[d];
+            int nc = hc + DC[d];
+            int landingFood = state.grid[nr][nc];
+
+            SnakeState nxt = state;
+            MoveResult ret = nxt.apply(d);
+            if (!ret.ok) {
+                continue;
+            }
+
+            int pref = nxt.prefixLen(desired);
+            int nearTarget = manhattanToNearestTarget(nxt, targetColor);
+            int mobility = (int)nxt.legalDirs().size();
+
+            double s = 0.0;
+            if (landingFood == 0) {
+                s += 2.5;
+            } else if (landingFood == targetColor) {
+                s += 8.0;
+            } else {
+                s -= 4.0;
+            }
+            if (ret.bite) {
+                s += 1.0;
+            }
+            if (pref < baseL) {
+                s -= 2000.0;
+            }
+            s += mobility * 0.6;
+            if (nearTarget != INT_MAX) {
+                s -= nearTarget * 0.2;
+            }
+            if (randomized) {
+                s += urand(rng);
+            }
+
+            scored.push_back({s, d});
+        }
+
+        if (scored.empty()) {
+            return dirs[0];
+        }
+
+        sort(scored.begin(), scored.end(), [](const ScoredMove& a, const ScoredMove& b) {
+            return a.score > b.score;
+        });
+
+        if (!randomized) {
+            return scored.front().dir;
+        }
+
+        int topK = min(3, (int)scored.size());
+        if (urand(rng) < 0.75) {
+            uniform_int_distribution<int> uid(0, topK - 1);
+            return scored[uid(rng)].dir;
+        }
+        uniform_int_distribution<int> uid(0, (int)scored.size() - 1);
+        return scored[uid(rng)].dir;
+    }
+
+    int pickWanderMove(int targetColor, int baseL) {
+        auto dirs = state.legalDirs();
+        if (dirs.empty()) {
+            return -1;
+        }
+
+        uniform_real_distribution<double> urand(0.0, 1.0);
+        struct ScoredMove {
+            double score;
+            int dir;
+        };
+        vector<ScoredMove> scored;
+        scored.reserve(dirs.size());
+
+        for (int d : dirs) {
+            auto [hr, hc] = state.body.front();
+            int nr = hr + DR[d];
+            int nc = hc + DC[d];
+
+            SnakeState nxt = state;
+            MoveResult ret = nxt.apply(d);
+            if (!ret.ok) {
+                continue;
+            }
+
+            int pref = nxt.prefixLen(desired);
+            int nearTarget = manhattanToNearestTarget(nxt, targetColor);
+            int food = state.grid[nr][nc];
+            int visits = visitCount[nr][nc];
+
+            double s = 0.0;
+            s += urand(rng) * 6.0;
+            s += urand(rng) * 6.0;
+            s += (food == 0 ? 0.5 : 2.5);
+            s += max(0, 5 - visits) * 0.8;
+            s += (int)nxt.legalDirs().size() * 0.4;
+            if (food == targetColor) {
+                s += 3.0;
+            }
+            if (ret.bite) {
+                s -= 6.0;
+            }
+            if (pref < baseL) {
+                s -= 12.0;
+            }
+            if (nearTarget != INT_MAX) {
+                s -= nearTarget * 0.05;
+            }
+
+            scored.push_back({s, d});
+        }
+
+        if (scored.empty()) {
+            return dirs[0];
+        }
+        sort(scored.begin(), scored.end(), [](const ScoredMove& a, const ScoredMove& b) {
+            return a.score > b.score;
+        });
+        int topK = min(3, (int)scored.size());
+        uniform_int_distribution<int> uid(0, topK - 1);
+        return scored[uid(rng)].dir;
+    }
+
+    bool randomSearch(int baseL) {
+        int used = 0;
+
+        while (used < RANDOM_SEARCH_LIMIT && state.turn < TURN_LIMIT) {
+            int p = state.prefixLen(desired);
+            if (p >= M) {
+                return true;
+            }
+            int targetColor = desired[p];
+
+            auto direct = bfsToTargetColor(state, targetColor, true, true);
+            if (!direct.empty()) {
+                return true;
+            }
+            auto cutOpt = chooseBestCutCandidate(state, baseL, targetColor);
+            if (cutOpt.has_value()) {
+                return true;
+            }
+
+            auto randomCut = chooseRandomHalfCutCandidate(state, baseL, targetColor);
+            if (randomCut.has_value()) {
+                uniform_int_distribution<int> prob(0, 99);
+                if (prob(rng) < 40) {
+                    const auto& cand = randomCut.value();
+                    for (int d : cand.seq) {
+                        if (used >= RANDOM_SEARCH_LIMIT || state.turn >= TURN_LIMIT) {
+                            break;
+                        }
+                        if (!executeDir(d)) {
+                            break;
+                        }
+                        ++used;
+                    }
+                    continue;
+                }
+            }
+
+            int d = pickExploreMove(targetColor, baseL, true);
+            if (d == -1) {
+                return false;
+            }
+            if (!executeDir(d)) {
+                return false;
+            }
+            ++used;
+        }
+
+        return false;
+    }
+
+    void solve() {
+        int bestPrefix = state.prefixLen(desired);
+        int stagnation = 0;
+
+        while (state.turn < TURN_LIMIT) {
+            int p = state.prefixLen(desired);
+            if (p >= M) {
+                break;
+            }
+
+            if (!recoveryMoves.empty()) {
+                int d = recoveryMoves.front();
+                recoveryMoves.pop_front();
+                if (!executeDir(d)) {
+                    recoveryMoves.clear();
+                }
+                continue;
+            }
+
+            if (p > bestPrefix) {
+                bestPrefix = p;
+                stagnation = 0;
+                wanderBudget = 0;
+            } else {
+                ++stagnation;
+            }
+
+            int targetColor = desired[p];
+            int remaining = M - p;
+            bool nearFinish = remaining <= 2;
+            bool swappedTailPair = nearFinish && lastTwoSwappedAtPrefix(p);
+            int nearFinishCutThreshold = swappedTailPair ? 8 : 25;
+
+            // 1) Reach target color without traversing non-target foods.
+            auto direct = findDynamicStrictPathToTarget(state, targetColor);
+            if (!direct.empty()) {
+                if (!executeDir(direct.front())) {
+                    break;
+                }
+                continue;
+            }
+
+            // 2) In the finishing phase, force self-cut early to break swap deadlocks.
+            if (nearFinish && stagnation >= nearFinishCutThreshold) {
+                auto cutOpt = chooseBestCutCandidate(state, p, targetColor);
+                if (!cutOpt.has_value()) {
+                    cutOpt = chooseRandomHalfCutCandidate(state, p, targetColor);
+                }
+                if (cutOpt.has_value()) {
+                    bool ok = true;
+                    for (int d : cutOpt->seq) {
+                        if (state.turn >= TURN_LIMIT) {
+                            break;
+                        }
+                        if (!executeDir(d)) {
+                            ok = false;
+                            break;
+                        }
+                    }
+                    if (!ok) {
+                        break;
+                    }
+                    stagnation = max(0, stagnation - 20);
+                    continue;
+                }
+            }
+
+            // 3) If direct reach is impossible now, prioritize tail-follow movement.
+            auto tailPath = findDynamicStrictPathToTail(state, targetColor);
+            if (!tailPath.empty() && ((!nearFinish && stagnation < 80) || (nearFinish && stagnation < nearFinishCutThreshold))) {
+                if (!executeDir(tailPath.front())) {
+                    break;
+                }
+                continue;
+            }
+
+            // 4) Wander to change environment and break loops.
+            if (wanderBudget == 0 && stagnation >= 12) {
+                wanderBudget = 5;
+            }
+            if (wanderBudget > 0) {
+                int d = pickWanderMove(targetColor, p);
+                if (d == -1) {
+                    auto dirs = state.legalDirs();
+                    if (dirs.empty()) {
+                        break;
+                    }
+                    d = dirs[0];
+                }
+                if (!executeDir(d)) {
+                    break;
+                }
+                --wanderBudget;
+                continue;
+            }
+
+            // 5) Timed self-cut (1..3 turns) only after enough stagnation.
+            int cutThreshold = nearFinish ? 180 : 70;
+            if (stagnation >= cutThreshold) {
+                auto cutOpt = chooseBestCutCandidate(state, p, targetColor);
+                if (cutOpt.has_value()) {
+                    bool ok = true;
+                    for (int d : cutOpt->seq) {
+                        if (state.turn >= TURN_LIMIT) {
+                            break;
+                        }
+                        if (!executeDir(d)) {
+                            ok = false;
+                            break;
+                        }
+                    }
+                    if (!ok) {
+                        break;
+                    }
+                    stagnation = max(0, stagnation - 15);
+                    continue;
+                }
+            }
+
+            // 6) Randomized exploration (never freeze).
+            if (nearFinish && stagnation > 1500) {
+                auto hardCut = chooseRandomHalfCutCandidate(state, p, targetColor);
+                if (hardCut.has_value()) {
+                    bool ok = true;
+                    for (int d : hardCut->seq) {
+                        if (state.turn >= TURN_LIMIT) {
+                            break;
+                        }
+                        if (!executeDir(d)) {
+                            ok = false;
+                            break;
+                        }
+                    }
+                    if (!ok) {
+                        break;
+                    }
+                    stagnation = max(0, stagnation - 50);
+                    continue;
+                }
+            }
+
+            int fallback = pickExploreMove(targetColor, p, true);
+            if (fallback == -1) {
+                auto dirs = state.legalDirs();
+                if (dirs.empty()) {
+                    break;
+                }
+                fallback = dirs[0];
+            }
+            if (!executeDir(fallback)) {
+                auto dirs = state.legalDirs();
+                if (dirs.empty()) {
+                    break;
+                }
+                if (!executeDir(dirs[0])) {
                     break;
                 }
             }
-            p = recomputeProgress();
-            if (!bitten && best0.first != -1 && grid[best0.first][best0.second] == 0) {
-                p = recomputeProgress();
-            }
-            continue;
         }
-
-        // 2) Direct path allowing bite en route
-        auto [best1, path1] = planToColor(targetColor, 1);
-
-        if (!path1.empty()) {
-            stuckCnt = 0;
-            for (int d : path1) {
-                if ((int)moves.size() >= 99000) break;
-                doMove(d);
-                // re-evaluate immediately after any structural change
-                p = recomputeProgress();
-                if (p >= M) break;
-                // stop early if we already ate the target cell
-                if (best1.first != -1 && grid[best1.first][best1.second] == 0) break;
-            }
-            p = recomputeProgress();
-            continue;
-        }
-
-        // 3) Intentional bite as a greedy state-reset
-        vector<int> bitePlan = planIntentionalBite(targetColor);
-        if (!bitePlan.empty()) {
-            stuckCnt = 0;
-            for (int d : bitePlan) {
-                if ((int)moves.size() >= 99000) break;
-                bool bite = doMove(d);
-                p = recomputeProgress();
-                if (bite) break; // intentional bite succeeded; replan from new state
-            }
-            continue;
-        }
-
-        // 4) Last-resort fallback: choose a food-avoiding move that keeps freedom
-        auto [hr, hc] = body.front();
-        pair<int,int> neck = (body.size() >= 2 ? body[1] : make_pair(-1, -1));
-        int chosen = -1;
-        int bestScore = -1;
-
-        for (int d = 0; d < 4; d++) {
-            int nr = hr + DR[d], nc = hc + DC[d];
-            if (!inBounds(nr, nc) || make_pair(nr, nc) == neck) continue;
-
-            // Prefer empty cells
-            int score = 0;
-            if (grid[nr][nc] == 0) score += 1000;
-
-            // Prefer moves near target foods
-            auto foods = findFoodsOfColor(targetColor);
-            int nearFood = INT_MAX;
-            for (auto f : foods) {
-                nearFood = min(nearFood, abs(f.first - nr) + abs(f.second - nc));
-            }
-            if (nearFood != INT_MAX) score -= nearFood * 10;
-
-            // Prefer staying in bounds with more local freedom
-            for (int dd = 0; dd < 4; dd++) {
-                int rr = nr + DR[dd], cc = nc + DC[dd];
-                if (inBounds(rr, cc)) score++;
-            }
-
-            if (score > bestScore) {
-                bestScore = score;
-                chosen = d;
-            }
-        }
-
-        if (chosen == -1 || stuckCnt++ >= 500) break;
-        doMove(chosen);
-        p = recomputeProgress();
     }
 
-    for (char c : moves) {
-        cout << c << '\n';
+    void printAnswer() const {
+        for (char c : moves) {
+            cout << c << '\n';
+        }
     }
+};
+
+}  // namespace
+
+int main() {
+    Solver solver;
+    solver.readInput();
+    solver.solve();
+    solver.printAnswer();
     return 0;
 }
