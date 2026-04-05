@@ -1463,29 +1463,67 @@ struct Solver {
             return nullopt;
         }
 
-        vector<BeamNode> beam;
-        beam.push_back(move(init));
+        int startTurn = init.st.turn;
+        vector<vector<BeamNode>> layers(beamTurnCap + 1);
+        vector<unordered_map<uint64_t, int>> layerKeyToIdx(beamTurnCap + 1);
+
+        auto insertCandidate = [&](BeamNode&& cand) {
+            int t = cand.st.turn;
+            if (t < startTurn || t > beamTurnCap) {
+                return;
+            }
+            if (cand.maxPrefix < greedyPrefixLowerBoundAtTurn(greedyPrefixCurve, t)) {
+                return;
+            }
+            uint64_t key = beamStateKey(cand.st, cand.maxPrefix);
+            auto& mp = layerKeyToIdx[t];
+            auto& vec = layers[t];
+            auto it = mp.find(key);
+            if (it == mp.end()) {
+                mp[key] = (int)vec.size();
+                vec.push_back(move(cand));
+            } else {
+                int idx = it->second;
+                if (betterBeamNode(cand, vec[idx])) {
+                    vec[idx] = move(cand);
+                }
+            }
+        };
+
+        layers[startTurn].push_back(init);
+        layerKeyToIdx[startTurn][beamStateKey(init.st, init.maxPrefix)] = 0;
 
         bool hasBestDone = false;
         BeamNode bestDone;
+        BeamNode bestSeen = init;
 
-        for (int depth = 0; depth < activeTurnLimit && !beam.empty(); ++depth) {
+        for (int turn = startTurn; turn <= beamTurnCap; ++turn) {
             if (chrono::steady_clock::now() >= deadline) {
                 break;
             }
-            vector<BeamNode> expanded;
-            expanded.reserve(beam.size() * (BEAM_CANDIDATE_TOP_K + 2));
+            auto& beam = layers[turn];
+            if (beam.empty()) {
+                continue;
+            }
+
+            sort(beam.begin(), beam.end(), [&](const BeamNode& a, const BeamNode& b) {
+                return betterBeamNode(a, b);
+            });
+            if ((int)beam.size() > beamWidth) {
+                beam.resize(beamWidth);
+            }
 
             for (const auto& node : beam) {
                 if (chrono::steady_clock::now() >= deadline) {
                     break;
                 }
-                if (node.st.turn > beamTurnCap) {
-                    continue;
+                if (betterBeamNode(node, bestSeen)) {
+                    bestSeen = node;
                 }
                 if (node.maxPrefix < greedyPrefixLowerBoundAtTurn(greedyPrefixCurve, node.st.turn)) {
                     continue;
                 }
+
                 int p = node.st.prefixLen(desired);
                 if (p >= M) {
                     if (!hasBestDone || betterBeamNode(node, bestDone)) {
@@ -1500,10 +1538,7 @@ struct Solver {
 
                 auto nxtAs = transitionGoTargetCandidates(node, deadline, BEAM_CANDIDATE_TOP_K);
                 for (auto& nxt : nxtAs) {
-                    if (nxt.st.turn <= beamTurnCap &&
-                        nxt.maxPrefix >= greedyPrefixLowerBoundAtTurn(greedyPrefixCurve, nxt.st.turn)) {
-                        expanded.push_back(move(nxt));
-                    }
+                    insertCandidate(move(nxt));
                 }
 
                 if (chrono::steady_clock::now() >= deadline) {
@@ -1511,10 +1546,7 @@ struct Solver {
                 }
                 auto nxtBs = transitionCutRecoverCandidates(node, deadline, 1);
                 for (auto& nxt : nxtBs) {
-                    if (nxt.st.turn <= beamTurnCap &&
-                        nxt.maxPrefix >= greedyPrefixLowerBoundAtTurn(greedyPrefixCurve, nxt.st.turn)) {
-                        expanded.push_back(move(nxt));
-                    }
+                    insertCandidate(move(nxt));
                 }
 
                 if (chrono::steady_clock::now() >= deadline) {
@@ -1522,61 +1554,20 @@ struct Solver {
                 }
                 auto nxtC = transitionWander(node, deadline);
                 if (nxtC.has_value()) {
-                    if (nxtC->st.turn <= beamTurnCap &&
-                        nxtC->maxPrefix >= greedyPrefixLowerBoundAtTurn(greedyPrefixCurve, nxtC->st.turn)) {
-                        expanded.push_back(move(nxtC.value()));
-                    }
+                    insertCandidate(move(nxtC.value()));
                 }
             }
 
             if (hasBestDone) {
                 break;
             }
-            if (expanded.empty()) {
-                break;
-            }
-
-            unordered_map<uint64_t, int> bestByKey;
-            bestByKey.reserve(expanded.size() * 2 + 1);
-            vector<BeamNode> uniq;
-            uniq.reserve(expanded.size());
-
-            for (auto& cand : expanded) {
-                uint64_t key = beamStateKey(cand.st, cand.maxPrefix);
-                auto it = bestByKey.find(key);
-                if (it == bestByKey.end()) {
-                    bestByKey[key] = (int)uniq.size();
-                    uniq.push_back(move(cand));
-                } else {
-                    int idx = it->second;
-                    if (betterBeamNode(cand, uniq[idx])) {
-                        uniq[idx] = move(cand);
-                    }
-                }
-            }
-
-            sort(uniq.begin(), uniq.end(), [&](const BeamNode& a, const BeamNode& b) {
-                return betterBeamNode(a, b);
-            });
-            if ((int)uniq.size() > beamWidth) {
-                uniq.resize(beamWidth);
-            }
-            beam = move(uniq);
+            layerKeyToIdx[turn].clear();
         }
 
         if (hasBestDone) {
             return bestDone;
         }
-        if (beam.empty()) {
-            return nullopt;
-        }
-        BeamNode best = beam[0];
-        for (int i = 1; i < (int)beam.size(); ++i) {
-            if (betterBeamNode(beam[i], best)) {
-                best = beam[i];
-            }
-        }
-        return best;
+        return bestSeen;
     }
 
     int pickExploreMove(int targetColor, int baseL, bool randomized, bool preferTargetColor = true) {
@@ -1670,66 +1661,7 @@ struct Solver {
     }
 
     int pickWanderMove(int targetColor, int baseL) {
-        auto dirs = state.legalDirs();
-        if (dirs.empty()) {
-            return -1;
-        }
-
-        uniform_real_distribution<double> urand(0.0, 1.0);
-        struct ScoredMove {
-            double score;
-            int dir;
-        };
-        vector<ScoredMove> scored;
-        scored.reserve(dirs.size());
-
-        for (int d : dirs) {
-            auto [hr, hc] = state.body.front();
-            int nr = hr + DR[d];
-            int nc = hc + DC[d];
-
-            SnakeState nxt = state;
-            MoveResult ret = nxt.apply(d);
-            if (!ret.ok) {
-                continue;
-            }
-
-            int pref = nxt.prefixLen(desired);
-            int nearTarget = manhattanToNearestTarget(nxt, targetColor);
-            int food = state.grid[nr][nc];
-            int visits = visitCount[nr][nc];
-
-            double s = 0.0;
-            s += urand(rng) * 6.0;
-            s += urand(rng) * 6.0;
-            s += (food == 0 ? 0.5 : 2.5);
-            s += max(0, 5 - visits) * 0.8;
-            s += (int)nxt.legalDirs().size() * 0.4;
-            if (food == targetColor) {
-                s += 3.0;
-            }
-            if (ret.bite) {
-                s -= 6.0;
-            }
-            if (pref < baseL) {
-                s -= 12.0;
-            }
-            if (nearTarget != INT_MAX) {
-                s -= nearTarget * 0.05;
-            }
-
-            scored.push_back({s, d});
-        }
-
-        if (scored.empty()) {
-            return dirs[0];
-        }
-        sort(scored.begin(), scored.end(), [](const ScoredMove& a, const ScoredMove& b) {
-            return a.score > b.score;
-        });
-        int topK = min(3, (int)scored.size());
-        uniform_int_distribution<int> uid(0, topK - 1);
-        return scored[uid(rng)].dir;
+        return pickWanderStepForState(state, targetColor, baseL);
     }
 
     int greedyTurnStep(int cap) const {
