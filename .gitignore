@@ -8,3 +8,4 @@ local_visualizer
 venv
 output*
 /**/__pycache__/
+vis.html
