@@ -1,6 +1,6 @@
+#include <bits/stdc++.h>
 #pragma GCC target("avx2,bmi,bmi2,popcnt,sse4.2")
 #pragma GCC optimize("O3,unroll-loops")
-#include <bits/stdc++.h>
 #include <immintrin.h>
 using namespace std;
 
@@ -19,6 +19,7 @@ constexpr int BEAM_WIDTH = 5;
 constexpr int WANDER_LEN = 2;
 constexpr int SEARCH_TIME_LIMIT_MS = 1800;
 constexpr int BEAM_CANDIDATE_TOP_K = 3;
+
 constexpr int CUT_ENUM_MAX_DEPTH = 3;
 constexpr int CUT_KEEP_MIN_LEN = 3;
 constexpr int CUT_LEN_DEVIATION_WEIGHT = 100;
@@ -40,45 +41,25 @@ constexpr int CUT_BEAM_DIRECT_DISTANCE_WEIGHT = 120;
 constexpr int CUT_BEAM_LOOSE_UNREACHABLE = 200'000;
 constexpr int CUT_BEAM_LOOSE_DISTANCE_WEIGHT = 25;
 constexpr long long CUT_BEAM_NOT_REACHABLE_PENALTY = 4'000'000LL;
-constexpr long long SCORE_MISMATCH_WEIGHT = 10'000LL;
-constexpr int SCORE_MISSING_LENGTH_FACTOR = 2;
-constexpr double WANDER_RAND_WEIGHT = 5.0;
-constexpr double WANDER_EMPTY_SCORE = 1.0;
-constexpr double WANDER_FOOD_SCORE = 2.0;
-constexpr double WANDER_MOBILITY_WEIGHT = 0.5;
-constexpr double WANDER_TARGET_FOOD_BONUS = 3.0;
-constexpr double WANDER_BITE_PENALTY = 5.0;
-constexpr double WANDER_PREFIX_BREAK_PENALTY = 8.0;
-constexpr double WANDER_TARGET_DISTANCE_WEIGHT = 0.05;
-constexpr int WANDER_CHOICE_TOP_K = 3;
+
 constexpr int LEGACY_NEAR_FINISH_REMAINING = 2;
 constexpr int LEGACY_TAIL_PATH_STAGNATION_LIMIT = 60;
 constexpr int LEGACY_WANDER_TRIGGER_STAGNATION = 10;
-constexpr int LEGACY_WANDER_BUDGET = 5;
+constexpr int LEGACY_WANDER_BUDGET = 2;
 constexpr int LEGACY_CUT_THRESHOLD_NEAR_FIN = 120;
 constexpr int LEGACY_CUT_THRESHOLD_DEFAULT = 30;
 constexpr int LEGACY_CUT_THRESHOLD_PREF_BROKEN_CAP = 18;
 constexpr int LEGACY_CUT_STAGNATION_REDUCE = 15;
 constexpr int LEGACY_PENALIZED_TRIGGER_STAGNATION = 80;
 constexpr int LEGACY_PENALIZED_FOOD_PENALTY_FACTOR = 3;
-constexpr double EXPLORE_RANDOM_MOVE_PROB = 0.15;
-constexpr double EXPLORE_LAND_EMPTY_SCORE = 2.5;
-constexpr double EXPLORE_LAND_TARGET_SCORE = 8.0;
-constexpr double EXPLORE_LAND_OTHER_PENALTY = 8.0;
-constexpr double EXPLORE_NON_TARGET_EMPTY_SCORE = 2.0;
-constexpr double EXPLORE_NON_TARGET_FOOD_SCORE = 1.5;
-constexpr double EXPLORE_BITE_BONUS = 0.5;
-constexpr double EXPLORE_PREFIX_BREAK_PENALTY = 2000.0;
-constexpr double EXPLORE_MOBILITY_WEIGHT = 0.6;
-constexpr double EXPLORE_TARGET_DISTANCE_WEIGHT = 0.4;
-constexpr int EXPLORE_CHOICE_TOP_K = 3;
-constexpr double EXPLORE_TOP_CHOICE_PROB = 0.75;
+
 constexpr int GREEDY_STEP_BOUND_SMALL = 1000;
 constexpr int GREEDY_STEP_BOUND_MIDDLE = 10000;
 constexpr int GREEDY_STEP_SMALL = 100;
 constexpr int GREEDY_STEP_MIDDLE = 1000;
 constexpr int GREEDY_STEP_LARGE = 10000;
-constexpr int BEAM_TURN_CAP_MAX = 5000;
+
+constexpr int BEAM_TURN_CAP_MAX = 4000;
 constexpr int BEAM_WIDTH_MAX = 1'000'000;
 constexpr int BEAM_CUT_CANDIDATE_TOP_K = 1;
 
@@ -106,7 +87,9 @@ struct PathPool {
     Node nodes[CAP];
     int sz = 0;
     void clear() { sz = 0; }
+    bool hasSpace(int need = 1) const { return sz + need <= CAP; }
     int add(int8_t dir, int parent) {
+        if (sz >= CAP) return -1;
         nodes[sz] = {dir, parent};
         return sz++;
     }
@@ -389,42 +372,41 @@ struct Solver {
     }
 
     bool executeDir(int d) {
-        int prefixBefore = 0;
-        SnakeState before;
         bool needBackup = (state.bodyLen >= 3);
+        int prefixBefore = 0;
+        uint8_t savedBody[MAXBODY];
+        int16_t savedBodyHead = 0, savedBodyLen = 0;
         if (needBackup) {
-            before = state;
-            prefixBefore = before.prefixLen(desired, M);
+            prefixBefore = state.prefixLen(desired, M);
+            memcpy(savedBody, state.bodyBuf, sizeof(savedBody));
+            savedBodyHead = state.bodyHead;
+            savedBodyLen = state.bodyLen;
         }
         MoveResult ret = state.apply(d);
         if (!ret.ok) return false;
         movesDirs.push_back((int8_t)d);
         if (ret.bite && needBackup) {
-            auto recovery = buildRecoveryPathByOldBody(before, state, prefixBefore);
+            // Inline recovery computation using saved body only
+            int lenAfter = state.bodyLen;
             recoveryHead = 0;
-            recoveryLen = recovery.len;
-            memcpy(recoveryBuf, recovery.d, recovery.len);
-        }
-        return true;
-    }
-
-    int manhattanToNearestTarget(const SnakeState& st, int targetColor) const {
-        if (st.bodyLen == 0) return INT_MAX;
-        uint8_t head = st.bodyFront();
-        int hr = posR(head), hc = posC(head);
-        int best = INT_MAX;
-        for (int i = 0; i < st.N; ++i) {
-            for (int j = 0; j < st.N; ++j) {
-                if (st.grid[i][j] == targetColor) {
-                    best = min(best, abs(i - hr) + abs(j - hc));
+            recoveryLen = 0;
+            if (prefixBefore > lenAfter && savedBodyLen > 0 && lenAfter > 0) {
+                int startIdx = lenAfter - 1;
+                int endIdx = prefixBefore - 2;
+                if (startIdx >= 0 && endIdx >= startIdx && endIdx < savedBodyLen) {
+                    uint8_t cur = state.bodyFront();
+                    for (int idx = startIdx; idx <= endIdx; ++idx) {
+                        uint8_t nxt = savedBody[(savedBodyHead + idx) & BODY_MASK];
+                        int dd = dirBetween(cur, nxt);
+                        if (dd < 0) { recoveryLen = 0; break; }
+                        recoveryBuf[recoveryLen++] = (int8_t)dd;
+                        cur = nxt;
+                    }
                 }
             }
         }
-        return best;
+        return true;
     }
-
-    // Bucket queue BFS structures (reusable, stack-allocated per call)
-    static constexpr int BQ_MAX_DIST = MAXCELLS + 1;
 
     int findDynamicStrictPathsToTarget(
         const SnakeState& st,
@@ -455,48 +437,44 @@ struct Solver {
         uint8_t neck = 255;
         if (st.bodyLen >= 2) neck = st.bodyAt(1);
 
-        pair<int8_t,int8_t> buckets_arr[BQ_MAX_DIST][MAXCELLS];
-        int bucket_sz[BQ_MAX_DIST] = {};
+        // Simple BFS queue with early exit when topK goals found
+        uint8_t bq[MAXCELLS];
+        int qh = 0, qt = 0;
         dist[hr][hc] = 0;
-        buckets_arr[0][0] = {(int8_t)hr, (int8_t)hc};
-        bucket_sz[0] = 1;
-
-        for (int t = 0; t < BQ_MAX_DIST; ++t) {
-            for (int bi = 0; bi < bucket_sz[t]; ++bi) {
-                auto [r, c] = buckets_arr[t][bi];
-                if (dist[r][c] != t) continue;
-                for (int d = 0; d < 4; ++d) {
-                    int nr = r + DR[d], nc = c + DC[d];
-                    if ((unsigned)nr >= (unsigned)n || (unsigned)nc >= (unsigned)n) continue;
-                    if (r == hr && c == hc && packPos(nr, nc) == neck) continue;
-                    int food = st.grid[nr][nc];
-                    if (food != 0 && food != targetColor) continue;
-                    int nt = t + 1;
-                    if (nt < release[nr][nc]) continue;
-                    if (nt < dist[nr][nc]) {
-                        dist[nr][nc] = nt;
-                        parentPacked[nr][nc] = packPos(r, c);
-                        pdir[nr][nc] = (int8_t)d;
-                        if (nt < BQ_MAX_DIST) {
-                            buckets_arr[nt][bucket_sz[nt]++] = {(int8_t)nr, (int8_t)nc};
-                        }
-                    }
-                }
-            }
-        }
+        bq[qt++] = packPos(hr, hc);
 
         struct Goal { int dist, r, c; };
         Goal goals[MAXCELLS];
         int gn = 0;
-        for (int i = 0; i < n; ++i) {
-            for (int j = 0; j < n; ++j) {
-                if (i == hr && j == hc) continue;
-                if (st.grid[i][j] != targetColor) continue;
-                if (dist[i][j] >= INF) continue;
-                goals[gn++] = {dist[i][j], i, j};
+        int goalMaxDist = -1;
+
+        while (qh < qt) {
+            uint8_t pos = bq[qh++];
+            int r = posR(pos), c = posC(pos);
+            int t = dist[r][c];
+            // Early exit: found enough goals and moved past their distance
+            if (gn >= topK && t > goalMaxDist) break;
+            if (!(r == hr && c == hc) && st.grid[r][c] == targetColor) {
+                goals[gn++] = {t, r, c};
+                goalMaxDist = t;
+                continue; // don't expand past goal cells
+            }
+            for (int d = 0; d < 4; ++d) {
+                int nr = r + DR[d], nc = c + DC[d];
+                if ((unsigned)nr >= (unsigned)n || (unsigned)nc >= (unsigned)n) continue;
+                if (r == hr && c == hc && packPos(nr, nc) == neck) continue;
+                int food = st.grid[nr][nc];
+                if (food != 0 && food != targetColor) continue;
+                int nt = t + 1;
+                if (nt < release[nr][nc]) continue;
+                if (nt < dist[nr][nc]) {
+                    dist[nr][nc] = nt;
+                    parentPacked[nr][nc] = packPos(r, c);
+                    pdir[nr][nc] = (int8_t)d;
+                    bq[qt++] = packPos(nr, nc);
+                }
             }
         }
-        sort(goals, goals + gn, [](const Goal& a, const Goal& b) { return a.dist < b.dist; });
         if (gn == 0) return 0;
 
         int take = min(topK, gn);
@@ -516,10 +494,67 @@ struct Solver {
         return cnt;
     }
 
+    // Dedicated single-target BFS with early exit (no bucket queue overhead)
     FixedPath findDynamicStrictPathToTarget(const SnakeState& st, int targetColor) const {
-        FixedPath out[1];
-        int cnt = findDynamicStrictPathsToTarget(st, targetColor, 1, out);
-        return cnt > 0 ? out[0] : FixedPath{};
+        FixedPath result;
+        if (st.bodyLen == 0) return result;
+        const int n = st.N;
+
+        int release[MAXN][MAXN] = {};
+        for (int i = 1; i < st.bodyLen; ++i) {
+            uint8_t bp = st.bodyAt(i);
+            release[posR(bp)][posC(bp)] = max(release[posR(bp)][posC(bp)], (int)st.bodyLen - i);
+        }
+
+        int dist[MAXN][MAXN];
+        uint8_t parentPacked[MAXN][MAXN];
+        int8_t pdir[MAXN][MAXN];
+        memset(dist, 0x3f, sizeof(dist));
+
+        uint8_t head = st.bodyFront();
+        int hr = posR(head), hc = posC(head);
+        uint8_t neck = 255;
+        if (st.bodyLen >= 2) neck = st.bodyAt(1);
+
+        uint8_t bq[MAXCELLS];
+        int qh = 0, qt = 0;
+        dist[hr][hc] = 0;
+        bq[qt++] = packPos(hr, hc);
+
+        int goalR = -1, goalC = -1;
+        while (qh < qt) {
+            uint8_t pos = bq[qh++];
+            int r = posR(pos), c = posC(pos);
+            int t = dist[r][c];
+            if (!(r == hr && c == hc) && st.grid[r][c] == targetColor) {
+                goalR = r; goalC = c; break;
+            }
+            for (int d = 0; d < 4; ++d) {
+                int nr = r + DR[d], nc = c + DC[d];
+                if ((unsigned)nr >= (unsigned)n || (unsigned)nc >= (unsigned)n) continue;
+                if (r == hr && c == hc && packPos(nr, nc) == neck) continue;
+                int food = st.grid[nr][nc];
+                if (food != 0 && food != targetColor) continue;
+                int nt = t + 1;
+                if (nt < release[nr][nc]) continue;
+                if (nt < dist[nr][nc]) {
+                    dist[nr][nc] = nt;
+                    parentPacked[nr][nc] = packPos(r, c);
+                    pdir[nr][nc] = (int8_t)d;
+                    bq[qt++] = packPos(nr, nc);
+                }
+            }
+        }
+
+        if (goalR == -1) return result;
+        int cr = goalR, cc = goalC;
+        while (!(cr == hr && cc == hc)) {
+            result.push_back(pdir[cr][cc]);
+            uint8_t pp = parentPacked[cr][cc];
+            cr = posR(pp); cc = posC(pp);
+        }
+        result.reverse_path();
+        return result;
     }
 
     FixedPath findDynamicStrictPathToTail(const SnakeState& st, int targetColor) const {
@@ -548,38 +583,32 @@ struct Solver {
         uint8_t neck = 255;
         if (st.bodyLen >= 2) neck = st.bodyAt(1);
 
-        // Bucket queue
-        pair<int8_t,int8_t> buckets_arr[BQ_MAX_DIST][MAXCELLS];
-        int bucket_sz[BQ_MAX_DIST] = {};
+        uint8_t bq[MAXCELLS];
+        int qh = 0, qt = 0;
         dist[hr][hc] = 0;
-        buckets_arr[0][0] = {(int8_t)hr, (int8_t)hc};
-        bucket_sz[0] = 1;
+        bq[qt++] = packPos(hr, hc);
 
-        for (int t = 0; t < BQ_MAX_DIST; ++t) {
-            for (int bi = 0; bi < bucket_sz[t]; ++bi) {
-                auto [r, c] = buckets_arr[t][bi];
-                if (dist[r][c] != t) continue;
-                if (!(r == hr && c == hc) && r == gr && c == gc) goto found_tail;
-                for (int d = 0; d < 4; ++d) {
-                    int nr = r + DR[d], nc = c + DC[d];
-                    if ((unsigned)nr >= (unsigned)n || (unsigned)nc >= (unsigned)n) continue;
-                    if (r == hr && c == hc && packPos(nr, nc) == neck) continue;
-                    int food = st.grid[nr][nc];
-                    if (food != 0 && food != targetColor) continue;
-                    int nt = t + 1;
-                    if (nt < release[nr][nc]) continue;
-                    if (nt < dist[nr][nc]) {
-                        dist[nr][nc] = nt;
-                        parentPacked[nr][nc] = packPos(r, c);
-                        pdir[nr][nc] = (int8_t)d;
-                        if (nt < BQ_MAX_DIST) {
-                            buckets_arr[nt][bucket_sz[nt]++] = {(int8_t)nr, (int8_t)nc};
-                        }
-                    }
+        while (qh < qt) {
+            uint8_t pos = bq[qh++];
+            int r = posR(pos), c = posC(pos);
+            int t = dist[r][c];
+            if (!(r == hr && c == hc) && r == gr && c == gc) break;
+            for (int d = 0; d < 4; ++d) {
+                int nr = r + DR[d], nc = c + DC[d];
+                if ((unsigned)nr >= (unsigned)n || (unsigned)nc >= (unsigned)n) continue;
+                if (r == hr && c == hc && packPos(nr, nc) == neck) continue;
+                int food = st.grid[nr][nc];
+                if (food != 0 && food != targetColor) continue;
+                int nt = t + 1;
+                if (nt < release[nr][nc]) continue;
+                if (nt < dist[nr][nc]) {
+                    dist[nr][nc] = nt;
+                    parentPacked[nr][nc] = packPos(r, c);
+                    pdir[nr][nc] = (int8_t)d;
+                    bq[qt++] = packPos(nr, nc);
                 }
             }
         }
-        found_tail:
 
         if (dist[gr][gc] >= INF) return result;
         int cr = gr, cc = gc;
@@ -765,9 +794,14 @@ struct Solver {
                     cand.anchorLen = anchorLen;
                     cand.adjacentToPrefix = isTargetAdjacentToPrefixSegment(nxt, anchorLen, targetColor);
                     auto dp = findDynamicStrictPathToTarget(nxt, targetColor);
-                    auto lp = bfsToTargetColor(nxt, targetColor, false, true);
                     cand.directPathLen = dp.empty() ? INT_MAX : dp.size();
-                    cand.loosePathLen = lp.empty() ? INT_MAX : lp.size();
+                    // Skip expensive loose BFS if direct path found or adjacent
+                    if (cand.directPathLen != INT_MAX || cand.adjacentToPrefix) {
+                        cand.loosePathLen = cand.directPathLen; // approximate
+                    } else {
+                        auto lp = bfsToTargetColor(nxt, targetColor, false, true);
+                        cand.loosePathLen = lp.empty() ? INT_MAX : lp.size();
+                    }
                     out.push_back(move(cand));
                 }
             } else {
@@ -882,8 +916,9 @@ struct Solver {
     }
 
     long long evaluateBeamState(const SnakeState& st, int maxPrefix) const {
-        int k = st.bodyLen, pref = min(maxPrefix, k), E = k - pref;
-        return st.turn + SCORE_MISMATCH_WEIGHT * (E + SCORE_MISSING_LENGTH_FACTOR * (M - k));
+        // int k = st.bodyLen, pref = min(maxPrefix, k), E = k - pref;
+        // return st.turn + 10000LL * (E + 2LL * (M - k));
+        return - st.prefixLen(desired, M);
     }
 
     uint64_t beamStateKey(const SnakeState& st, int maxPrefix) const {
@@ -912,32 +947,10 @@ struct Solver {
         return a.st.turn < b.st.turn;
     }
 
-    int pickWanderStepForState(const SnakeState& st, int targetColor, int baseL) {
+    int pickWanderStepForState(const SnakeState& st, int /*targetColor*/, int /*baseL*/) {
         DirList dirs = st.legalDirs();
         if (dirs.n == 0) return -1;
-        struct SM { double s; int d; };
-        SM sc[4]; int sn = 0;
-        for (int di = 0; di < dirs.n; ++di) {
-            int d = dirs.d[di];
-            SnakeState nxt = st;
-            MoveResult ret = nxt.apply(d);
-            if (!ret.ok) continue;
-            uint8_t head = st.bodyFront();
-            int nr = posR(head) + DR[d], nc = posC(head) + DC[d];
-            int food = st.grid[nr][nc];
-            double s = randDouble() * WANDER_RAND_WEIGHT + randDouble() * WANDER_RAND_WEIGHT +
-                       (food == 0 ? WANDER_EMPTY_SCORE : WANDER_FOOD_SCORE) +
-                       nxt.legalDirs().n * WANDER_MOBILITY_WEIGHT;
-            if (food == targetColor) s += WANDER_TARGET_FOOD_BONUS;
-            if (ret.bite) s -= WANDER_BITE_PENALTY;
-            if (nxt.prefixLen(desired, M) < baseL) s -= WANDER_PREFIX_BREAK_PENALTY;
-            int nt = manhattanToNearestTarget(nxt, targetColor);
-            if (nt != INT_MAX) s -= nt * WANDER_TARGET_DISTANCE_WEIGHT;
-            sc[sn++] = {s, d};
-        }
-        if (sn == 0) return dirs.d[0];
-        sort(sc, sc + sn, [](const SM& a, const SM& b) { return a.s > b.s; });
-        return sc[randRange(0, min(WANDER_CHOICE_TOP_K, sn) - 1)].d;
+        return dirs.d[randRange(0, dirs.n - 1)];
     }
 
     void transitionGoTargetCandidates(
@@ -970,13 +983,13 @@ struct Solver {
         for (int pi = 0; pi < pathCount; ++pi) {
             if (chrono::steady_clock::now() >= dl) break;
             const FixedPath& path = paths[pi];
+            if (!gPool.hasSpace(path.len)) continue;
             BeamNode nxt;
             nxt.st = cur.st;
             nxt.pathTail = cur.pathTail;
             nxt.pathLen = cur.pathLen;
             bool ok = true;
             for (int i = 0; i < path.len; ++i) {
-                if (chrono::steady_clock::now() >= dl) { ok = false; break; }
                 if (nxt.st.turn >= activeTurnLimit) break;
                 MoveResult ret = nxt.st.apply(path.d[i]);
                 if (!ret.ok) { ok = false; break; }
@@ -1004,13 +1017,13 @@ struct Solver {
 
         for (auto& cut : cuts) {
             if (chrono::steady_clock::now() >= dl) break;
+            if (!gPool.hasSpace(cut.seqLen + MAXCELLS)) continue;
             BeamNode nxt;
             nxt.st = cur.st;
             nxt.pathTail = cur.pathTail;
             nxt.pathLen = cur.pathLen;
             bool bitten = false, ok = true;
             for (int si = 0; si < cut.seqLen; ++si) {
-                if (chrono::steady_clock::now() >= dl) { ok = false; break; }
                 if (nxt.st.turn >= activeTurnLimit) break;
                 SnakeState bef = nxt.st;
                 int pb = bef.prefixLen(desired, M);
@@ -1022,7 +1035,6 @@ struct Solver {
                     bitten = true;
                     auto recovery = buildRecoveryPathByOldBody(bef, nxt.st, pb);
                     for (int ri = 0; ri < recovery.len; ++ri) {
-                        if (chrono::steady_clock::now() >= dl) { ok = false; break; }
                         if (nxt.st.turn >= activeTurnLimit) break;
                         MoveResult rr = nxt.st.apply(recovery.d[ri]);
                         if (!rr.ok) { ok = false; break; }
@@ -1044,13 +1056,14 @@ struct Solver {
         if (chrono::steady_clock::now() >= dl) return false;
         int p = cur.st.prefixLen(desired, M);
         if (p >= M) return false;
+        if (!gPool.hasSpace(WANDER_LEN)) return false;
         int tc = desired[p];
         out.st = cur.st;
         out.pathTail = cur.pathTail;
         out.pathLen = cur.pathLen;
         int moved = 0;
         for (int t = 0; t < WANDER_LEN; ++t) {
-            if (chrono::steady_clock::now() >= dl || out.st.turn >= activeTurnLimit) break;
+            if (out.st.turn >= activeTurnLimit) break;
             int d = pickWanderStepForState(out.st, tc, p);
             if (d == -1) break;
             MoveResult ret = out.st.apply(d);
@@ -1083,15 +1096,24 @@ struct Solver {
 
         int bestPrefix = state.prefixLen(desired, M);
         int stagnation = 0;
+        int timeCheckCounter = 0;
+        bool timeUp = false;
+        auto checkTime = [&]() -> bool {
+            if (++timeCheckCounter >= 64) {
+                timeCheckCounter = 0;
+                if (chrono::steady_clock::now() >= deadline) { timeUp = true; return true; }
+            }
+            return timeUp;
+        };
         auto execCut = [&](const int8_t* seq, int len) -> bool {
             for (int i = 0; i < len; ++i) {
-                if (state.turn >= activeTurnLimit || chrono::steady_clock::now() >= deadline) break;
+                if (state.turn >= activeTurnLimit || checkTime()) break;
                 if (!executeDir(seq[i])) return false;
             }
             return true;
         };
 
-        while (state.turn < activeTurnLimit && chrono::steady_clock::now() < deadline) {
+        while (state.turn < activeTurnLimit && !checkTime()) {
             int p = state.prefixLen(desired, M);
             if (p >= M) break;
             bool prefBroken = p < state.colorLen;
@@ -1176,7 +1198,7 @@ struct Solver {
 
     optional<BeamNode> runBeamSearch(
         const SnakeState& initial, chrono::steady_clock::time_point deadline,
-        int beamWidth, int beamTurnCap
+        int beamWidth, int beamTurnCap, int incumbentBestLen
     ) {
         BeamNode init;
         init.st = initial;
@@ -1193,6 +1215,11 @@ struct Solver {
         auto ins = [&](BeamNode&& cand) {
             int t = cand.st.turn;
             if (t < startTurn || t > beamTurnCap) return;
+            if (incumbentBestLen < INT_MAX) {
+                int p = cand.st.prefixLen(desired, M);
+                int optimistic = M - p; // admissible lower bound of additional turns
+                if (cand.st.turn + optimistic >= incumbentBestLen) return;
+            }
             uint64_t key = beamStateKey(cand.st, cand.maxPrefix);
             auto& mp = lki[t]; auto& vec = layers[t];
             auto it = mp.find(key);
@@ -1208,16 +1235,32 @@ struct Solver {
         for (int turn = startTurn; turn <= beamTurnCap; ++turn) {
             if (chrono::steady_clock::now() >= deadline) break;
             auto& beam = layers[turn];
-            if (beam.empty()) continue;
-            sort(beam.begin(), beam.end(), [&](const BeamNode& a, const BeamNode& b) { return betterBeamNode(a, b); });
-            if ((int)beam.size() > beamWidth) beam.resize(beamWidth);
+            if (beam.empty()) {
+                lki[turn].clear();
+                continue;
+            }
 
-            for (auto& node : beam) {
+            vector<int> order;
+            order.reserve(beam.size());
+            for (int i = 0; i < (int)beam.size(); ++i) order.push_back(i);
+            auto idxComp = [&](int a, int b) { return betterBeamNode(beam[a], beam[b]); };
+            if ((int)order.size() > beamWidth) {
+                nth_element(order.begin(), order.begin() + beamWidth, order.end(), idxComp);
+                order.resize(beamWidth);
+            }
+            sort(order.begin(), order.end(), idxComp);
+
+            for (int bi : order) {
                 if (chrono::steady_clock::now() >= deadline) break;
+                auto& node = beam[bi];
                 if (betterBeamNode(node, bestSeen)) bestSeen = node;
                 int p = node.st.prefixLen(desired, M);
                 if (p >= M) { if (!hasDone || betterBeamNode(node, bestDone)) { hasDone = true; bestDone = node; } continue; }
                 if (node.st.turn >= beamTurnCap) continue;
+                if (incumbentBestLen < INT_MAX) {
+                    int optimistic = M - p; // admissible lower bound of additional turns
+                    if (node.st.turn + optimistic >= incumbentBestLen) continue;
+                }
 
                 BeamNode cands[8]; int cn;
                 transitionGoTargetCandidates(node, deadline, BEAM_CANDIDATE_TOP_K, cands, cn);
@@ -1231,49 +1274,15 @@ struct Solver {
             }
             if (hasDone) break;
             lki[turn].clear();
+            vector<BeamNode>().swap(beam);
         }
         return hasDone ? optional(bestDone) : optional(bestSeen);
     }
 
-    int pickExploreMove(int tc, int baseL, bool randomized, bool preferTC = true) {
+    int pickExploreMove(int /*tc*/, int /*baseL*/, bool /*randomized*/, bool /*preferTC*/ = true) {
         DirList dirs = state.legalDirs();
         if (dirs.n == 0) return -1;
-        if (randomized && randDouble() < EXPLORE_RANDOM_MOVE_PROB) return dirs.d[randRange(0, dirs.n - 1)];
-
-        struct SM { double s; int d; };
-        SM sc[4]; int sn = 0;
-        for (int di = 0; di < dirs.n; ++di) {
-            int d = dirs.d[di];
-            uint8_t head = state.bodyFront();
-            int nr = posR(head) + DR[d], nc = posC(head) + DC[d];
-            int lf = state.grid[nr][nc];
-            SnakeState nxt = state;
-            MoveResult ret = nxt.apply(d);
-            if (!ret.ok) continue;
-            int pref = nxt.prefixLen(desired, M);
-            int nt = manhattanToNearestTarget(nxt, tc);
-            int mob = nxt.legalDirs().n;
-            double s = 0;
-            if (preferTC) {
-                if (lf == 0) s += EXPLORE_LAND_EMPTY_SCORE;
-                else if (lf == tc) s += EXPLORE_LAND_TARGET_SCORE;
-                else s -= EXPLORE_LAND_OTHER_PENALTY;
-            } else {
-                s += (lf == 0 ? EXPLORE_NON_TARGET_EMPTY_SCORE : EXPLORE_NON_TARGET_FOOD_SCORE);
-            }
-            if (ret.bite) s += EXPLORE_BITE_BONUS;
-            if (pref < baseL) s -= EXPLORE_PREFIX_BREAK_PENALTY;
-            s += mob * EXPLORE_MOBILITY_WEIGHT;
-            if (preferTC && nt != INT_MAX) s -= nt * EXPLORE_TARGET_DISTANCE_WEIGHT;
-            if (randomized) s += randDouble();
-            sc[sn++] = {s, d};
-        }
-        if (sn == 0) return dirs.d[0];
-        sort(sc, sc + sn, [](const SM& a, const SM& b) { return a.s > b.s; });
-        if (!randomized) return sc[0].d;
-        int topK = min(EXPLORE_CHOICE_TOP_K, sn);
-        if (randDouble() < EXPLORE_TOP_CHOICE_PROB) return sc[randRange(0, topK - 1)].d;
-        return sc[randRange(0, sn - 1)].d;
+        return dirs.d[randRange(0, dirs.n - 1)];
     }
 
     int greedyTurnStep(int cap) const {
@@ -1323,13 +1332,17 @@ struct Solver {
 
         while (chrono::steady_clock::now() < totalDL) {
             gPool.clear();
-            auto bb = runBeamSearch(initial, totalDL, bw, btc);
+            int incumbentBestLen = isDoneNode(best) ? (int)bestPath.size() : INT_MAX;
+            auto bb = runBeamSearch(initial, totalDL, bw, btc, incumbentBestLen);
             if (bb && betterFinalNode(*bb, best)) {
                 best = move(*bb);
                 // Extract path from pool
                 bestPath.resize(best.pathLen);
                 if (best.pathTail >= 0 && best.pathLen > 0) {
                     gPool.extract(best.pathTail, best.pathLen, bestPath.data());
+                }
+                if (isDoneNode(best) && best.pathLen > 0) {
+                    btc = min(btc, best.pathLen);
                 }
             }
             if (chrono::steady_clock::now() >= totalDL || bw >= BEAM_WIDTH_MAX) break;

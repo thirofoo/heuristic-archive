@@ -8,7 +8,8 @@
       "Bash(./a.out)",
       "Bash(cargo run:*)",
       "Bash(export PATH=\"$HOME/.cargo/bin:$PATH\")",
-      "Bash(pahcer run:*)"
+      "Bash(pahcer run:*)",
+      "Bash(pahcer)"
     ]
   }
 }
