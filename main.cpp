@@ -42,6 +42,10 @@ constexpr int CUT_BEAM_LOOSE_UNREACHABLE = 200'000;
 constexpr int CUT_BEAM_LOOSE_DISTANCE_WEIGHT = 25;
 constexpr long long CUT_BEAM_NOT_REACHABLE_PENALTY = 4'000'000LL;
 
+constexpr long long SCORE_PREFIX_PRIMARY_WEIGHT = 1'000'000LL;
+constexpr long long SCORE_FOOD_WALL_PENALTY_WEIGHT = 1LL;
+constexpr long long SCORE_FOOD_CORNER_EXTRA_PENALTY_WEIGHT = 2LL;
+
 constexpr int LEGACY_NEAR_FINISH_REMAINING = 2;
 constexpr int LEGACY_TAIL_PATH_STAGNATION_LIMIT = 60;
 constexpr int LEGACY_WANDER_TRIGGER_STAGNATION = 10;
@@ -59,7 +63,7 @@ constexpr int GREEDY_STEP_SMALL = 100;
 constexpr int GREEDY_STEP_MIDDLE = 1000;
 constexpr int GREEDY_STEP_LARGE = 10000;
 
-constexpr int BEAM_TURN_CAP_MAX = 4000;
+constexpr int BEAM_TURN_CAP_MAX = 5000;
 constexpr int BEAM_WIDTH_MAX = 1'000'000;
 constexpr int BEAM_CUT_CANDIDATE_TOP_K = 1;
 
@@ -915,10 +919,32 @@ struct Solver {
         return out;
     }
 
+    long long foodWallPenalty(const SnakeState& st) const {
+        if (st.foodCount <= 0) return 0LL;
+        long long sum = 0;
+        int edge = st.N - 1;
+        for (int r = 0; r < st.N; ++r) {
+            for (int c = 0; c < st.N; ++c) {
+                if (st.grid[r][c] == 0) continue;
+                bool top = (r == 0);
+                bool bottom = (r == edge);
+                bool left = (c == 0);
+                bool right = (c == edge);
+                bool onWall = top || bottom || left || right;
+                bool corner = (top || bottom) && (left || right);
+                if (onWall) sum += SCORE_FOOD_WALL_PENALTY_WEIGHT;
+                if (corner) sum += SCORE_FOOD_CORNER_EXTRA_PENALTY_WEIGHT;
+            }
+        }
+        return sum;
+    }
+
     long long evaluateBeamState(const SnakeState& st, int maxPrefix) const {
-        // int k = st.bodyLen, pref = min(maxPrefix, k), E = k - pref;
-        // return st.turn + 10000LL * (E + 2LL * (M - k));
-        return - st.prefixLen(desired, M);
+        (void)maxPrefix;
+        int pref = st.prefixLen(desired, M);
+        long long wall = foodWallPenalty(st);
+        return -SCORE_PREFIX_PRIMARY_WEIGHT * pref
+             + wall;
     }
 
     uint64_t beamStateKey(const SnakeState& st, int maxPrefix) const {
