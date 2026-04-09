@@ -1,6 +1,6 @@
 #include <bits/stdc++.h>
 #pragma GCC target("avx2,bmi,bmi2,popcnt,sse4.2")
-#pragma GCC optimize("O3,unroll-loops")
+#pragma GCC optimize("Ofast,omit-frame-pointer,inline,unroll-all-loops,no-stack-protector")
 #include <immintrin.h>
 using namespace std;
 
@@ -14,6 +14,8 @@ constexpr int MAXCELLS = MAXN * MAXN;
 constexpr int DR[4] = {-1, 1, 0, 0};
 constexpr int DC[4] = {0, 0, -1, 1};
 constexpr char DCHAR[4] = {'U', 'D', 'L', 'R'};
+constexpr int DIR_ORDER_UDLR[4] = {0, 1, 2, 3};
+constexpr int DIR_ORDER_RLDU[4] = {3, 2, 1, 0};
 constexpr int MAX_TURN_LIMIT = 100000;
 constexpr int BEAM_WIDTH = 5;
 constexpr int WANDER_LEN = 2;
@@ -21,26 +23,13 @@ constexpr int SEARCH_TIME_LIMIT_MS = 1850;
 constexpr int BEAM_CANDIDATE_TOP_K = 3;
 
 constexpr int CUT_ENUM_MAX_DEPTH = 3;
+constexpr int CUT_CANDIDATE_CAP = 64;
 constexpr int CUT_KEEP_MIN_LEN = 3;
-constexpr int CUT_LEN_DEVIATION_WEIGHT = 100;
-constexpr int CUT_LEN_OVER_HALF_WEIGHT = 300;
-constexpr long long CUT_EVAL_BITE_TURN_WEIGHT = 60'000LL;
-constexpr long long CUT_EVAL_ADJ_BONUS = 120'000LL;
-constexpr int CUT_EVAL_DIRECT_UNREACHABLE = 20'000;
-constexpr int CUT_EVAL_DIRECT_DISTANCE_WEIGHT = 220;
-constexpr int CUT_EVAL_LOOSE_UNREACHABLE = 10'000;
-constexpr int CUT_EVAL_LOOSE_DISTANCE_WEIGHT = 30;
-constexpr long long CUT_EVAL_PREFIX_AFTER_WEIGHT = 300LL;
 constexpr long long CUT_BEAM_WRONG_SUFFIX_WEIGHT = 2'000'000LL;
 constexpr long long CUT_BEAM_PREFIX_LOSS_WEIGHT = 120'000LL;
 constexpr long long CUT_BEAM_NO_WRONG_REDUCTION_PENALTY = 2'500'000LL;
 constexpr long long CUT_BEAM_BITE_TURN_WEIGHT = 20'000LL;
 constexpr long long CUT_BEAM_NOT_ADJ_PENALTY = 90'000LL;
-constexpr int CUT_BEAM_DIRECT_UNREACHABLE = 400'000;
-constexpr int CUT_BEAM_DIRECT_DISTANCE_WEIGHT = 120;
-constexpr int CUT_BEAM_LOOSE_UNREACHABLE = 200'000;
-constexpr int CUT_BEAM_LOOSE_DISTANCE_WEIGHT = 25;
-constexpr long long CUT_BEAM_NOT_REACHABLE_PENALTY = 4'000'000LL;
 
 constexpr long long SCORE_PREFIX_PRIMARY_WEIGHT = 1'000'000LL;
 constexpr long long SCORE_FOOD_WALL_PENALTY_WEIGHT = 1LL;
@@ -48,26 +37,82 @@ constexpr long long SCORE_FOOD_CORNER_EXTRA_PENALTY_WEIGHT = 2LL;
 
 constexpr int BEAM_TURN_CAP_MAX = 5000;
 constexpr int BEAM_WIDTH_MAX = 80;
-constexpr int BEAM_CUT_CANDIDATE_TOP_K = 1;
+constexpr int BEAM_CUT_CANDIDATE_TOP_K = 2;
 constexpr int CUT_APPLY_NODE_LIMIT = 12;
+constexpr int BEAM_BAN_PREFIX_TURNS = 80;
+constexpr uint16_t INVALID_NEXT_POS = 0xFFFFu;
 
 inline uint8_t packPos(int r, int c) { return (uint8_t)((r << 4) | c); }
 inline int posR(uint8_t p) { return p >> 4; }
 inline int posC(uint8_t p) { return p & 15; }
+
+inline int prefixMatchContiguous(const int8_t* a, const int8_t* b, int len) {
+    int p = 0;
+#ifdef __AVX2__
+    while (p + 32 <= len) {
+        __m256i va = _mm256_loadu_si256((const __m256i*)(a + p));
+        __m256i vb = _mm256_loadu_si256((const __m256i*)(b + p));
+        unsigned mask = (unsigned)_mm256_movemask_epi8(_mm256_cmpeq_epi8(va, vb));
+        if (mask != 0xFFFFFFFFu) return p + __builtin_ctz(~mask);
+        p += 32;
+    }
+#endif
+#ifdef __SSE2__
+    while (p + 16 <= len) {
+        __m128i va = _mm_loadu_si128((const __m128i*)(a + p));
+        __m128i vb = _mm_loadu_si128((const __m128i*)(b + p));
+        unsigned mask = (unsigned)_mm_movemask_epi8(_mm_cmpeq_epi8(va, vb));
+        if (mask != 0xFFFFu) return p + __builtin_ctz(~mask);
+        p += 16;
+    }
+#endif
+    while (p < len && a[p] == b[p]) ++p;
+    return p;
+}
+
+uint8_t gPosRow[MAXBODY];
+uint8_t gPosCol[MAXBODY];
+uint16_t gCellIdxByPos[MAXBODY];
+uint16_t gNextPos[MAXBODY][4];
+uint8_t gCellBlockByPos[MAXBODY];
+uint64_t gCellMaskByPos[MAXBODY];
+uint8_t gWallByPos[MAXBODY];
+uint8_t gCornerByPos[MAXBODY];
+uint32_t gDirOrderNonce = 0;
+
+inline const int* chooseDirOrder() {
+    uint32_t x = ++gDirOrderNonce;
+    x ^= x >> 16;
+    x *= 0x7feb352dU;
+    x ^= x >> 15;
+    return (x & 1U) ? DIR_ORDER_RLDU : DIR_ORDER_UDLR;
+}
 
 struct FixedPath {
     int8_t d[MAXCELLS];
     int16_t len = 0;
     bool empty() const { return len == 0; }
     int size() const { return len; }
-    int8_t front() const { return d[0]; }
-    int8_t operator[](int i) const { return d[i]; }
     void push_back(int8_t v) { d[len++] = v; }
-    void reverse_path() { std::reverse(d, d + len); }
     bool operator==(const FixedPath& o) const {
         return len == o.len && memcmp(d, o.d, len) == 0;
     }
 };
+
+inline void reconstructPathBackward(
+    FixedPath& path,
+    int len,
+    uint8_t goalPos,
+    const uint8_t* parentPacked,
+    const int8_t* pdir
+) {
+    path.len = (int16_t)len;
+    uint8_t pos = goalPos;
+    for (int idx = len - 1; idx >= 0; --idx) {
+        path.d[idx] = pdir[pos];
+        pos = parentPacked[pos];
+    }
+}
 
 struct PathPool {
     struct Node { int8_t dir; int32_t parent; };
@@ -104,10 +149,27 @@ struct MoveResult {
     int8_t eatenColor = 0;
 };
 
+struct MoveSeq {
+    int8_t d[MAX_TURN_LIMIT];
+    int len = 0;
+    void clear() { len = 0; }
+    int size() const { return len; }
+};
+
+struct DeadlineChecker {
+    chrono::steady_clock::time_point deadline;
+    uint32_t tick = 0;
+
+    bool isOver() {
+        if ((++tick & 15u) != 0) return false;
+        return chrono::steady_clock::now() >= deadline;
+    }
+};
+
 struct SnakeState {
     int8_t N = 0;
-    int8_t grid[MAXN][MAXN] = {};
-    uint8_t bodyOccCnt[MAXN][MAXN] = {};
+    int8_t grid[MAXBODY] = {};
+    uint8_t bodyOccCnt[MAXBODY] = {};
     uint64_t bodyOcc[4] = {};
     uint8_t bodyBuf[MAXBODY];
     int8_t colorBuf[MAXBODY];
@@ -137,103 +199,73 @@ struct SnakeState {
         ++colorLen;
     }
 
-    bool inBounds(int r, int c) const {
-        return (unsigned)r < (unsigned)N && (unsigned)c < (unsigned)N;
+    void foodOccSetPos(uint8_t pos) {
+        foodOcc[gCellBlockByPos[pos]] |= gCellMaskByPos[pos];
     }
-
-    int foodIdx(int r, int c) const { return r * (int)N + c; }
-    bool isWallCell(int r, int c) const {
-        int edge = (int)N - 1;
-        return r == 0 || c == 0 || r == edge || c == edge;
+    void foodOccClearPos(uint8_t pos) {
+        foodOcc[gCellBlockByPos[pos]] &= ~gCellMaskByPos[pos];
     }
-    bool isCornerCell(int r, int c) const {
-        int edge = (int)N - 1;
-        return (r == 0 || r == edge) && (c == 0 || c == edge);
+    void foodColorOccSetPos(int color, uint8_t pos) {
+        foodColorOcc[color][gCellBlockByPos[pos]] |= gCellMaskByPos[pos];
     }
-    void foodOccSet(int r, int c) {
-        int idx = foodIdx(r, c);
-        foodOcc[idx >> 6] |= (1ULL << (idx & 63));
+    void foodColorOccClearPos(int color, uint8_t pos) {
+        foodColorOcc[color][gCellBlockByPos[pos]] &= ~gCellMaskByPos[pos];
     }
-    void foodOccClear(int r, int c) {
-        int idx = foodIdx(r, c);
-        foodOcc[idx >> 6] &= ~(1ULL << (idx & 63));
-    }
-    void foodColorOccSet(int color, int r, int c) {
-        int idx = foodIdx(r, c);
-        foodColorOcc[color][idx >> 6] |= (1ULL << (idx & 63));
-    }
-    void foodColorOccClear(int color, int r, int c) {
-        int idx = foodIdx(r, c);
-        foodColorOcc[color][idx >> 6] &= ~(1ULL << (idx & 63));
-    }
-    void onFoodAdded(int r, int c, int color) {
+    void onFoodAddedPos(uint8_t pos, int color) {
         ++foodCount;
-        foodOccSet(r, c);
-        foodColorOccSet(color, r, c);
-        if (isWallCell(r, c)) ++wallFoodCount;
-        if (isCornerCell(r, c)) ++cornerFoodCount;
+        foodOccSetPos(pos);
+        foodColorOccSetPos(color, pos);
+        wallFoodCount += gWallByPos[pos];
+        cornerFoodCount += gCornerByPos[pos];
     }
-    void onFoodRemoved(int r, int c, int color) {
+    void onFoodRemovedPos(uint8_t pos, int color) {
         --foodCount;
-        foodOccClear(r, c);
-        foodColorOccClear(color, r, c);
-        if (isWallCell(r, c)) --wallFoodCount;
-        if (isCornerCell(r, c)) --cornerFoodCount;
+        foodOccClearPos(pos);
+        foodColorOccClearPos(color, pos);
+        wallFoodCount -= gWallByPos[pos];
+        cornerFoodCount -= gCornerByPos[pos];
     }
-    void bodyOccInc(int r, int c) {
-        uint8_t& cnt = bodyOccCnt[r][c];
+    void bodyOccIncPos(uint8_t pos) {
+        uint8_t& cnt = bodyOccCnt[pos];
         ++cnt;
         if (cnt == 1) {
-            int idx = foodIdx(r, c);
-            bodyOcc[idx >> 6] |= (1ULL << (idx & 63));
+            bodyOcc[gCellBlockByPos[pos]] |= gCellMaskByPos[pos];
         }
     }
-    void bodyOccDec(int r, int c) {
-        uint8_t& cnt = bodyOccCnt[r][c];
+    void bodyOccDecPos(uint8_t pos) {
+        uint8_t& cnt = bodyOccCnt[pos];
         --cnt;
         if (cnt == 0) {
-            int idx = foodIdx(r, c);
-            bodyOcc[idx >> 6] &= ~(1ULL << (idx & 63));
+            bodyOcc[gCellBlockByPos[pos]] &= ~gCellMaskByPos[pos];
         }
     }
 
     int prefixLen(const int8_t* desired, int desiredLen) const {
         int lim = min((int)colorLen, desiredLen);
         if (lim == 0) return 0;
-        int p = 0;
         int start = colorHead & BODY_MASK;
         if (start + lim <= MAXBODY) {
-            const int8_t* cols = colorBuf + start;
-#ifdef __SSE2__
-            while (p + 16 <= lim) {
-                __m128i a = _mm_loadu_si128((const __m128i*)(cols + p));
-                __m128i b = _mm_loadu_si128((const __m128i*)(desired + p));
-                __m128i cmp = _mm_cmpeq_epi8(a, b);
-                int mask = _mm_movemask_epi8(cmp);
-                if (mask != 0xFFFF) {
-                    return p + __builtin_ctz(~mask);
-                }
-                p += 16;
-            }
-#endif
-            while (p < lim && cols[p] == desired[p]) ++p;
-        } else {
-            while (p < lim && colorAt(p) == desired[p]) ++p;
+            return prefixMatchContiguous(colorBuf + start, desired, lim);
         }
-        return p;
+        int firstLen = MAXBODY - start;
+        int matched = prefixMatchContiguous(colorBuf + start, desired, firstLen);
+        if (matched != firstLen) return matched;
+        return matched + prefixMatchContiguous(colorBuf, desired + matched, lim - matched);
     }
 
     DirList legalDirs() const {
         DirList dl;
         if (bodyLen == 0) return dl;
         uint8_t head = bodyFront();
-        int hr = posR(head), hc = posC(head);
         uint8_t neck = 255;
         if (bodyLen >= 2) neck = bodyAt(1);
-        for (int d = 0; d < 4; ++d) {
-            int nr = hr + DR[d], nc = hc + DC[d];
-            if ((unsigned)nr >= (unsigned)N || (unsigned)nc >= (unsigned)N) continue;
-            if (packPos(nr, nc) == neck) continue;
+        const int* dirOrder = chooseDirOrder();
+        for (int di = 0; di < 4; ++di) {
+            int d = dirOrder[di];
+            uint16_t next = gNextPos[head][d];
+            if (next == INVALID_NEXT_POS) continue;
+            uint8_t npos = (uint8_t)next;
+            if (npos == neck) continue;
             dl.d[dl.n++] = (int8_t)d;
         }
         return dl;
@@ -241,48 +273,66 @@ struct SnakeState {
 
     MoveResult apply(int d) {
         MoveResult ret;
-        if (bodyLen == 0) return ret;
+        if (__builtin_expect(bodyLen == 0, 0)) return ret;
 
         uint8_t head = bodyFront();
-        int hr = posR(head), hc = posC(head);
-        int nr = hr + DR[d], nc = hc + DC[d];
-
-        if ((unsigned)nr >= (unsigned)N || (unsigned)nc >= (unsigned)N) return ret;
-        uint8_t npos = packPos(nr, nc);
+        uint16_t next = gNextPos[head][d];
+        if (__builtin_expect(next == INVALID_NEXT_POS, 0)) return ret;
+        uint8_t npos = (uint8_t)next;
         if (bodyLen >= 2 && npos == bodyAt(1)) return ret;
 
         bodyPushFront(npos);
-        bodyOccInc(nr, nc);
+        bodyOccIncPos(npos);
 
-        if (grid[nr][nc] != 0) {
+        if (grid[npos] != 0) {
             ret.ate = true;
-            ret.eatenColor = grid[nr][nc];
-            grid[nr][nc] = 0;
+            ret.eatenColor = grid[npos];
+            grid[npos] = 0;
             colorPushBack(ret.eatenColor);
-            onFoodRemoved(nr, nc, ret.eatenColor);
+            onFoodRemovedPos(npos, ret.eatenColor);
         } else {
             uint8_t tail = bodyBack();
             bodyPopBack();
-            bodyOccDec(posR(tail), posC(tail));
+            bodyOccDecPos(tail);
         }
 
         int k = bodyLen;
-        if (bodyOccCnt[nr][nc] >= 2) {
-            for (int h = 1; h <= k - 2; ++h) {
-                if (bodyAt(h) == npos) {
+        if (__builtin_expect(bodyOccCnt[npos] >= 2, 0)) {
+            int h = 1;
+            int bi = (bodyHead + 1) & BODY_MASK;
+            for (; h <= k - 2; ++h) {
+                if (bodyBuf[bi] == npos) {
+                    int restoreBodyIdx = (bi + 1) & BODY_MASK;
+                    int restoreColorIdx = (colorHead + h + 1) & BODY_MASK;
+                    int restoredFood = 0;
+                    int restoredWall = 0;
+                    int restoredCorner = 0;
                     for (int p = h + 1; p < k; ++p) {
-                        uint8_t bp = bodyAt(p);
-                        int br = posR(bp), bc = posC(bp);
-                        bodyOccDec(br, bc);
-                        int col = colorAt(p);
-                        grid[br][bc] = col;
-                        onFoodAdded(br, bc, col);
+                        uint8_t bp = bodyBuf[restoreBodyIdx];
+                        uint8_t& cnt = bodyOccCnt[bp];
+                        --cnt;
+                        if (cnt == 0) {
+                            bodyOcc[gCellBlockByPos[bp]] &= ~gCellMaskByPos[bp];
+                        }
+                        int color = colorBuf[restoreColorIdx];
+                        grid[bp] = (int8_t)color;
+                        ++restoredFood;
+                        foodOcc[gCellBlockByPos[bp]] |= gCellMaskByPos[bp];
+                        foodColorOcc[color][gCellBlockByPos[bp]] |= gCellMaskByPos[bp];
+                        restoredWall += gWallByPos[bp];
+                        restoredCorner += gCornerByPos[bp];
+                        restoreBodyIdx = (restoreBodyIdx + 1) & BODY_MASK;
+                        restoreColorIdx = (restoreColorIdx + 1) & BODY_MASK;
                     }
-                    bodyLen = h + 1;
-                    colorLen = h + 1;
+                    foodCount += (int16_t)restoredFood;
+                    wallFoodCount += (int16_t)restoredWall;
+                    cornerFoodCount += (int16_t)restoredCorner;
+                    bodyLen = (int16_t)(h + 1);
+                    colorLen = (int16_t)(h + 1);
                     ret.bite = true;
                     break;
                 }
+                bi = (bi + 1) & BODY_MASK;
             }
         }
 
@@ -295,13 +345,19 @@ struct SnakeState {
 struct CutCandidate {
     int8_t seq[CUT_ENUM_MAX_DEPTH];
     int8_t seqLen = 0;
-    SnakeState after;
-    int biteTurn = 0;
-    int prefixAfter = 0;
-    int anchorLen = 0;
+    int16_t afterBodyLen = 0;
     bool adjacentToPrefix = false;
-    int directPathLen = INT_MAX;
-    int loosePathLen = INT_MAX;
+};
+
+struct CutCandidateList {
+    CutCandidate data[CUT_CANDIDATE_CAP];
+    int size = 0;
+
+    bool empty() const { return size == 0; }
+    void clear() { size = 0; }
+    void push_back(const CutCandidate& cand) {
+        if (size < CUT_CANDIDATE_CAP) data[size++] = cand;
+    }
 };
 
 struct Solver {
@@ -313,7 +369,7 @@ struct Solver {
     uint8_t manhattanDist[MAXCELLS][MAXCELLS] = {};
 
     SnakeState state;
-    vector<int8_t> movesDirs;
+    MoveSeq movesDirs;
     uint32_t tx = 123456789u;
     uint32_t ty = 362436069u;
     uint32_t tz = 521288629u;
@@ -334,6 +390,8 @@ struct Solver {
     array<vector<uint64_t>, BEAM_TURN_CAP_MAX + 1> layerKeysBuf;
     int layerRunStamp[BEAM_TURN_CAP_MAX + 1] = {};
     int currentRunStamp = 1;
+    uint64_t bannedPathStateKey[BEAM_TURN_CAP_MAX + 1] = {};
+    uint8_t bannedPathUsed[BEAM_TURN_CAP_MAX + 1] = {};
 
     Solver() {
         constexpr uint64_t seed = 0x8f3a2b1c7d9e5a61ULL;
@@ -358,16 +416,39 @@ struct Solver {
         return l + (int)(randInt() % (uint32_t)(r - l + 1));
     }
 
-    inline double randDouble() {
-        return (double)(randInt() % 1000000000u) / 1e9;
-    }
-
     void readInput() {
         ios::sync_with_stdio(false);
         cin.tie(nullptr);
 
         cin >> N >> M >> C;
         nnCells = N * N;
+        for (int i = 0; i < MAXBODY; ++i) gCellIdxByPos[i] = INVALID_NEXT_POS;
+        memset(gNextPos, 0xFF, sizeof(gNextPos));
+        memset(gCellBlockByPos, 0, sizeof(gCellBlockByPos));
+        memset(gCellMaskByPos, 0, sizeof(gCellMaskByPos));
+        memset(gWallByPos, 0, sizeof(gWallByPos));
+        memset(gCornerByPos, 0, sizeof(gCornerByPos));
+        for (int r = 0; r < MAXN; ++r) {
+            for (int c = 0; c < MAXN; ++c) {
+                uint8_t pos = packPos(r, c);
+                gPosRow[pos] = (uint8_t)r;
+                gPosCol[pos] = (uint8_t)c;
+                if (r < N && c < N) {
+                    int idx = r * N + c;
+                    gCellIdxByPos[pos] = (uint16_t)idx;
+                    gCellBlockByPos[pos] = (uint8_t)(idx >> 6);
+                    gCellMaskByPos[pos] = 1ULL << (idx & 63);
+                    gWallByPos[pos] = (uint8_t)(r == 0 || c == 0 || r == N - 1 || c == N - 1);
+                    gCornerByPos[pos] = (uint8_t)((r == 0 || r == N - 1) && (c == 0 || c == N - 1));
+                    for (int d = 0; d < 4; ++d) {
+                        int nr = r + DR[d], nc = c + DC[d];
+                        if ((unsigned)nr < (unsigned)N && (unsigned)nc < (unsigned)N) {
+                            gNextPos[pos][d] = packPos(nr, nc);
+                        }
+                    }
+                }
+            }
+        }
         for (int r = 0; r < N; ++r) {
             for (int c = 0; c < N; ++c) {
                 int idx = r * N + c;
@@ -399,9 +480,10 @@ struct Solver {
         for (int i = 0; i < N; ++i) {
             for (int j = 0; j < N; ++j) {
                 int x; cin >> x;
-                state.grid[i][j] = (int8_t)x;
+                uint8_t pos = packPos(i, j);
+                state.grid[pos] = (int8_t)x;
                 if (x != 0) {
-                    state.onFoodAdded(i, j, x);
+                    state.onFoodAddedPos(pos, x);
                 }
             }
         }
@@ -415,7 +497,7 @@ struct Solver {
         state.bodyBuf[4] = packPos(0, 0);
         for (int i = 0; i < 5; ++i) {
             uint8_t p = state.bodyBuf[i];
-            state.bodyOccInc(posR(p), posC(p));
+            state.bodyOccIncPos(p);
         }
 
         state.colorHead = 0;
@@ -468,61 +550,59 @@ struct Solver {
     ) const {
         if (st.bodyLen == 0) return 0;
         topK = max(1, topK);
-        const int n = st.N;
-        const int INF = 0x3f3f3f3f;
-
-        int release[MAXN][MAXN] = {};
+        int16_t release[MAXBODY];
+        memset(release, 0, sizeof(release));
         for (int i = 1; i < st.bodyLen; ++i) {
             uint8_t bp = st.bodyAt(i);
-            int r = posR(bp), c = posC(bp);
-            release[r][c] = (int)st.bodyLen - i;
+            release[bp] = (int16_t)(st.bodyLen - i);
         }
 
-        int dist[MAXN][MAXN];
-        uint8_t parentPacked[MAXN][MAXN];
-        int8_t pdir[MAXN][MAXN];
+        int16_t dist[MAXBODY];
+        uint8_t parentPacked[MAXBODY];
+        int8_t pdir[MAXBODY];
         memset(dist, 0x3f, sizeof(dist));
 
         uint8_t head = st.bodyFront();
-        int hr = posR(head), hc = posC(head);
         uint8_t neck = 255;
         if (st.bodyLen >= 2) neck = st.bodyAt(1);
 
         // Simple BFS queue with early exit when topK goals found
         uint8_t bq[MAXCELLS];
         int qh = 0, qt = 0;
-        dist[hr][hc] = 0;
-        bq[qt++] = packPos(hr, hc);
+        dist[head] = 0;
+        bq[qt++] = head;
 
-        struct Goal { int dist, r, c; };
+        struct Goal { int16_t dist; uint8_t pos; };
         Goal goals[MAXCELLS];
         int gn = 0;
         int goalMaxDist = -1;
+        const int* dirOrder = chooseDirOrder();
 
         while (qh < qt) {
             uint8_t pos = bq[qh++];
-            int r = posR(pos), c = posC(pos);
-            int t = dist[r][c];
+            int t = dist[pos];
             // Early exit: found enough goals and moved past their distance
             if (gn >= topK && t > goalMaxDist) break;
-            if (!(r == hr && c == hc) && st.grid[r][c] == targetColor) {
-                goals[gn++] = {t, r, c};
+            if (pos != head && st.grid[pos] == targetColor) {
+                goals[gn++] = {(int16_t)t, pos};
                 goalMaxDist = t;
                 continue; // don't expand past goal cells
             }
-            for (int d = 0; d < 4; ++d) {
-                int nr = r + DR[d], nc = c + DC[d];
-                if ((unsigned)nr >= (unsigned)n || (unsigned)nc >= (unsigned)n) continue;
-                if (r == hr && c == hc && packPos(nr, nc) == neck) continue;
-                int food = st.grid[nr][nc];
+            for (int di = 0; di < 4; ++di) {
+                int d = dirOrder[di];
+                uint16_t next = gNextPos[pos][d];
+                if (next == INVALID_NEXT_POS) continue;
+                uint8_t npos = (uint8_t)next;
+                if (pos == head && npos == neck) continue;
+                int food = st.grid[npos];
                 if (food != 0 && food != targetColor) continue;
                 int nt = t + 1;
-                if (nt < release[nr][nc]) continue;
-                if (nt < dist[nr][nc]) {
-                    dist[nr][nc] = nt;
-                    parentPacked[nr][nc] = packPos(r, c);
-                    pdir[nr][nc] = (int8_t)d;
-                    bq[qt++] = packPos(nr, nc);
+                if (nt < release[npos]) continue;
+                if (nt < dist[npos]) {
+                    dist[npos] = (int16_t)nt;
+                    parentPacked[npos] = pos;
+                    pdir[npos] = (int8_t)d;
+                    bq[qt++] = npos;
                 }
             }
         }
@@ -532,80 +612,10 @@ struct Solver {
         int cnt = 0;
         for (int gi = 0; gi < take; ++gi) {
             FixedPath& path = out[cnt];
-            path.len = 0;
-            int cr = goals[gi].r, cc = goals[gi].c;
-            while (!(cr == hr && cc == hc)) {
-                path.push_back(pdir[cr][cc]);
-                uint8_t pp = parentPacked[cr][cc];
-                cr = posR(pp); cc = posC(pp);
-            }
-            path.reverse_path();
+            reconstructPathBackward(path, goals[gi].dist, goals[gi].pos, parentPacked, pdir);
             if (path.len > 0) ++cnt;
         }
         return cnt;
-    }
-
-    // Dedicated single-target BFS with early exit (no bucket queue overhead)
-    FixedPath findDynamicStrictPathToTarget(const SnakeState& st, int targetColor) const {
-        FixedPath result;
-        if (st.bodyLen == 0) return result;
-        const int n = st.N;
-
-        int release[MAXN][MAXN] = {};
-        for (int i = 1; i < st.bodyLen; ++i) {
-            uint8_t bp = st.bodyAt(i);
-            release[posR(bp)][posC(bp)] = (int)st.bodyLen - i;
-        }
-
-        int dist[MAXN][MAXN];
-        uint8_t parentPacked[MAXN][MAXN];
-        int8_t pdir[MAXN][MAXN];
-        memset(dist, 0x3f, sizeof(dist));
-
-        uint8_t head = st.bodyFront();
-        int hr = posR(head), hc = posC(head);
-        uint8_t neck = 255;
-        if (st.bodyLen >= 2) neck = st.bodyAt(1);
-
-        uint8_t bq[MAXCELLS];
-        int qh = 0, qt = 0;
-        dist[hr][hc] = 0;
-        bq[qt++] = packPos(hr, hc);
-
-        int goalR = -1, goalC = -1;
-        while (qh < qt) {
-            uint8_t pos = bq[qh++];
-            int r = posR(pos), c = posC(pos);
-            int t = dist[r][c];
-            if (!(r == hr && c == hc) && st.grid[r][c] == targetColor) {
-                goalR = r; goalC = c; break;
-            }
-            for (int d = 0; d < 4; ++d) {
-                int nr = r + DR[d], nc = c + DC[d];
-                if ((unsigned)nr >= (unsigned)n || (unsigned)nc >= (unsigned)n) continue;
-                if (r == hr && c == hc && packPos(nr, nc) == neck) continue;
-                int food = st.grid[nr][nc];
-                if (food != 0 && food != targetColor) continue;
-                int nt = t + 1;
-                if (nt < release[nr][nc]) continue;
-                if (nt < dist[nr][nc]) {
-                    dist[nr][nc] = nt;
-                    parentPacked[nr][nc] = packPos(r, c);
-                    pdir[nr][nc] = (int8_t)d;
-                    bq[qt++] = packPos(nr, nc);
-                }
-            }
-        }
-
-        if (goalR == -1) return result;
-        int cr = goalR, cc = goalC;
-        while (!(cr == hr && cc == hc)) {
-            result.push_back(pdir[cr][cc]);
-            uint8_t pp = parentPacked[cr][cc];
-            cr = posR(pp); cc = posC(pp);
-        }
-        result.reverse_path();
-        return result;
     }
 
     // Lexicographic shortest path:
@@ -615,45 +625,38 @@ struct Solver {
     FixedPath findPreferFoodAvoidPathToTarget(const SnakeState& st, int targetColor) const {
         FixedPath result;
         if (st.bodyLen == 0) return result;
-        const int n = st.N;
-        const int INF = 0x3f3f3f3f;
 
-        int release[MAXN][MAXN] = {};
+        int16_t release[MAXBODY];
+        memset(release, 0, sizeof(release));
         for (int i = 1; i < st.bodyLen; ++i) {
             uint8_t bp = st.bodyAt(i);
-            release[posR(bp)][posC(bp)] = (int)st.bodyLen - i;
+            release[bp] = (int16_t)(st.bodyLen - i);
         }
 
-        int bestFood[MAXN][MAXN];
-        int bestStep[MAXN][MAXN];
-        uint8_t parentPacked[MAXN][MAXN];
-        int8_t pdir[MAXN][MAXN];
-        memset(bestFood, 0x3f, sizeof(bestFood));
-        memset(bestStep, 0x3f, sizeof(bestStep));
+        // Pack (foodCost, step) into uint64_t for single-compare lexicographic ordering
+        uint64_t bestFS[MAXBODY];
+        memset(bestFS, 0x3f, sizeof(bestFS));
+        uint8_t parentPacked[MAXBODY];
+        int8_t pdir[MAXBODY];
 
         uint8_t head = st.bodyFront();
-        int hr = posR(head), hc = posC(head);
         uint8_t neck = 255;
         if (st.bodyLen >= 2) neck = st.bodyAt(1);
 
         struct SoftNode {
-            int foodCost;
-            int step;
+            uint64_t packed; // (foodCost << 32) | step
             uint8_t pos;
         };
         static constexpr int SOFT_HEAP_CAP = MAXCELLS * MAXCELLS * 4;
         static thread_local SoftNode heap[SOFT_HEAP_CAP];
         int heapSize = 0;
-        auto betterNode = [](const SoftNode& a, const SoftNode& b) {
-            return (a.foodCost < b.foodCost) || (a.foodCost == b.foodCost && a.step < b.step);
-        };
-        auto heapPush = [&](int foodCost, int step, int r, int c) {
+        auto heapPush = [&](uint64_t packed, uint8_t pos) {
             if (heapSize >= SOFT_HEAP_CAP) return;
-            SoftNode x{foodCost, step, packPos(r, c)};
+            SoftNode x{packed, pos};
             int i = heapSize++;
             while (i > 0) {
                 int p = (i - 1) >> 1;
-                if (!betterNode(x, heap[p])) break;
+                if (x.packed >= heap[p].packed) break;
                 heap[i] = heap[p];
                 i = p;
             }
@@ -668,196 +671,65 @@ struct Solver {
                 if (l >= heapSize) break;
                 int r = l + 1;
                 int ch = l;
-                if (r < heapSize && betterNode(heap[r], heap[l])) ch = r;
-                if (!betterNode(heap[ch], last)) break;
+                if (r < heapSize && heap[r].packed < heap[l].packed) ch = r;
+                if (last.packed <= heap[ch].packed) break;
                 heap[i] = heap[ch];
                 i = ch;
             }
             if (heapSize > 0) heap[i] = last;
             return ret;
         };
-        bestFood[hr][hc] = 0;
-        bestStep[hr][hc] = 0;
-        heapPush(0, 0, hr, hc);
+        bestFS[head] = 0;
+        heapPush(0, head);
+        const int* dirOrder = chooseDirOrder();
 
-        int goalR = -1, goalC = -1;
+        uint8_t goalPos = 0;
+        bool goalFound = false;
         while (heapSize > 0) {
             SoftNode cur = heapPop();
-            int fc = cur.foodCost;
-            int step = cur.step;
-            int r = posR(cur.pos);
-            int c = posC(cur.pos);
-            if (fc != bestFood[r][c] || step != bestStep[r][c]) continue;
-            if (!(r == hr && c == hc) && st.grid[r][c] == targetColor) {
-                goalR = r;
-                goalC = c;
+            if (cur.packed != bestFS[cur.pos]) continue;
+            if (cur.pos != head && st.grid[cur.pos] == targetColor) {
+                goalPos = cur.pos;
+                goalFound = true;
                 break;
             }
-            for (int d = 0; d < 4; ++d) {
-                int nr = r + DR[d], nc = c + DC[d];
-                if ((unsigned)nr >= (unsigned)n || (unsigned)nc >= (unsigned)n) continue;
-                if (r == hr && c == hc && packPos(nr, nc) == neck) continue;
+            int fc = (int)(cur.packed >> 32);
+            int step = (int)(cur.packed & 0xFFFFFFFFU);
+            for (int di = 0; di < 4; ++di) {
+                int d = dirOrder[di];
+                uint16_t next = gNextPos[cur.pos][d];
+                if (next == INVALID_NEXT_POS) continue;
+                uint8_t npos = (uint8_t)next;
+                if (cur.pos == head && npos == neck) continue;
                 int nstep = step + 1;
-                if (nstep < release[nr][nc]) continue;
-                int food = st.grid[nr][nc];
+                if (nstep < release[npos]) continue;
+                int food = st.grid[npos];
                 int nfc = fc + ((food != 0 && food != targetColor) ? 1 : 0);
-                if (nfc < bestFood[nr][nc] || (nfc == bestFood[nr][nc] && nstep < bestStep[nr][nc])) {
-                    bestFood[nr][nc] = nfc;
-                    bestStep[nr][nc] = nstep;
-                    parentPacked[nr][nc] = packPos(r, c);
-                    pdir[nr][nc] = (int8_t)d;
-                    heapPush(nfc, nstep, nr, nc);
+                uint64_t npacked = ((uint64_t)(unsigned)nfc << 32) | (unsigned)nstep;
+                if (npacked < bestFS[npos]) {
+                    bestFS[npos] = npacked;
+                    parentPacked[npos] = cur.pos;
+                    pdir[npos] = (int8_t)d;
+                    heapPush(npacked, npos);
                 }
             }
         }
 
-        if (goalR == -1) return result;
-        if (bestFood[goalR][goalC] >= INF || bestStep[goalR][goalC] >= INF) return result;
-        int cr = goalR, cc = goalC;
-        while (!(cr == hr && cc == hc)) {
-            result.push_back(pdir[cr][cc]);
-            uint8_t pp = parentPacked[cr][cc];
-            cr = posR(pp); cc = posC(pp);
-        }
-        result.reverse_path();
-        return result;
-    }
-
-    FixedPath findDynamicStrictPathToTail(const SnakeState& st, int targetColor) const {
-        FixedPath result;
-        if (st.bodyLen == 0) return result;
-        const int n = st.N;
-        const int INF = 0x3f3f3f3f;
-
-        int release[MAXN][MAXN] = {};
-        for (int i = 1; i < st.bodyLen; ++i) {
-            uint8_t bp = st.bodyAt(i);
-            release[posR(bp)][posC(bp)] = (int)st.bodyLen - i;
-        }
-
-        uint8_t tail = st.bodyBack();
-        int gr = posR(tail), gc = posC(tail);
-
-        int dist[MAXN][MAXN];
-        uint8_t parentPacked[MAXN][MAXN];
-        int8_t pdir[MAXN][MAXN];
-        memset(dist, 0x3f, sizeof(dist));
-
-        uint8_t head = st.bodyFront();
-        int hr = posR(head), hc = posC(head);
-        uint8_t neck = 255;
-        if (st.bodyLen >= 2) neck = st.bodyAt(1);
-
-        uint8_t bq[MAXCELLS];
-        int qh = 0, qt = 0;
-        dist[hr][hc] = 0;
-        bq[qt++] = packPos(hr, hc);
-
-        while (qh < qt) {
-            uint8_t pos = bq[qh++];
-            int r = posR(pos), c = posC(pos);
-            int t = dist[r][c];
-            if (!(r == hr && c == hc) && r == gr && c == gc) break;
-            for (int d = 0; d < 4; ++d) {
-                int nr = r + DR[d], nc = c + DC[d];
-                if ((unsigned)nr >= (unsigned)n || (unsigned)nc >= (unsigned)n) continue;
-                if (r == hr && c == hc && packPos(nr, nc) == neck) continue;
-                int food = st.grid[nr][nc];
-                if (food != 0 && food != targetColor) continue;
-                int nt = t + 1;
-                if (nt < release[nr][nc]) continue;
-                if (nt < dist[nr][nc]) {
-                    dist[nr][nc] = nt;
-                    parentPacked[nr][nc] = packPos(r, c);
-                    pdir[nr][nc] = (int8_t)d;
-                    bq[qt++] = packPos(nr, nc);
-                }
-            }
-        }
-
-        if (dist[gr][gc] >= INF) return result;
-        int cr = gr, cc = gc;
-        while (!(cr == hr && cc == hc)) {
-            result.push_back(pdir[cr][cc]);
-            uint8_t pp = parentPacked[cr][cc];
-            cr = posR(pp); cc = posC(pp);
-        }
-        result.reverse_path();
-        return result;
-    }
-
-    FixedPath bfsToTargetColor(
-        const SnakeState& st,
-        int targetColor,
-        bool avoidBody,
-        bool avoidNonTargetFood
-    ) const {
-        FixedPath result;
-        if (st.bodyLen == 0) return result;
-        const int n = st.N;
-
-        int dist[MAXN][MAXN];
-        uint8_t parentPacked[MAXN][MAXN];
-        int8_t pdir[MAXN][MAXN];
-        char blocked[MAXN][MAXN] = {};
-        memset(dist, -1, sizeof(dist));
-
-        if (avoidBody) {
-            for (int i = 1; i < st.bodyLen; ++i) {
-                uint8_t bp = st.bodyAt(i);
-                blocked[posR(bp)][posC(bp)] = 1;
-            }
-        }
-
-        uint8_t head = st.bodyFront();
-        int hr = posR(head), hc = posC(head);
-        uint8_t neck = 255;
-        if (st.bodyLen >= 2) neck = st.bodyAt(1);
-
-        pair<int8_t,int8_t> q[MAXCELLS];
-        int qh = 0, qt = 0;
-        q[qt++] = {(int8_t)hr, (int8_t)hc};
-        dist[hr][hc] = 0;
-
-        int goalR = -1, goalC = -1;
-        while (qh < qt) {
-            auto [r, c] = q[qh++];
-            if (!(r == hr && c == hc) && st.grid[r][c] == targetColor) {
-                goalR = r; goalC = c; break;
-            }
-            for (int d = 0; d < 4; ++d) {
-                int nr = r + DR[d], nc = c + DC[d];
-                if ((unsigned)nr >= (unsigned)n || (unsigned)nc >= (unsigned)n) continue;
-                if (dist[nr][nc] != -1) continue;
-                if (r == hr && c == hc && packPos(nr, nc) == neck) continue;
-                if (avoidBody && blocked[nr][nc]) continue;
-                int food = st.grid[nr][nc];
-                if (avoidNonTargetFood && food != 0 && food != targetColor) continue;
-                dist[nr][nc] = dist[r][c] + 1;
-                parentPacked[nr][nc] = packPos(r, c);
-                pdir[nr][nc] = (int8_t)d;
-                q[qt++] = {(int8_t)nr, (int8_t)nc};
-            }
-        }
-
-        if (goalR == -1) return result;
-        int cr = goalR, cc = goalC;
-        while (!(cr == hr && cc == hc)) {
-            result.push_back(pdir[cr][cc]);
-            uint8_t pp = parentPacked[cr][cc];
-            cr = posR(pp); cc = posC(pp);
-        }
-        result.reverse_path();
+        if (!goalFound) return result;
+        if (bestFS[goalPos] >= 0x3f3f3f3f00000000ULL) return result;
+        int goalStep = (int)(bestFS[goalPos] & 0xFFFFFFFFU);
+        reconstructPathBackward(result, goalStep, goalPos, parentPacked, pdir);
         return result;
     }
 
     bool isTargetAdjacentToPrefixSegment(const SnakeState& st, int anchorLen, int targetColor) const {
         if (anchorLen <= 0 || anchorLen > st.bodyLen) return false;
         uint8_t bp = st.bodyAt(anchorLen - 1);
-        int r = posR(bp), c = posC(bp);
         for (int d = 0; d < 4; ++d) {
-            int nr = r + DR[d], nc = c + DC[d];
-            if (st.inBounds(nr, nc) && st.grid[nr][nc] == targetColor) return true;
+            uint16_t next = gNextPos[bp][d];
+            if (next == INVALID_NEXT_POS) continue;
+            uint8_t np = (uint8_t)next;
+            if (st.grid[np] == targetColor) return true;
         }
         return false;
     }
@@ -867,7 +739,7 @@ struct Solver {
         int depth, int maxDepth,
         int baseL, int targetColor,
         int8_t seq[CUT_ENUM_MAX_DEPTH], int seqLen,
-        vector<CutCandidate>& out
+        CutCandidateList& out
     ) const {
         if (depth >= maxDepth) return;
         DirList dirs = cur.legalDirs();
@@ -881,28 +753,15 @@ struct Solver {
             int newLen = seqLen + 1;
 
             if (ret.bite) {
-                int pref = nxt.prefixLen(desired, M);
                 int lenAfter = nxt.bodyLen;
                 if (lenAfter >= CUT_KEEP_MIN_LEN && (lenAfter % 2 == 1)) {
                     int anchorLen = min(baseL, lenAfter);
                     CutCandidate cand;
                     memcpy(cand.seq, seq, newLen);
                     cand.seqLen = (int8_t)newLen;
-                    cand.after = nxt;
-                    cand.biteTurn = newLen;
-                    cand.prefixAfter = pref;
-                    cand.anchorLen = anchorLen;
+                    cand.afterBodyLen = (int16_t)lenAfter;
                     cand.adjacentToPrefix = isTargetAdjacentToPrefixSegment(nxt, anchorLen, targetColor);
-                    auto dp = findDynamicStrictPathToTarget(nxt, targetColor);
-                    cand.directPathLen = dp.empty() ? INT_MAX : dp.size();
-                    // Skip expensive loose BFS if direct path found or adjacent
-                    if (cand.directPathLen != INT_MAX || cand.adjacentToPrefix) {
-                        cand.loosePathLen = cand.directPathLen; // approximate
-                    } else {
-                        auto lp = bfsToTargetColor(nxt, targetColor, false, true);
-                        cand.loosePathLen = lp.empty() ? INT_MAX : lp.size();
-                    }
-                    out.push_back(move(cand));
+                    out.push_back(cand);
                 }
             } else {
                 enumerateCutCandidatesDFS(nxt, depth + 1, maxDepth, baseL, targetColor, seq, newLen, out);
@@ -910,17 +769,16 @@ struct Solver {
         }
     }
 
-    vector<CutCandidate> enumerateCutCandidates(
+    CutCandidateList enumerateCutCandidates(
         const SnakeState& src, int baseL, int targetColor, int maxDepth = CUT_ENUM_MAX_DEPTH
     ) const {
-        vector<CutCandidate> out;
-        out.reserve(64);
+        CutCandidateList out;
         int8_t seq[CUT_ENUM_MAX_DEPTH];
         enumerateCutCandidatesDFS(src, 0, maxDepth, baseL, targetColor, seq, 0, out);
         return out;
     }
 
-    vector<CutCandidate> chooseTopCutCandidatesForBeam(
+    CutCandidateList chooseTopCutCandidatesForBeam(
         const SnakeState& src, int baseL, int targetColor, int topK
     ) const {
         topK = max(1, topK);
@@ -928,42 +786,46 @@ struct Solver {
         if (cands.empty()) return {};
         int wrongSuffix = max(0, (int)src.bodyLen - baseL);
         auto evalScore = [&](const CutCandidate& c) -> long long {
-            int la = c.after.bodyLen, rw = max(0, la - baseL), lp = max(0, baseL - la);
+            int la = c.afterBodyLen, rw = max(0, la - baseL), lp = max(0, baseL - la);
             int rmw = max(0, wrongSuffix - rw);
-            bool reach = c.adjacentToPrefix || c.directPathLen != INT_MAX || c.loosePathLen != INT_MAX;
             long long s = CUT_BEAM_WRONG_SUFFIX_WEIGHT * rw + CUT_BEAM_PREFIX_LOSS_WEIGHT * lp;
             if (!rmw && wrongSuffix > 0) s += CUT_BEAM_NO_WRONG_REDUCTION_PENALTY;
-            s += CUT_BEAM_BITE_TURN_WEIGHT * c.biteTurn;
+            s += CUT_BEAM_BITE_TURN_WEIGHT * c.seqLen;
             if (!c.adjacentToPrefix) s += CUT_BEAM_NOT_ADJ_PENALTY;
-            s += (c.directPathLen == INT_MAX ? CUT_BEAM_DIRECT_UNREACHABLE : CUT_BEAM_DIRECT_DISTANCE_WEIGHT * c.directPathLen);
-            s += (c.loosePathLen == INT_MAX ? CUT_BEAM_LOOSE_UNREACHABLE : CUT_BEAM_LOOSE_DISTANCE_WEIGHT * c.loosePathLen);
-            if (!reach) s += CUT_BEAM_NOT_REACHABLE_PENALTY;
             return s;
         };
         if (topK == 1) {
             int bestIdx = 0;
-            long long bestScore = evalScore(cands[0]);
-            for (int i = 1; i < (int)cands.size(); ++i) {
-                long long s = evalScore(cands[i]);
+            long long bestScore = evalScore(cands.data[0]);
+            for (int i = 1; i < cands.size; ++i) {
+                long long s = evalScore(cands.data[i]);
                 if (s < bestScore) {
                     bestScore = s;
                     bestIdx = i;
                 }
             }
-            vector<CutCandidate> out;
-            out.reserve(1);
-            out.push_back(cands[bestIdx]);
+            CutCandidateList out;
+            out.push_back(cands.data[bestIdx]);
             return out;
         }
         struct R { long long s; int i; };
-        vector<R> ranked; ranked.reserve(cands.size());
-        for (int i = 0; i < (int)cands.size(); ++i) {
-            ranked.push_back({evalScore(cands[i]), i});
+        R ranked[CUT_CANDIDATE_CAP];
+        int rankedSize = cands.size;
+        for (int i = 0; i < rankedSize; ++i) {
+            ranked[i] = {evalScore(cands.data[i]), i};
         }
-        sort(ranked.begin(), ranked.end(), [](const R& a, const R& b) { return a.s != b.s ? a.s < b.s : a.i < b.i; });
-        vector<CutCandidate> out;
-        int take = min(topK, (int)ranked.size());
-        for (int i = 0; i < take; ++i) out.push_back(cands[ranked[i].i]);
+        CutCandidateList out;
+        int take = min(topK, rankedSize);
+        for (int k = 0; k < take; ++k) {
+            int bestJ = k;
+            for (int j = k + 1; j < rankedSize; ++j) {
+                if (ranked[j].s < ranked[bestJ].s || (ranked[j].s == ranked[bestJ].s && ranked[j].i < ranked[bestJ].i)) {
+                    bestJ = j;
+                }
+            }
+            if (bestJ != k) { R tmp = ranked[k]; ranked[k] = ranked[bestJ]; ranked[bestJ] = tmp; }
+            out.push_back(cands.data[ranked[k].i]);
+        }
         return out;
     }
 
@@ -977,11 +839,6 @@ struct Solver {
         return -SCORE_PREFIX_PRIMARY_WEIGHT * pref + foodWallPenalty(st);
     }
 
-    long long evaluateBeamState(const SnakeState& st, int maxPrefix) const {
-        (void)maxPrefix;
-        return evaluateBeamStateFromPrefix(st, st.prefixLen(desired, M));
-    }
-
     int safeOptimisticLowerBound(const SnakeState& st, int p) const {
         int rem = M - p;
         if (rem <= 0) return 0;
@@ -990,7 +847,7 @@ struct Solver {
         int tc = desired[p];
         if ((unsigned)tc >= MAXC) return rem;
         uint8_t head = st.bodyFront();
-        int headIdx = posR(head) * N + posC(head);
+        int headIdx = gCellIdxByPos[head];
         int best = INT_MAX;
         for (int blk = 0; blk < 4; ++blk) {
             uint64_t bits = st.foodColorOcc[tc][blk];
@@ -1031,18 +888,91 @@ struct Solver {
         return a.st.turn < b.st.turn;
     }
 
-    int pickWanderStepForState(const SnakeState& st, int /*targetColor*/, int /*baseL*/) {
+    void clearBannedPathStates() {
+        memset(bannedPathUsed, 0, sizeof(bannedPathUsed));
+    }
+
+    void rebuildBannedPathStates(const SnakeState& initial, const MoveSeq& path) {
+        clearBannedPathStates();
+        if (path.len <= BEAM_BAN_PREFIX_TURNS) return;
+        SnakeState st = initial;
+        for (int i = 0; i < path.len; ++i) {
+            MoveResult ret = st.apply(path.d[i]);
+            if (!ret.ok) break;
+            int t = st.turn;
+            if (t <= BEAM_BAN_PREFIX_TURNS || t > BEAM_TURN_CAP_MAX) continue;
+            bannedPathUsed[t] = 1;
+            bannedPathStateKey[t] = beamStateKey(st);
+        }
+    }
+
+    inline void initChildNode(const BeamNode& parent, BeamNode& child) const {
+        child.st = parent.st;
+        child.pathTail = parent.pathTail;
+        child.pathLen = parent.pathLen;
+    }
+
+    inline void finalizeBeamNodeAfterTransition(const BeamNode& cur, BeamNode& nxt) const {
+        int np = nxt.st.prefixLen(desired, M);
+        nxt.prefix = np;
+        nxt.maxPrefix = max(cur.maxPrefix, np);
+        nxt.eval = evaluateBeamStateFromPrefix(nxt.st, np);
+    }
+
+    inline bool pruneByIncumbent(BeamNode& node, int incumbentBestLen) const {
+        if (incumbentBestLen >= INT_MAX) return false;
+        if (node.optimisticLB < 0) {
+            node.optimisticLB = safeOptimisticLowerBound(node.st, node.prefix);
+        }
+        return node.st.turn + node.optimisticLB >= incumbentBestLen;
+    }
+
+    int selectTopBeamIndices(const vector<BeamNode>& beam, int beamWidth, int* order) const {
+        int n = (int)beam.size();
+        // Extract compact sort keys for cache-friendly sorting
+        struct SK { long long eval; int maxPrefix; int turn; int idx; };
+        static SK sk[16384];
+        int skN = min(n, 16384);
+        for (int i = 0; i < skN; ++i) {
+            sk[i] = {beam[i].eval, beam[i].maxPrefix, beam[i].st.turn, i};
+        }
+        auto better = [](const SK& a, const SK& b) {
+            if (a.eval != b.eval) return a.eval < b.eval;
+            if (a.maxPrefix != b.maxPrefix) return a.maxPrefix > b.maxPrefix;
+            return a.turn < b.turn;
+        };
+        int ordN = 0;
+        for (int i = 0; i < skN; ++i) {
+            if (ordN < beamWidth) {
+                int pos = ordN++;
+                while (pos > 0 && better(sk[i], sk[order[pos - 1]])) {
+                    order[pos] = order[pos - 1];
+                    --pos;
+                }
+                order[pos] = i;
+            } else if (better(sk[i], sk[order[ordN - 1]])) {
+                int pos = ordN - 1;
+                while (pos > 0 && better(sk[i], sk[order[pos - 1]])) {
+                    order[pos] = order[pos - 1];
+                    --pos;
+                }
+                order[pos] = i;
+            }
+        }
+        return ordN;
+    }
+
+    int pickWanderStepForState(const SnakeState& st) {
         DirList dirs = st.legalDirs();
         if (dirs.n == 0) return -1;
         return dirs.d[randRange(0, dirs.n - 1)];
     }
 
+    template<typename InsertFn>
     void transitionGoTargetCandidates(
-        const BeamNode& cur, chrono::steady_clock::time_point dl, int topK,
-        BeamNode* out, int& outN
+        const BeamNode& cur, DeadlineChecker& timer, int topK, InsertFn& insertFn
     ) {
-        outN = 0;
-        if (chrono::steady_clock::now() >= dl) return;
+        if (timer.isOver()) return;
         int p = cur.prefix;
         if (p >= M) return;
         int tc = desired[p];
@@ -1064,8 +994,6 @@ struct Solver {
                 if (pathCount >= topK) break;
             }
         }
-        // If suffix is broken, or strict routes are unavailable, use soft route
-        // that minimizes crossing non-target foods (then length).
         if (prefBroken || pathCount == 0) {
             tryPush(findPreferFoodAvoidPathToTarget(cur.st, tc));
         }
@@ -1073,13 +1001,11 @@ struct Solver {
         if (pathCount > topK) pathCount = topK;
 
         for (int pi = 0; pi < pathCount; ++pi) {
-            if (chrono::steady_clock::now() >= dl) break;
+            if (timer.isOver()) break;
             const FixedPath& path = paths[pi];
             if (!gPool.hasSpace(path.len)) continue;
             BeamNode nxt;
-            nxt.st = cur.st;
-            nxt.pathTail = cur.pathTail;
-            nxt.pathLen = cur.pathLen;
+            initChildNode(cur, nxt);
             bool ok = true;
             for (int i = 0; i < path.len; ++i) {
                 if (nxt.st.turn >= activeTurnLimit) break;
@@ -1089,78 +1015,96 @@ struct Solver {
                 nxt.pathLen++;
             }
             if (!ok) continue;
-            int np = nxt.st.prefixLen(desired, M);
-            nxt.prefix = np;
-            nxt.maxPrefix = max(cur.maxPrefix, np);
-            nxt.eval = evaluateBeamStateFromPrefix(nxt.st, np);
-            out[outN++] = move(nxt);
+            finalizeBeamNodeAfterTransition(cur, nxt);
+            insertFn(move(nxt));
         }
     }
 
+    template<typename InsertFn>
     void transitionCutRecoverCandidates(
-        const BeamNode& cur, chrono::steady_clock::time_point dl, int topK,
-        BeamNode* out, int& outN
+        const BeamNode& cur, DeadlineChecker& timer, int topK, InsertFn& insertFn
     ) {
-        outN = 0;
-        if (chrono::steady_clock::now() >= dl) return;
+        if (timer.isOver()) return;
         int p = cur.prefix;
         if (p >= M) return;
-        // Cut-recover is useful only when suffix is broken (wrong colors exist).
         if (p >= cur.st.colorLen) return;
         auto cuts = chooseTopCutCandidatesForBeam(cur.st, p, desired[p], topK);
         if (cuts.empty()) return;
 
-        for (auto& cut : cuts) {
-            if (chrono::steady_clock::now() >= dl) break;
+        for (int ci = 0; ci < cuts.size; ++ci) {
+            const CutCandidate& cut = cuts.data[ci];
+            if (timer.isOver()) break;
             if (!gPool.hasSpace(cut.seqLen + MAXCELLS)) continue;
             BeamNode nxt;
-            nxt.st = cur.st;
-            nxt.pathTail = cur.pathTail;
-            nxt.pathLen = cur.pathLen;
+            initChildNode(cur, nxt);
             bool bitten = false, ok = true;
             for (int si = 0; si < cut.seqLen; ++si) {
                 if (nxt.st.turn >= activeTurnLimit) break;
-                SnakeState bef = nxt.st;
-                MoveResult ret = nxt.st.apply(cut.seq[si]);
-                if (!ret.ok) { ok = false; break; }
-                nxt.pathTail = gPool.add(cut.seq[si], nxt.pathTail);
-                nxt.pathLen++;
-                if (ret.bite) {
+                if (si + 1 == cut.seqLen) {
+                    // Save only body data instead of full SnakeState copy
+                    uint8_t savedBodyBuf[MAXBODY];
+                    memcpy(savedBodyBuf, nxt.st.bodyBuf, sizeof(savedBodyBuf));
+                    int16_t savedBodyHead = nxt.st.bodyHead;
+                    int16_t savedBodyLen = nxt.st.bodyLen;
+                    int pb = nxt.st.prefixLen(desired, M);
+                    MoveResult ret = nxt.st.apply(cut.seq[si]);
+                    if (!ret.ok || !ret.bite) { ok = false; break; }
+                    nxt.pathTail = gPool.add(cut.seq[si], nxt.pathTail);
+                    nxt.pathLen++;
                     bitten = true;
-                    int pb = bef.prefixLen(desired, M);
-                    auto recovery = buildRecoveryPathByOldBody(bef, nxt.st, pb);
-                    for (int ri = 0; ri < recovery.len; ++ri) {
-                        if (nxt.st.turn >= activeTurnLimit) break;
-                        MoveResult rr = nxt.st.apply(recovery.d[ri]);
-                        if (!rr.ok) { ok = false; break; }
-                        nxt.pathTail = gPool.add(recovery.d[ri], nxt.pathTail);
-                        nxt.pathLen++;
+                    // Build recovery from saved body data
+                    {
+                        FixedPath recovery;
+                        int lenAfter = nxt.st.bodyLen;
+                        if (pb > lenAfter && savedBodyLen > 0 && nxt.st.bodyLen > 0) {
+                            int startIdx = lenAfter - 1;
+                            int endIdx = pb - 2;
+                            if (startIdx >= 0 && endIdx >= startIdx && endIdx < savedBodyLen) {
+                                uint8_t rcur = nxt.st.bodyFront();
+                                bool rok = true;
+                                for (int idx = startIdx; idx <= endIdx; ++idx) {
+                                    uint8_t rnxt = savedBodyBuf[(savedBodyHead + idx) & BODY_MASK];
+                                    int rd = dirBetween(rcur, rnxt);
+                                    if (rd < 0) { rok = false; break; }
+                                    recovery.push_back((int8_t)rd);
+                                    rcur = rnxt;
+                                }
+                                if (!rok) recovery.len = 0;
+                            }
+                        }
+                        for (int ri = 0; ri < recovery.len; ++ri) {
+                            if (nxt.st.turn >= activeTurnLimit) break;
+                            MoveResult rr = nxt.st.apply(recovery.d[ri]);
+                            if (!rr.ok) { ok = false; break; }
+                            nxt.pathTail = gPool.add(recovery.d[ri], nxt.pathTail);
+                            nxt.pathLen++;
+                        }
                     }
                     break;
                 }
+                MoveResult ret = nxt.st.apply(cut.seq[si]);
+                if (!ret.ok || ret.bite) { ok = false; break; }
+                nxt.pathTail = gPool.add(cut.seq[si], nxt.pathTail);
+                nxt.pathLen++;
             }
             if (!ok || !bitten) continue;
-            int np = nxt.st.prefixLen(desired, M);
-            nxt.prefix = np;
-            nxt.maxPrefix = max(cur.maxPrefix, np);
-            nxt.eval = evaluateBeamStateFromPrefix(nxt.st, np);
-            out[outN++] = move(nxt);
+            finalizeBeamNodeAfterTransition(cur, nxt);
+            insertFn(move(nxt));
         }
     }
 
-    bool transitionWander(const BeamNode& cur, chrono::steady_clock::time_point dl, BeamNode& out) {
-        if (chrono::steady_clock::now() >= dl) return false;
+    template<typename InsertFn>
+    void transitionWander(const BeamNode& cur, DeadlineChecker& timer, InsertFn& insertFn) {
+        if (timer.isOver()) return;
         int p = cur.prefix;
-        if (p >= M) return false;
-        if (!gPool.hasSpace(WANDER_LEN)) return false;
-        int tc = desired[p];
-        out.st = cur.st;
-        out.pathTail = cur.pathTail;
-        out.pathLen = cur.pathLen;
+        if (p >= M) return;
+        if (!gPool.hasSpace(WANDER_LEN)) return;
+        BeamNode out;
+        initChildNode(cur, out);
         int moved = 0;
         for (int t = 0; t < WANDER_LEN; ++t) {
             if (out.st.turn >= activeTurnLimit) break;
-            int d = pickWanderStepForState(out.st, tc, p);
+            int d = pickWanderStepForState(out.st);
             if (d == -1) break;
             MoveResult ret = out.st.apply(d);
             if (!ret.ok) break;
@@ -1169,12 +1113,9 @@ struct Solver {
             ++moved;
             if (out.st.prefixLen(desired, M) >= M) break;
         }
-        if (moved == 0) return false;
-        int np = out.st.prefixLen(desired, M);
-        out.prefix = np;
-        out.maxPrefix = max(cur.maxPrefix, np);
-        out.eval = evaluateBeamStateFromPrefix(out.st, np);
-        return true;
+        if (moved == 0) return;
+        finalizeBeamNodeAfterTransition(cur, out);
+        insertFn(move(out));
     }
 
     bool isDoneNode(const BeamNode& node) const { return node.prefix >= M; }
@@ -1184,9 +1125,9 @@ struct Solver {
         return betterBeamNode(a, b);
     }
 
-    optional<BeamNode> runBeamSearch(
+    bool runBeamSearch(
         const SnakeState& initial, chrono::steady_clock::time_point deadline,
-        int beamWidth, int beamTurnCap, int incumbentBestLen
+        int beamWidth, int beamTurnCap, int incumbentBestLen, BeamNode& outBest
     ) {
         BeamNode init;
         init.st = initial;
@@ -1196,7 +1137,7 @@ struct Solver {
         init.eval = evaluateBeamStateFromPrefix(init.st, init.prefix);
         init.pathTail = -1;
         init.pathLen = 0;
-        if (init.st.turn > beamTurnCap) return nullopt;
+        if (init.st.turn > beamTurnCap) return false;
 
         int startTurn = init.st.turn;
         ++currentRunStamp;
@@ -1207,6 +1148,7 @@ struct Solver {
         const int runStamp = currentRunStamp;
         auto& layers = layersBuf;
         auto& layerKeys = layerKeysBuf;
+        DeadlineChecker timer{deadline};
         auto ensureLayer = [&](int t) {
             if (layerRunStamp[t] == runStamp) return;
             layerRunStamp[t] = runStamp;
@@ -1214,8 +1156,8 @@ struct Solver {
             auto& keys = layerKeys[t];
             vec.clear();
             keys.clear();
-            int expected = beamWidth * (BEAM_CANDIDATE_TOP_K + BEAM_CUT_CANDIDATE_TOP_K + 1);
-            expected = max(expected, beamWidth);
+            int expected = beamWidth * (BEAM_CANDIDATE_TOP_K + BEAM_CUT_CANDIDATE_TOP_K + 1) * 2;
+            expected = max(expected, beamWidth * 4);
             if ((int)vec.capacity() < expected) vec.reserve(expected);
             if ((int)keys.capacity() < expected) keys.reserve(expected);
         };
@@ -1223,21 +1165,39 @@ struct Solver {
         auto ins = [&](BeamNode&& cand) {
             int t = cand.st.turn;
             if (t < startTurn || t > beamTurnCap) return;
-            if (incumbentBestLen < INT_MAX) {
-                if (cand.optimisticLB < 0) {
-                    cand.optimisticLB = safeOptimisticLowerBound(cand.st, cand.prefix);
-                }
-                if (cand.st.turn + cand.optimisticLB >= incumbentBestLen) return;
-            }
+            if (pruneByIncumbent(cand, incumbentBestLen)) return;
             ensureLayer(t);
             auto& vec = layers[t];
             auto& keys = layerKeys[t];
             uint64_t key = beamStateKey(cand.st);
+            if (bannedPathUsed[t] && bannedPathStateKey[t] == key) return;
             int dupIdx = -1;
-            for (int i = (int)keys.size() - 1; i >= 0; --i) {
-                if (keys[i] == key) { dupIdx = i; break; }
+            {
+                const int sz = (int)keys.size();
+                const uint64_t* kp = keys.data();
+#ifdef __AVX2__
+                __m256i vkey = _mm256_set1_epi64x((long long)key);
+                int i = 0;
+                for (; i + 4 <= sz; i += 4) {
+                    __m256i vdata = _mm256_loadu_si256((const __m256i*)(kp + i));
+                    int mask = _mm256_movemask_epi8(_mm256_cmpeq_epi64(vkey, vdata));
+                    if (mask) {
+                        dupIdx = i + (__builtin_ctz(mask) >> 3);
+                        goto found;
+                    }
+                }
+                for (; i < sz; ++i) {
+                    if (kp[i] == key) { dupIdx = i; goto found; }
+                }
+#else
+                for (int i = sz - 1; i >= 0; --i) {
+                    if (kp[i] == key) { dupIdx = i; goto found; }
+                }
+#endif
             }
+            found:
             if (dupIdx < 0) {
+                if (__builtin_expect((int)vec.size() >= (int)vec.capacity(), 0)) return;
                 keys.push_back(key);
                 vec.push_back(move(cand));
             } else {
@@ -1250,10 +1210,8 @@ struct Solver {
         layerKeys[startTurn].push_back(beamStateKey(init.st));
 
         bool hasDone = false; BeamNode bestDone, bestSeen = init;
-        int deadlineTick = 0;
         auto timeUp = [&]() -> bool {
-            if ((++deadlineTick & 7) != 0) return false;
-            return chrono::steady_clock::now() >= deadline;
+            return timer.isOver();
         };
 
         for (int turn = startTurn; turn <= beamTurnCap; ++turn) {
@@ -1267,24 +1225,7 @@ struct Solver {
             }
 
             int order[BEAM_WIDTH_MAX];
-            int ordN = 0;
-            for (int i = 0; i < (int)beam.size(); ++i) {
-                if (ordN < beamWidth) {
-                    int pos = ordN++;
-                    while (pos > 0 && betterBeamNode(beam[i], beam[order[pos - 1]])) {
-                        order[pos] = order[pos - 1];
-                        --pos;
-                    }
-                    order[pos] = i;
-                } else if (betterBeamNode(beam[i], beam[order[ordN - 1]])) {
-                    int pos = ordN - 1;
-                    while (pos > 0 && betterBeamNode(beam[i], beam[order[pos - 1]])) {
-                        order[pos] = order[pos - 1];
-                        --pos;
-                    }
-                    order[pos] = i;
-                }
-            }
+            int ordN = selectTopBeamIndices(beam, beamWidth, order);
 
             for (int oi = 0; oi < ordN; ++oi) {
                 int bi = order[oi];
@@ -1294,33 +1235,25 @@ struct Solver {
                 int p = node.prefix;
                 if (p >= M) { if (!hasDone || betterBeamNode(node, bestDone)) { hasDone = true; bestDone = node; } continue; }
                 if (node.st.turn >= beamTurnCap) continue;
-                if (incumbentBestLen < INT_MAX) {
-                    if (node.optimisticLB < 0) {
-                        node.optimisticLB = safeOptimisticLowerBound(node.st, node.prefix);
-                    }
-                    if (node.st.turn + node.optimisticLB >= incumbentBestLen) continue;
-                }
+                if (pruneByIncumbent(node, incumbentBestLen)) continue;
 
-                BeamNode cands[8]; int cn;
-                transitionGoTargetCandidates(node, deadline, BEAM_CANDIDATE_TOP_K, cands, cn);
-                for (int i = 0; i < cn; ++i) ins(move(cands[i]));
+                transitionGoTargetCandidates(node, timer, BEAM_CANDIDATE_TOP_K, ins);
                 if (oi < CUT_APPLY_NODE_LIMIT) {
-                    transitionCutRecoverCandidates(node, deadline, BEAM_CUT_CANDIDATE_TOP_K, cands, cn);
-                    for (int i = 0; i < cn; ++i) ins(move(cands[i]));
+                    transitionCutRecoverCandidates(node, timer, BEAM_CUT_CANDIDATE_TOP_K, ins);
                 }
-                BeamNode wn;
-                if (transitionWander(node, deadline, wn)) ins(move(wn));
+                transitionWander(node, timer, ins);
             }
             if (hasDone) break;
             keys.clear();
             beam.clear();
         }
-        return hasDone ? optional(bestDone) : optional(bestSeen);
+        outBest = hasDone ? bestDone : bestSeen;
+        return true;
     }
 
     void solve() {
-        auto start = chrono::steady_clock::now();
-        auto totalDL = start + chrono::milliseconds(SEARCH_TIME_LIMIT_MS);
+        auto totalDL = chrono::steady_clock::now() + chrono::milliseconds(SEARCH_TIME_LIMIT_MS);
+        DeadlineChecker totalTimer{totalDL};
         SnakeState initial = state;
         activeTurnLimit = MAX_TURN_LIMIT;
 
@@ -1331,35 +1264,56 @@ struct Solver {
         best.prefix = initial.prefixLen(desired, M);
         best.maxPrefix = best.prefix;
         best.eval = evaluateBeamStateFromPrefix(best.st, best.prefix);
-        vector<int8_t> bestPath;
+        MoveSeq bestPath;
         int btc = BEAM_TURN_CAP_MAX;
         int bw = BEAM_WIDTH;
+        clearBannedPathStates();
 
-        while (chrono::steady_clock::now() < totalDL) {
+        while (true) {
+            if (totalTimer.isOver()) break;
             gPool.clear();
-            int incumbentBestLen = isDoneNode(best) ? (int)bestPath.size() : INT_MAX;
-            auto bb = runBeamSearch(initial, totalDL, bw, btc, incumbentBestLen);
-            if (bb && betterFinalNode(*bb, best)) {
-                best = move(*bb);
+            int incumbentBestLen = isDoneNode(best) ? bestPath.size() : INT_MAX;
+            BeamNode candidate;
+            bool ran = runBeamSearch(initial, totalDL, bw, btc, incumbentBestLen, candidate);
+            if (ran && betterFinalNode(candidate, best)) {
+                best = move(candidate);
                 // Extract path from pool
-                bestPath.resize(best.pathLen);
+                bestPath.len = best.pathLen;
                 if (best.pathTail >= 0 && best.pathLen > 0) {
-                    gPool.extract(best.pathTail, best.pathLen, bestPath.data());
+                    gPool.extract(best.pathTail, best.pathLen, bestPath.d);
                 }
                 if (isDoneNode(best) && best.pathLen > 0) {
                     btc = min(btc, best.pathLen);
+                    rebuildBannedPathStates(initial, bestPath);
                 }
+                // cerr << "best_update"
+                //      << " bw=" << bw
+                //      << " btc=" << btc
+                //      << " turn=" << best.st.turn
+                //      << " len=" << best.pathLen
+                //      << " prefix=" << best.prefix << "/" << M
+                //      << " maxPrefix=" << best.maxPrefix
+                //      << " eval=" << best.eval
+                //      << " done=" << (isDoneNode(best) ? 1 : 0)
+                //      << '\n';
             }
-            if (chrono::steady_clock::now() >= totalDL) break;
+            // cerr << bw << " Finish\n";
+            if (totalTimer.isOver()) break;
             bw = min(BEAM_WIDTH_MAX, bw * 2);
         }
 
         // Output
-        movesDirs = move(bestPath);
+        movesDirs = bestPath;
     }
 
     void printAnswer() const {
-        for (int8_t d : movesDirs) cout << DCHAR[(int)d] << '\n';
+        static char buf[MAX_TURN_LIMIT * 2];
+        int pos = 0;
+        for (int i = 0; i < movesDirs.len; ++i) {
+            buf[pos++] = DCHAR[(int)movesDirs.d[i]];
+            buf[pos++] = '\n';
+        }
+        fwrite(buf, 1, pos, stdout);
     }
 };
 
