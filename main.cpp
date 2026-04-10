@@ -39,8 +39,8 @@ constexpr long long SCORE_FOOD_CORNER_EXTRA_PENALTY_WEIGHT = 2LL;
 constexpr int BEAM_TURN_CAP_MAX = 5000;
 constexpr int BEAM_WIDTH_MAX = 100;
 constexpr int BEAM_CUT_CANDIDATE_TOP_K = 2;
-constexpr int CUT_APPLY_NODE_LIMIT = 12;
-constexpr int BEAM_BAN_PREFIX_TURNS = 80;
+constexpr int CUT_APPLY_NODE_LIMIT = 20;
+constexpr int WANDER_APPLY_NODE_LIMIT = 20;
 constexpr uint16_t INVALID_NEXT_POS = 0xFFFFu;
 constexpr uint8_t NO_OVERLAP_POS = 0xFFu;
 
@@ -385,8 +385,6 @@ array<vector<BeamNode>, BEAM_TURN_CAP_MAX + 1> layersBuf;
 array<vector<uint64_t>, BEAM_TURN_CAP_MAX + 1> layerKeysBuf;
 int layerRunStamp[BEAM_TURN_CAP_MAX + 1] = {};
 int currentRunStamp = 1;
-uint64_t bannedPathStateKey[BEAM_TURN_CAP_MAX + 1] = {};
-uint8_t bannedPathUsed[BEAM_TURN_CAP_MAX + 1] = {};
 
 mutable uint16_t bfsSeenStamp[SCAP] = {};
 mutable uint16_t bfsStamp = 1;
@@ -846,23 +844,6 @@ bool betterBeamNode(const BeamNode& a, const BeamNode& b) const {
     return a.st.turn < b.st.turn;
 }
 
-void clearBannedPathStates() {
-    memset(bannedPathUsed, 0, sizeof(bannedPathUsed));
-}
-
-void rebuildBannedPathStates(const SnakeState& initial, const MoveSeq& path) {
-    clearBannedPathStates();
-    if (path.len <= BEAM_BAN_PREFIX_TURNS) return;
-    SnakeState st = initial;
-    for (int i = 0; i < path.len; ++i) {
-        MoveResult ret = st.apply(path.d[i]);
-        if (!ret.ok) break;
-        int t = st.turn;
-        if (t <= BEAM_BAN_PREFIX_TURNS || t > BEAM_TURN_CAP_MAX) continue;
-        bannedPathUsed[t] = 1;
-        bannedPathStateKey[t] = beamStateKey(st);
-    }
-}
 
 inline void initChildNode(const BeamNode& parent, BeamNode& child) const {
     child.st = parent.st;
@@ -1124,7 +1105,6 @@ bool runBeamSearch(
         auto& vec = layers[t];
         auto& keys = layerKeys[t];
         uint64_t key = beamStateKey(cand.st);
-        if (bannedPathUsed[t] && bannedPathStateKey[t] == key) return;
         int dupIdx = -1;
         {
             const int sz = (int)keys.size();
@@ -1179,7 +1159,7 @@ bool runBeamSearch(
             if (oi < CUT_APPLY_NODE_LIMIT) {
                 transitionCutRecoverCandidates(node, timer, BEAM_CUT_CANDIDATE_TOP_K, ins);
             }
-            transitionWander(node, timer, ins);
+            if (oi < WANDER_APPLY_NODE_LIMIT) transitionWander(node, timer, ins);
         }
         if (hasDone) break;
         keys.clear();
@@ -1205,8 +1185,6 @@ void solve() {
     MoveSeq bestPath;
     int btc = BEAM_TURN_CAP_MAX;
     int bw = BEAM_WIDTH;
-    clearBannedPathStates();
-
     int itr = 0;
     while (true) {
         if (totalTimer.isOver()) break;
@@ -1222,7 +1200,6 @@ void solve() {
             }
             if (isDoneNode(best) && best.pathLen > 0) {
                 btc = min(btc, best.pathLen);
-                rebuildBannedPathStates(initial, bestPath);
             }
             // cerr << "best_update"
             //          << " bw=" << bw
