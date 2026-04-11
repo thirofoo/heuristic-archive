@@ -13,12 +13,10 @@ alignas(64) constexpr int8_t DIR_ORDERS[DIR_ORDER_COUNT][4] = {
     {0, 1, 2, 3}, {3, 2, 1, 0},
 };
 constexpr int MAX_TURN_LIMIT = 100000;
-constexpr int BEAM_WIDTH = 5;
-constexpr int WANDER_LEN = 2;
 constexpr int SEARCH_TIME_LIMIT_MS = 1850;
 constexpr int BEAM_CANDIDATE_TOP_K = 3;
 
-constexpr int CUT_ENUM_MAX_DEPTH = 3;
+constexpr int CUT_ENUM_MAX_DEPTH_HARD_MAX = 5;
 constexpr int CUT_CANDIDATE_CAP = 64;
 constexpr int CUT_KEEP_MIN_LEN = 5;
 constexpr int INITIAL_SNAKE_LEN = 5;
@@ -29,11 +27,41 @@ constexpr int SCORE_PREFIX_PRIMARY_WEIGHT_LONG_BEST_THRESHOLD = 500;
 constexpr long long SCORE_FOOD_WALL_PENALTY_WEIGHT = 10LL;
 constexpr long long SCORE_FOOD_CORNER_EXTRA_PENALTY_WEIGHT = 20LL;
 
+constexpr int BEAM_WIDTH = 5;
 constexpr int BEAM_TURN_CAP_MAX = 4000;
-constexpr int BEAM_WIDTH_MAX = 160;
-constexpr int BEAM_CUT_CANDIDATE_TOP_K = 2;
-constexpr int CUT_APPLY_NODE_LIMIT = 20;
-constexpr int WANDER_APPLY_NODE_LIMIT = 20;
+constexpr int BEAM_WIDTH_HARD_MAX = 160;
+constexpr int BEAM_CUT_CANDIDATE_TOP_K_HARD_MAX = 3;
+constexpr int WANDER_CANDIDATE_TOP_K_HARD_MAX = 1;
+constexpr int WANDER_LEN_HARD_MAX = 2;
+constexpr array<int, 17> WANDER_LEN_BY_N = {
+    -1, -1, -1, -1, -1, -1, -1, -1,
+    1, 2, 2, 2, 2, 2, 2, 2, 2,
+};
+constexpr array<int, 17> CUT_ENUM_MAX_DEPTH_BY_N = {
+    -1, -1, -1, -1, -1, -1, -1, -1,
+    5, 5, 5, 5, 3, 3, 3, 3, 3,
+};
+constexpr array<int, 17> BEAM_WIDTH_MAX_BY_N = {
+    -1, -1, -1, -1, -1, -1, -1, -1,
+    160, 160, 160, 160, 160, 160, 160, 160, 160,
+};
+constexpr array<int, 17> CUT_APPLY_NODE_LIMIT_BY_N = {
+    -1, -1, -1, -1, -1, -1, -1, -1,
+    40, 40, 40, 40, 40, 40, 40, 20, 20,
+};
+constexpr array<int, 17> WANDER_APPLY_NODE_LIMIT_BY_N = {
+    -1, -1, -1, -1, -1, -1, -1, -1,
+    20, 20, 20, 20, 20, 20, 20, 20, 20,
+};
+constexpr array<int, 17> BEAM_CUT_CANDIDATE_TOP_K_BY_N = {
+    -1, -1, -1, -1, -1, -1, -1, -1,
+    5, 5, 4, 4, 4, 3, 2, 2, 2,
+};
+constexpr array<int, 17> WANDER_CANDIDATE_TOP_K_BY_N = {
+    -1, -1, -1, -1, -1, -1, -1, -1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1,
+};
+
 constexpr uint16_t INVALID_NEXT_POS = 0xFFFFu;
 constexpr uint8_t NO_OVERLAP_POS = 0xFFu;
 
@@ -97,7 +125,7 @@ struct DeadlineChecker {
     uint32_t tick = 0;
 
     bool isOver() {
-        if ((++tick & 15u) != 0) return false;
+        if ((++tick & 1u) != 0) return false;
         return chrono::steady_clock::now() >= deadline;
     }
 };
@@ -345,7 +373,7 @@ struct SnakeState {
 };
 
 struct CutCandidate {
-    int8_t seq[CUT_ENUM_MAX_DEPTH];
+    int8_t seq[CUT_ENUM_MAX_DEPTH_HARD_MAX];
     int8_t seqLen = 0;
     int16_t afterBodyLen = 0;
     bool adjacentToPrefix = false;
@@ -704,7 +732,7 @@ bool isTargetAdjacentToPrefixSegment(const SnakeState& st, int anchorLen, int ta
 void enumerateCutCandidatesDFS(
     const SnakeState& cur, int depth, int maxDepth,
     int baseL, int targetColor,
-    int8_t seq[CUT_ENUM_MAX_DEPTH], int seqLen,
+    int8_t seq[CUT_ENUM_MAX_DEPTH_HARD_MAX], int seqLen,
     CutCandidateList& out
 ) const {
     if (depth >= maxDepth) return;
@@ -734,10 +762,10 @@ void enumerateCutCandidatesDFS(
 }
 
 CutCandidateList enumerateCutCandidates(
-    const SnakeState& src, int baseL, int targetColor, int maxDepth = CUT_ENUM_MAX_DEPTH
+    const SnakeState& src, int baseL, int targetColor, int maxDepth
 ) const {
     CutCandidateList out;
-    int8_t seq[CUT_ENUM_MAX_DEPTH];
+    int8_t seq[CUT_ENUM_MAX_DEPTH_HARD_MAX];
     enumerateCutCandidatesDFS(src, 0, maxDepth, baseL, targetColor, seq, 0, out);
     return out;
 }
@@ -746,7 +774,7 @@ CutCandidateList chooseTopCutCandidatesForBeam(
     const SnakeState& src, int baseL, int targetColor, int topK
 ) const {
     topK = max(1, topK);
-    auto cands = enumerateCutCandidates(src, baseL, targetColor, CUT_ENUM_MAX_DEPTH);
+    auto cands = enumerateCutCandidates(src, baseL, targetColor, CUT_ENUM_MAX_DEPTH_BY_N[N]);
     if (cands.empty()) return {};
     int wrongSuffix = max(0, (int)src.bodyLen - baseL);
 
@@ -1048,24 +1076,41 @@ void transitionCutRecoverCandidates(
 }
 
 template<typename InsertFn>
-void transitionWander(const BeamNode& cur, DeadlineChecker& timer, InsertFn& insertFn) {
+void transitionWander(const BeamNode& cur, DeadlineChecker& timer, int topK, InsertFn& insertFn) {
     if (timer.isOver()) return;
     int p = cur.prefix;
     if (p >= M) return;
-    if (!gPool.hasSpace(WANDER_LEN)) return;
-    BeamNode out;
-    initChildNode(cur, out);
-    int moved = 0;
-    for (int t = 0; t < WANDER_LEN; ++t) {
-        int d = pickWanderStepForState(out.st);
-        if (d == -1) break;
-        if (!appendMove(out, (int8_t)d)) break;
-        ++moved;
-        if (out.st.prefixLen(desired, M) >= M) break;
+    const int wanderLen = WANDER_LEN_BY_N[N];
+    FixedPath seen[WANDER_CANDIDATE_TOP_K_HARD_MAX];
+    int seenCount = 0;
+    for (int wi = 0; wi < topK; ++wi) {
+        if (timer.isOver()) break;
+        if (!gPool.hasSpace(wanderLen)) break;
+        BeamNode out;
+        initChildNode(cur, out);
+        FixedPath path;
+        int moved = 0;
+        for (int t = 0; t < wanderLen; ++t) {
+            int d = pickWanderStepForState(out.st);
+            if (d == -1) break;
+            if (!appendMove(out, (int8_t)d)) break;
+            path.push_back((int8_t)d);
+            ++moved;
+            if (out.st.prefixLen(desired, M) >= M) break;
+        }
+        if (moved == 0) continue;
+        bool dup = false;
+        for (int i = 0; i < seenCount; ++i) {
+            if (seen[i] == path) {
+                dup = true;
+                break;
+            }
+        }
+        if (dup) continue;
+        seen[seenCount++] = path;
+        finalizeBeamNodeAfterTransition(cur, out);
+        insertFn(move(out));
     }
-    if (moved == 0) return;
-    finalizeBeamNodeAfterTransition(cur, out);
-    insertFn(move(out));
 }
 
 bool isDoneNode(const BeamNode& node) const { return node.prefix >= M; }
@@ -1100,6 +1145,10 @@ bool runBeamSearch(
     auto& layers = layersBuf;
     auto& layerKeys = layerKeysBuf;
     DeadlineChecker timer{deadline};
+    const int cutApplyNodeLimit = CUT_APPLY_NODE_LIMIT_BY_N[N];
+    const int wanderApplyNodeLimit = WANDER_APPLY_NODE_LIMIT_BY_N[N];
+    const int cutCandidateTopK = BEAM_CUT_CANDIDATE_TOP_K_BY_N[N];
+    const int wanderCandidateTopK = WANDER_CANDIDATE_TOP_K_BY_N[N];
     auto ensureLayer = [&](int t) {
         if (layerRunStamp[t] == runStamp) return;
         layerRunStamp[t] = runStamp;
@@ -1107,7 +1156,7 @@ bool runBeamSearch(
         auto& keys = layerKeys[t];
         vec.clear();
         keys.clear();
-        int expected = beamWidth * (BEAM_CANDIDATE_TOP_K + BEAM_CUT_CANDIDATE_TOP_K + 1) * 2;
+        int expected = beamWidth * (BEAM_CANDIDATE_TOP_K + cutCandidateTopK + wanderCandidateTopK) * 2;
         expected = max(expected, beamWidth * 4);
         if ((int)vec.capacity() < expected) vec.reserve(expected);
         if ((int)keys.capacity() < expected) keys.reserve(expected);
@@ -1158,7 +1207,7 @@ bool runBeamSearch(
             continue;
         }
 
-        int order[BEAM_WIDTH_MAX];
+        int order[BEAM_WIDTH_HARD_MAX];
         int ordN = selectTopBeamIndices(beam, beamWidth, order);
 
         for (int oi = 0; oi < ordN; ++oi) {
@@ -1172,10 +1221,10 @@ bool runBeamSearch(
             if (pruneByIncumbent(node, incumbentBestLen)) continue;
 
             transitionGoTargetCandidates(node, timer, BEAM_CANDIDATE_TOP_K, ins);
-            if (oi < CUT_APPLY_NODE_LIMIT) {
-                transitionCutRecoverCandidates(node, timer, BEAM_CUT_CANDIDATE_TOP_K, ins);
+            if (oi < cutApplyNodeLimit) {
+                transitionCutRecoverCandidates(node, timer, cutCandidateTopK, ins);
             }
-            if (oi < WANDER_APPLY_NODE_LIMIT) transitionWander(node, timer, ins);
+            if (oi < wanderApplyNodeLimit) transitionWander(node, timer, wanderCandidateTopK, ins);
         }
         if (hasDone) break;
         keys.clear();
@@ -1200,6 +1249,7 @@ void solve() {
     best.eval = evaluateBeamStateFromPrefix(best.st, best.prefix);
     MoveSeq bestPath;
     int btc = BEAM_TURN_CAP_MAX;
+    const int beamWidthMax = BEAM_WIDTH_MAX_BY_N[N];
     int bw = BEAM_WIDTH;
     int itr = 0;
     while (true) {
@@ -1234,7 +1284,7 @@ void solve() {
         }
         // cerr << "itr=" << itr << " bw=" << bw << " Finish\n";
         if (totalTimer.isOver()) break;
-        bw = min(BEAM_WIDTH_MAX, bw * 2);
+        bw = min(beamWidthMax, bw * 2);
         itr++;
     }
 
