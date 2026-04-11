@@ -8,14 +8,9 @@ constexpr int MAXC = 8;
 constexpr int DR[4] = {-1, 1, 0, 0};
 constexpr int DC[4] = {0, 0, -1, 1};
 constexpr char DCHAR[4] = {'U', 'D', 'L', 'R'};
-constexpr int DIR_ORDER_COUNT = 24;
+constexpr int DIR_ORDER_COUNT = 2;
 alignas(64) constexpr int8_t DIR_ORDERS[DIR_ORDER_COUNT][4] = {
-    {0, 1, 2, 3}, {0, 1, 3, 2}, {0, 2, 1, 3}, {0, 2, 3, 1},
-    {0, 3, 1, 2}, {0, 3, 2, 1}, {1, 0, 2, 3}, {1, 0, 3, 2},
-    {1, 2, 0, 3}, {1, 2, 3, 0}, {1, 3, 0, 2}, {1, 3, 2, 0},
-    {2, 0, 1, 3}, {2, 0, 3, 1}, {2, 1, 0, 3}, {2, 1, 3, 0},
-    {2, 3, 0, 1}, {2, 3, 1, 0}, {3, 0, 1, 2}, {3, 0, 2, 1},
-    {3, 1, 0, 2}, {3, 1, 2, 0}, {3, 2, 0, 1}, {3, 2, 1, 0},
+    {0, 1, 2, 3}, {3, 2, 1, 0},
 };
 constexpr int MAX_TURN_LIMIT = 100000;
 constexpr int BEAM_WIDTH = 5;
@@ -25,30 +20,22 @@ constexpr int BEAM_CANDIDATE_TOP_K = 3;
 
 constexpr int CUT_ENUM_MAX_DEPTH = 3;
 constexpr int CUT_CANDIDATE_CAP = 64;
-constexpr int CUT_KEEP_MIN_LEN = 3;
-constexpr long long CUT_BEAM_WRONG_SUFFIX_WEIGHT = 2'000'000LL;
-constexpr long long CUT_BEAM_PREFIX_LOSS_WEIGHT = 120'000LL;
-constexpr long long CUT_BEAM_NO_WRONG_REDUCTION_PENALTY = 2'500'000LL;
-constexpr long long CUT_BEAM_BITE_TURN_WEIGHT = 20'000LL;
-constexpr long long CUT_BEAM_NOT_ADJ_PENALTY = 90'000LL;
+constexpr int CUT_KEEP_MIN_LEN = 5;
+constexpr int INITIAL_SNAKE_LEN = 5;
 
-constexpr long long SCORE_PREFIX_PRIMARY_WEIGHT = 1'000'000LL;
-constexpr long long SCORE_FOOD_WALL_PENALTY_WEIGHT = 1LL;
-constexpr long long SCORE_FOOD_CORNER_EXTRA_PENALTY_WEIGHT = 2LL;
+constexpr long long SCORE_PREFIX_PRIMARY_WEIGHT = 25LL;
+constexpr long long SCORE_PREFIX_PRIMARY_WEIGHT_LONG_BEST = 1'000'000LL;
+constexpr int SCORE_PREFIX_PRIMARY_WEIGHT_LONG_BEST_THRESHOLD = 500;
+constexpr long long SCORE_FOOD_WALL_PENALTY_WEIGHT = 10LL;
+constexpr long long SCORE_FOOD_CORNER_EXTRA_PENALTY_WEIGHT = 20LL;
 
-constexpr int BEAM_TURN_CAP_MAX = 5000;
-constexpr int BEAM_WIDTH_MAX = 100;
+constexpr int BEAM_TURN_CAP_MAX = 4000;
+constexpr int BEAM_WIDTH_MAX = 160;
 constexpr int BEAM_CUT_CANDIDATE_TOP_K = 2;
 constexpr int CUT_APPLY_NODE_LIMIT = 20;
 constexpr int WANDER_APPLY_NODE_LIMIT = 20;
 constexpr uint16_t INVALID_NEXT_POS = 0xFFFFu;
 constexpr uint8_t NO_OVERLAP_POS = 0xFFu;
-
-inline int prefixMatchContiguous(const int8_t* a, const int8_t* b, int len) {
-    int p = 0;
-    while (p < len && a[p] == b[p]) ++p;
-    return p;
-}
 
 // Global lookup tables — stay at max size 256, initialized per-N.
 uint16_t gCellIdxByPos[256];
@@ -270,6 +257,17 @@ struct SnakeState {
         uint8_t tail = bodyBack();
         bool biteCandidate = bodyOccupiedPos(npos) && (eats || npos != tail || overlapPos == npos);
 
+        if (__builtin_expect(!eats && !biteCandidate, 1)) {
+            bodyPushFront(npos);
+            bodyOccSetPos(npos);
+            bodyPopBack();
+            if (tail != npos) bodyOccRemoveOnePos(tail);
+            overlapPos = (bodyBack() == npos) ? npos : NO_OVERLAP_POS;
+            ++turn;
+            ret.ok = true;
+            return ret;
+        }
+
         bodyPushFront(npos);
         bodyOccSetPos(npos);
 
@@ -281,6 +279,12 @@ struct SnakeState {
         } else {
             bodyPopBack();
             if (tail != npos) bodyOccRemoveOnePos(tail);
+        }
+
+        if (__builtin_expect(!biteCandidate, 1)) {
+            ++turn;
+            ret.ok = true;
+            return ret;
         }
 
         int k = bodyLen;
@@ -370,6 +374,7 @@ uint32_t ty = 362436069u;
 uint32_t tz = 521288629u;
 uint32_t tw = 88675123u;
 int activeTurnLimit = MAX_TURN_LIMIT;
+long long activePrefixPrimaryWeight = SCORE_PREFIX_PRIMARY_WEIGHT_LONG_BEST;
 
 struct BeamNode {
     SnakeState st;
@@ -472,20 +477,20 @@ void readInput(int n, int m, int c) {
     }
 
     state.bodyHead = 0;
-    state.bodyLen = 5;
+    state.bodyLen = INITIAL_SNAKE_LEN;
     state.bodyBuf[0] = packPos(4, 0);
     state.bodyBuf[1] = packPos(3, 0);
     state.bodyBuf[2] = packPos(2, 0);
     state.bodyBuf[3] = packPos(1, 0);
     state.bodyBuf[4] = packPos(0, 0);
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < INITIAL_SNAKE_LEN; ++i) {
         state.bodyOccSetPos(state.bodyBuf[i]);
     }
 
     state.colorHead = 0;
     state.colorLen = 0;
     memset(state.colorBuf, 0, sizeof(state.colorBuf));
-    for (int i = 0; i < 5; ++i) state.colorPushBack(1);
+    for (int i = 0; i < INITIAL_SNAKE_LEN; ++i) state.colorPushBack(1);
 
     state.turn = 0;
     movesDirs.clear();
@@ -501,18 +506,22 @@ int dirBetween(uint8_t a, uint8_t b) const {
 }
 
 FixedPath buildRecoveryPathByOldBody(
-    const SnakeState& beforeBite, const SnakeState& afterBite, int prefixBefore
+    const uint8_t* savedBodyBuf,
+    int16_t savedBodyHead,
+    int16_t savedBodyLen,
+    const SnakeState& afterBite,
+    int prefixBefore
 ) const {
     FixedPath plan;
     int lenAfter = afterBite.bodyLen;
     if (prefixBefore <= lenAfter) return plan;
-    if (beforeBite.bodyLen == 0 || afterBite.bodyLen == 0) return plan;
+    if (savedBodyLen == 0 || afterBite.bodyLen == 0) return plan;
     int startIdx = lenAfter - 1;
     int endIdx = prefixBefore - 2;
-    if (startIdx < 0 || endIdx < startIdx || endIdx >= beforeBite.bodyLen) return plan;
+    if (startIdx < 0 || endIdx < startIdx || endIdx >= savedBodyLen) return plan;
     uint8_t cur = afterBite.bodyFront();
     for (int idx = startIdx; idx <= endIdx; ++idx) {
-        uint8_t nxt = beforeBite.bodyAt(idx);
+        uint8_t nxt = savedBodyBuf[(savedBodyHead + idx) & SMASK];
         int d = dirBetween(cur, nxt);
         if (d < 0) { plan.len = 0; return plan; }
         plan.push_back((int8_t)d);
@@ -740,43 +749,43 @@ CutCandidateList chooseTopCutCandidatesForBeam(
     auto cands = enumerateCutCandidates(src, baseL, targetColor, CUT_ENUM_MAX_DEPTH);
     if (cands.empty()) return {};
     int wrongSuffix = max(0, (int)src.bodyLen - baseL);
-    auto evalScore = [&](const CutCandidate& c) -> long long {
-        int la = c.afterBodyLen, rw = max(0, la - baseL), lp = max(0, baseL - la);
-        int rmw = max(0, wrongSuffix - rw);
-        long long s = CUT_BEAM_WRONG_SUFFIX_WEIGHT * rw + CUT_BEAM_PREFIX_LOSS_WEIGHT * lp;
-        if (!rmw && wrongSuffix > 0) s += CUT_BEAM_NO_WRONG_REDUCTION_PENALTY;
-        s += CUT_BEAM_BITE_TURN_WEIGHT * c.seqLen;
-        if (!c.adjacentToPrefix) s += CUT_BEAM_NOT_ADJ_PENALTY;
-        return s;
+
+    // Rule-based comparator: a is better than b?
+    // 1) rmw > 0 preferred (actually removes wrong suffix)
+    // 2) rw smaller (less wrong suffix remaining)
+    // 3) lp smaller (less prefix loss)
+    // 4) adj true preferred
+    // 5) seqLen smaller
+    auto betterCut = [&](const CutCandidate& a, const CutCandidate& b) {
+        int a_rw = max(0, (int)a.afterBodyLen - baseL);
+        int b_rw = max(0, (int)b.afterBodyLen - baseL);
+        int a_lp = max(0, baseL - (int)a.afterBodyLen);
+        int b_lp = max(0, baseL - (int)b.afterBodyLen);
+        int a_rmw = max(0, wrongSuffix - a_rw);
+        int b_rmw = max(0, wrongSuffix - b_rw);
+        bool a_removes = (a_rmw > 0);
+        bool b_removes = (b_rmw > 0);
+        if (a_removes != b_removes) return a_removes;
+        if (a_rw != b_rw) return a_rw < b_rw;
+        if (a_lp != b_lp) return a_lp < b_lp;
+        if (a.adjacentToPrefix != b.adjacentToPrefix) return a.adjacentToPrefix;
+        return a.seqLen < b.seqLen;
     };
-    if (topK == 1) {
-        int bestIdx = 0;
-        long long bestScore = evalScore(cands.data[0]);
-        for (int i = 1; i < cands.size; ++i) {
-            long long s = evalScore(cands.data[i]);
-            if (s < bestScore) { bestScore = s; bestIdx = i; }
-        }
-        CutCandidateList out;
-        out.push_back(cands.data[bestIdx]);
-        return out;
-    }
-    struct R { long long s; int i; };
-    R ranked[CUT_CANDIDATE_CAP];
-    int rankedSize = cands.size;
-    for (int i = 0; i < rankedSize; ++i) {
-        ranked[i] = {evalScore(cands.data[i]), i};
-    }
+
+    // Selection sort for top-k
+    int indices[CUT_CANDIDATE_CAP];
+    for (int i = 0; i < cands.size; ++i) indices[i] = i;
     CutCandidateList out;
-    int take = min(topK, rankedSize);
+    int take = min(topK, cands.size);
     for (int k = 0; k < take; ++k) {
         int bestJ = k;
-        for (int j = k + 1; j < rankedSize; ++j) {
-            if (ranked[j].s < ranked[bestJ].s || (ranked[j].s == ranked[bestJ].s && ranked[j].i < ranked[bestJ].i)) {
+        for (int j = k + 1; j < cands.size; ++j) {
+            if (betterCut(cands.data[indices[j]], cands.data[indices[bestJ]])) {
                 bestJ = j;
             }
         }
-        if (bestJ != k) { R tmp = ranked[k]; ranked[k] = ranked[bestJ]; ranked[bestJ] = tmp; }
-        out.push_back(cands.data[ranked[k].i]);
+        if (bestJ != k) { int tmp = indices[k]; indices[k] = indices[bestJ]; indices[bestJ] = tmp; }
+        out.push_back(cands.data[indices[k]]);
     }
     return out;
 }
@@ -788,7 +797,7 @@ long long foodWallPenalty(const SnakeState& st) const {
 }
 
 inline long long evaluateBeamStateFromPrefix(const SnakeState& st, int pref) const {
-    return -SCORE_PREFIX_PRIMARY_WEIGHT * pref + foodWallPenalty(st);
+    return -activePrefixPrimaryWeight * pref + foodWallPenalty(st);
 }
 
 int safeOptimisticLowerBound(const SnakeState& st, int p) const {
@@ -834,7 +843,7 @@ uint64_t beamStateKey(const SnakeState& st) const {
         h ^= food2 * 0xd6e8feb86659fd93ULL;
         h ^= food3 * 0xa0761d6478bd642fULL;
     }
-    if (st.bodyLen > 0) h ^= (uint64_t)st.bodyFront() * 0x369dea0f31a53f85ULL;
+    h ^= (uint64_t)st.bodyFront() * 0x369dea0f31a53f85ULL;
     return h;
 }
 
@@ -849,6 +858,22 @@ inline void initChildNode(const BeamNode& parent, BeamNode& child) const {
     child.st = parent.st;
     child.pathTail = parent.pathTail;
     child.pathLen = parent.pathLen;
+}
+
+inline bool appendMove(BeamNode& node, int8_t dir) const {
+    if (node.st.turn >= activeTurnLimit) return false;
+    MoveResult ret = node.st.apply(dir);
+    if (!ret.ok) return false;
+    node.pathTail = gPool.add(dir, node.pathTail);
+    node.pathLen++;
+    return true;
+}
+
+inline bool appendPath(BeamNode& node, const FixedPath& path) const {
+    for (int i = 0; i < path.len; ++i) {
+        if (!appendMove(node, path.d[i])) return false;
+    }
+    return true;
 }
 
 inline void finalizeBeamNodeAfterTransition(const BeamNode& cur, BeamNode& nxt) const {
@@ -900,10 +925,36 @@ int selectTopBeamIndices(const vector<BeamNode>& beam, int beamWidth, int* order
     return ordN;
 }
 
+// O(1) per direction: no SnakeState copy, no apply, just bitwise check
 int pickWanderStepForState(const SnakeState& st) {
-    DirList dirs = st.legalDirs();
-    if (dirs.n == 0) return -1;
-    return dirs.d[randRange(0, dirs.n - 1)];
+    if (st.bodyLen == 0) return -1;
+    uint8_t head = st.bodyFront();
+    uint8_t neck = (st.bodyLen >= 2) ? st.bodyAt(1) : 255;
+    uint8_t tail = st.bodyBack();
+    int8_t candidates[4];
+    int candN = 0;
+    const int8_t* dirOrder = chooseDirOrder();
+    for (int di = 0; di < 4; ++di) {
+        int d = dirOrder[di];
+        uint16_t next = gNextPos[head][d];
+        if (next == INVALID_NEXT_POS) continue;
+        uint8_t npos = (uint8_t)next;
+        if (npos == neck) continue;
+        // Skip if moving here would cause bite:
+        // A bite happens when npos is occupied by body AND it's not just the tail
+        // (the tail will leave if we don't eat, and grid[npos]==0 means no eat)
+        if (st.grid[npos] == 0) {
+            // Normal move (no eat): tail leaves. Bite if npos is in body and npos != tail
+            // (or if there's an overlap at tail)
+            if (st.bodyOccupiedPos(npos) && (npos != tail || st.overlapPos == npos)) continue;
+        } else {
+            // Would eat: tail stays. Bite if npos is in body at all
+            if (st.bodyOccupiedPos(npos)) continue;
+        }
+        candidates[candN++] = (int8_t)d;
+    }
+    if (candN == 0) return -1;
+    return candidates[randRange(0, candN - 1)];
 }
 
 template<typename InsertFn>
@@ -943,15 +994,7 @@ void transitionGoTargetCandidates(
         if (!gPool.hasSpace(path.len)) continue;
         BeamNode nxt;
         initChildNode(cur, nxt);
-        bool ok = true;
-        for (int i = 0; i < path.len; ++i) {
-            if (nxt.st.turn >= activeTurnLimit) break;
-            MoveResult ret = nxt.st.apply(path.d[i]);
-            if (!ret.ok) { ok = false; break; }
-            nxt.pathTail = gPool.add(path.d[i], nxt.pathTail);
-            nxt.pathLen++;
-        }
-        if (!ok) continue;
+        if (!appendPath(nxt, path)) continue;
         finalizeBeamNodeAfterTransition(cur, nxt);
         insertFn(move(nxt));
     }
@@ -976,7 +1019,6 @@ void transitionCutRecoverCandidates(
         initChildNode(cur, nxt);
         bool bitten = false, ok = true;
         for (int si = 0; si < cut.seqLen; ++si) {
-            if (nxt.st.turn >= activeTurnLimit) break;
             if (si + 1 == cut.seqLen) {
                 uint8_t savedBodyBuf[SCAP];
                 memcpy(savedBodyBuf, nxt.st.bodyBuf, sizeof(savedBodyBuf));
@@ -988,33 +1030,10 @@ void transitionCutRecoverCandidates(
                 nxt.pathTail = gPool.add(cut.seq[si], nxt.pathTail);
                 nxt.pathLen++;
                 bitten = true;
-                {
-                    FixedPath recovery;
-                    int lenAfter = nxt.st.bodyLen;
-                    if (pb > lenAfter && savedBodyLen > 0 && nxt.st.bodyLen > 0) {
-                        int startIdx = lenAfter - 1;
-                        int endIdx = pb - 2;
-                        if (startIdx >= 0 && endIdx >= startIdx && endIdx < savedBodyLen) {
-                            uint8_t rcur = nxt.st.bodyFront();
-                            bool rok = true;
-                            for (int idx = startIdx; idx <= endIdx; ++idx) {
-                                uint8_t rnxt = savedBodyBuf[(savedBodyHead + idx) & SMASK];
-                                int rd = dirBetween(rcur, rnxt);
-                                if (rd < 0) { rok = false; break; }
-                                recovery.push_back((int8_t)rd);
-                                rcur = rnxt;
-                            }
-                            if (!rok) recovery.len = 0;
-                        }
-                    }
-                    for (int ri = 0; ri < recovery.len; ++ri) {
-                        if (nxt.st.turn >= activeTurnLimit) break;
-                        MoveResult rr = nxt.st.apply(recovery.d[ri]);
-                        if (!rr.ok) { ok = false; break; }
-                        nxt.pathTail = gPool.add(recovery.d[ri], nxt.pathTail);
-                        nxt.pathLen++;
-                    }
-                }
+                FixedPath recovery = buildRecoveryPathByOldBody(
+                    savedBodyBuf, savedBodyHead, savedBodyLen, nxt.st, pb
+                );
+                if (!appendPath(nxt, recovery)) ok = false;
                 break;
             }
             MoveResult ret = nxt.st.apply(cut.seq[si]);
@@ -1038,13 +1057,9 @@ void transitionWander(const BeamNode& cur, DeadlineChecker& timer, InsertFn& ins
     initChildNode(cur, out);
     int moved = 0;
     for (int t = 0; t < WANDER_LEN; ++t) {
-        if (out.st.turn >= activeTurnLimit) break;
         int d = pickWanderStepForState(out.st);
         if (d == -1) break;
-        MoveResult ret = out.st.apply(d);
-        if (!ret.ok) break;
-        out.pathTail = gPool.add((int8_t)d, out.pathTail);
-        out.pathLen++;
+        if (!appendMove(out, (int8_t)d)) break;
         ++moved;
         if (out.st.prefixLen(desired, M) >= M) break;
     }
@@ -1057,6 +1072,7 @@ bool isDoneNode(const BeamNode& node) const { return node.prefix >= M; }
 bool betterFinalNode(const BeamNode& a, const BeamNode& b) const {
     bool ad = isDoneNode(a), bd = isDoneNode(b);
     if (ad != bd) return ad;
+    if (ad && bd) return a.st.turn < b.st.turn;
     return betterBeamNode(a, b);
 }
 
@@ -1190,6 +1206,10 @@ void solve() {
         if (totalTimer.isOver()) break;
         gPool.clear();
         int incumbentBestLen = isDoneNode(best) ? bestPath.size() : INT_MAX;
+        activePrefixPrimaryWeight =
+            (incumbentBestLen > SCORE_PREFIX_PRIMARY_WEIGHT_LONG_BEST_THRESHOLD)
+                ? SCORE_PREFIX_PRIMARY_WEIGHT_LONG_BEST
+                : SCORE_PREFIX_PRIMARY_WEIGHT;
         BeamNode candidate;
         bool ran = runBeamSearch(initial, totalDL, bw, btc, incumbentBestLen, candidate);
         if (ran && betterFinalNode(candidate, best)) {
