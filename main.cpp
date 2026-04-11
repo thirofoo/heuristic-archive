@@ -14,7 +14,6 @@ alignas(64) constexpr int8_t DIR_ORDERS[DIR_ORDER_COUNT][4] = {
 };
 constexpr int MAX_TURN_LIMIT = 100000;
 constexpr int SEARCH_TIME_LIMIT_MS = 1850;
-constexpr int BEAM_CANDIDATE_TOP_K = 3;
 
 constexpr int CUT_ENUM_MAX_DEPTH_HARD_MAX = 5;
 constexpr int CUT_CANDIDATE_CAP = 64;
@@ -30,20 +29,22 @@ constexpr long long SCORE_FOOD_CORNER_EXTRA_PENALTY_WEIGHT = 20LL;
 constexpr int BEAM_WIDTH = 5;
 constexpr int BEAM_TURN_CAP_MAX = 4000;
 constexpr int BEAM_WIDTH_HARD_MAX = 160;
-constexpr int BEAM_CUT_CANDIDATE_TOP_K_HARD_MAX = 3;
 constexpr int WANDER_CANDIDATE_TOP_K_HARD_MAX = 1;
-constexpr int WANDER_LEN_HARD_MAX = 2;
+constexpr array<int, 17> BEAM_CANDIDATE_TOP_K_BY_N = {
+    -1, -1, -1, -1, -1, -1, -1, -1,
+    3, 3, 3, 3, 3, 3, 3, 3, 3,
+};
 constexpr array<int, 17> WANDER_LEN_BY_N = {
     -1, -1, -1, -1, -1, -1, -1, -1,
-    1, 2, 2, 2, 2, 2, 2, 2, 2,
+    1, 2, 2, 2, 2, 2, 4, 4, 6,
 };
 constexpr array<int, 17> CUT_ENUM_MAX_DEPTH_BY_N = {
     -1, -1, -1, -1, -1, -1, -1, -1,
-    5, 5, 5, 5, 3, 3, 3, 3, 3,
+    5, 5, 5, 5, 4, 4, 3, 3, 3,
 };
 constexpr array<int, 17> BEAM_WIDTH_MAX_BY_N = {
     -1, -1, -1, -1, -1, -1, -1, -1,
-    160, 160, 160, 160, 160, 160, 160, 160, 160,
+    160, 160, 160, 160, 160, 160, 160, 80, 80,
 };
 constexpr array<int, 17> CUT_APPLY_NODE_LIMIT_BY_N = {
     -1, -1, -1, -1, -1, -1, -1, -1,
@@ -247,7 +248,38 @@ struct SnakeState {
 
     int prefixLen(const int8_t* desired, int desiredLen) const {
         int lim = min((int)colorLen, desiredLen);
-        for (int i = 0; i < lim; ++i) {
+        if (lim == 0) return 0;
+        int i = 0;
+        // Bulk path: when rawIdx is even (byte-aligned) and no wrap, unpack 8 nibbles at once
+        while (i + 8 <= lim) {
+            int rawIdx = (colorHead + i) & SMASK;
+            if ((rawIdx & 1) == 0 && rawIdx + 8 <= SCAP) {
+                uint32_t packed;
+                memcpy(&packed, &colorBuf[rawIdx >> 1], 4);
+                // Compare 8 nibbles via single uint64 XOR
+                uint64_t des8;
+                memcpy(&des8, &desired[i], 8);
+                uint64_t unp =
+                    ((uint64_t)(packed & 15)) |
+                    ((uint64_t)((packed >> 4) & 15) << 8) |
+                    ((uint64_t)((packed >> 8) & 15) << 16) |
+                    ((uint64_t)((packed >> 12) & 15) << 24) |
+                    ((uint64_t)((packed >> 16) & 15) << 32) |
+                    ((uint64_t)((packed >> 20) & 15) << 40) |
+                    ((uint64_t)((packed >> 24) & 15) << 48) |
+                    ((uint64_t)((packed >> 28) & 15) << 56);
+                uint64_t diff = unp ^ des8;
+                if (diff) {
+                    // Find first differing byte
+                    return i + (__builtin_ctzll(diff) >> 3);
+                }
+                i += 8;
+            } else {
+                break;
+            }
+        }
+        // Scalar tail
+        for (; i < lim; ++i) {
             if (colorAt(i) != desired[i]) return i;
         }
         return lim;
@@ -858,6 +890,7 @@ uint64_t beamStateKey(const SnakeState& st) const {
         uint64_t food0 = 0;
         for (int color = 1; color <= C; ++color) food0 |= st.foodColorOcc[color][0];
         h ^= food0 * 0xbf58476d1ce4e5b9ULL;
+        h ^= st.bodyOcc[0] * 0xe7037ed1a0b428dbULL;
     } else {
         uint64_t food0 = 0, food1 = 0, food2 = 0, food3 = 0;
         for (int color = 1; color <= C; ++color) {
@@ -870,8 +903,12 @@ uint64_t beamStateKey(const SnakeState& st) const {
         h ^= food1 * 0x94d049bb133111ebULL;
         h ^= food2 * 0xd6e8feb86659fd93ULL;
         h ^= food3 * 0xa0761d6478bd642fULL;
+        h ^= st.bodyOcc[0] * 0xe7037ed1a0b428dbULL;
+        h ^= st.bodyOcc[1] * 0x8ebc6af09c88c6e3ULL;
+        h ^= st.bodyOcc[2] * 0x589965cc75374cc3ULL;
+        h ^= st.bodyOcc[3] * 0x1d8e4e27c47d124fULL;
     }
-    h ^= (uint64_t)st.bodyFront() * 0x369dea0f31a53f85ULL;
+    h ^= ((uint64_t)st.bodyFront() | ((uint64_t)(uint16_t)st.bodyLen << 8)) * 0x369dea0f31a53f85ULL;
     return h;
 }
 
@@ -1145,6 +1182,7 @@ bool runBeamSearch(
     auto& layers = layersBuf;
     auto& layerKeys = layerKeysBuf;
     DeadlineChecker timer{deadline};
+    const int goTargetCandidateTopK = BEAM_CANDIDATE_TOP_K_BY_N[N];
     const int cutApplyNodeLimit = CUT_APPLY_NODE_LIMIT_BY_N[N];
     const int wanderApplyNodeLimit = WANDER_APPLY_NODE_LIMIT_BY_N[N];
     const int cutCandidateTopK = BEAM_CUT_CANDIDATE_TOP_K_BY_N[N];
@@ -1156,7 +1194,7 @@ bool runBeamSearch(
         auto& keys = layerKeys[t];
         vec.clear();
         keys.clear();
-        int expected = beamWidth * (BEAM_CANDIDATE_TOP_K + cutCandidateTopK + wanderCandidateTopK) * 2;
+        int expected = beamWidth * (goTargetCandidateTopK + cutCandidateTopK + wanderCandidateTopK) * 2;
         expected = max(expected, beamWidth * 4);
         if ((int)vec.capacity() < expected) vec.reserve(expected);
         if ((int)keys.capacity() < expected) keys.reserve(expected);
@@ -1174,7 +1212,10 @@ bool runBeamSearch(
         {
             const int sz = (int)keys.size();
             const uint64_t* kp = keys.data();
-            for (int i = sz - 1; i >= 0; --i) {
+            // Scan only recent 32 entries — covers nearly all true dups
+            // while cutting O(n) linear scan to O(1) amortized
+            const int scanFrom = (sz > 32) ? sz - 32 : 0;
+            for (int i = sz - 1; i >= scanFrom; --i) {
                 if (kp[i] == key) { dupIdx = i; goto found; }
             }
         }
@@ -1220,7 +1261,7 @@ bool runBeamSearch(
             if (node.st.turn >= beamTurnCap) continue;
             if (pruneByIncumbent(node, incumbentBestLen)) continue;
 
-            transitionGoTargetCandidates(node, timer, BEAM_CANDIDATE_TOP_K, ins);
+            transitionGoTargetCandidates(node, timer, goTargetCandidateTopK, ins);
             if (oi < cutApplyNodeLimit) {
                 transitionCutRecoverCandidates(node, timer, cutCandidateTopK, ins);
             }
