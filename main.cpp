@@ -615,7 +615,9 @@ void buildReleaseSparse(const SnakeState& st) const {
     for (int i = 1; i < st.bodyLen; ++i) {
         uint8_t bp = st.bodyAt(i);
         releaseStamp[bp] = releaseCur;
-        releaseValue[bp] = (int16_t)(st.bodyLen - i);
+        int rel = st.bodyLen - 1 - i;
+        if (rel < 1) rel = 1;
+        releaseValue[bp] = (int16_t)rel;
     }
 }
 
