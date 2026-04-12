@@ -71,15 +71,12 @@ uint16_t gCellIdxByPos[256];
 uint16_t gNextPos[256][4];
 uint8_t gWallByPos[256];
 uint8_t gCornerByPos[256];
+uint8_t gBlkByPos[256];
+uint64_t gMaskByPos[256];
 uint32_t gDirOrderNonce = 0;
 
 inline const int8_t* chooseDirOrder() {
-    uint32_t x = ++gDirOrderNonce;
-    x ^= x >> 16;
-    x *= 0x7feb352dU;
-    x ^= x >> 15;
-    uint32_t idx = (uint32_t)(((uint64_t)x * DIR_ORDER_COUNT) >> 32);
-    return DIR_ORDERS[idx];
+    return DIR_ORDERS[++gDirOrderNonce & 1];
 }
 
 struct PathPool {
@@ -126,7 +123,7 @@ struct DeadlineChecker {
     uint32_t tick = 0;
 
     bool isOver() {
-        if ((++tick & 1u) != 0) return false;
+        if ((++tick & 7u) != 0) return false;
         return chrono::steady_clock::now() >= deadline;
     }
 };
@@ -135,7 +132,7 @@ struct DeadlineChecker {
 // Template: SHIFT=3,SIDE=8,CAP=64,MASK=63,BLOCKS=1 for N<=8
 //           SHIFT=4,SIDE=16,CAP=256,MASK=255,BLOCKS=4 for N>8
 // ============================================================
-template<int SHIFT, int SIDE, int SCAP, int SMASK, int BLOCKS>
+template<int SHIFT, int SIDE, int SCAP, int SMASK, int BLOCKS, int CMAXP1>
 struct SolverT {
 
 static inline uint8_t packPos(int r, int c) { return (uint8_t)((r << SHIFT) | c); }
@@ -166,18 +163,24 @@ static inline void reconstructPathBackward(
 }
 
 struct SnakeState {
-    int8_t grid[SCAP] = {};
+    // Hot fields (accessed on every apply) — grouped at start for cache locality
     uint64_t bodyOcc[BLOCKS] = {};
-    uint8_t bodyBuf[SCAP];
-    uint8_t colorBuf[(SCAP + 1) >> 1] = {};
+    uint64_t foodOcc[BLOCKS] = {};
     int16_t bodyHead = 0, bodyLen = 0;
-    int16_t colorHead = 0, colorLen = 0;
-    uint8_t overlapPos = NO_OVERLAP_POS;
-    int turn = 0;
+    int16_t colorLen = 0;
+    int16_t colorHead = 0;
     int16_t foodCount = 0;
     int16_t wallFoodCount = 0;
     int16_t cornerFoodCount = 0;
-    uint64_t foodColorOcc[MAXC][BLOCKS] = {};
+    uint8_t overlapPos = NO_OVERLAP_POS;
+    // 3 bytes padding here to align int
+    int turn = 0;
+    // Large arrays
+    uint8_t bodyBuf[SCAP];
+    uint8_t colorBuf[(SCAP + 1) >> 1] = {};
+    uint64_t foodColorOcc[CMAXP1][BLOCKS] = {};
+
+    SnakeState() = default;
 
     uint8_t bodyAt(int i) const { return bodyBuf[(bodyHead + i) & SMASK]; }
     int8_t colorAtRaw(int idx) const {
@@ -209,47 +212,58 @@ struct SnakeState {
         ++colorLen;
     }
 
+    bool hasFoodAtIdx(int blk, uint64_t mask) const {
+        return (foodOcc[blk] & mask) != 0;
+    }
+    int foodColorAtIdx(int blk, uint64_t mask) const {
+        for (int c = 1; c < CMAXP1; ++c)
+            if (foodColorOcc[c][blk] & mask) return c;
+        return 0;
+    }
+    bool isFoodColor(int blk, uint64_t mask, int tc) const {
+        return (foodColorOcc[tc][blk] & mask) != 0;
+    }
+
     void foodColorOccSetPos(int color, uint8_t pos) {
-        uint16_t idx = gCellIdxByPos[pos];
-        foodColorOcc[color][idx >> 6] |= 1ULL << (idx & 63);
+        foodColorOcc[color][gBlkByPos[pos]] |= gMaskByPos[pos];
     }
     void foodColorOccClearPos(int color, uint8_t pos) {
-        uint16_t idx = gCellIdxByPos[pos];
-        foodColorOcc[color][idx >> 6] &= ~(1ULL << (idx & 63));
+        foodColorOcc[color][gBlkByPos[pos]] &= ~gMaskByPos[pos];
     }
     void onFoodAddedPos(uint8_t pos, int color) {
         ++foodCount;
-        foodColorOccSetPos(color, pos);
+        int blk = gBlkByPos[pos]; uint64_t mask = gMaskByPos[pos];
+        foodOcc[blk] |= mask;
+        foodColorOcc[color][blk] |= mask;
         wallFoodCount += gWallByPos[pos];
         cornerFoodCount += gCornerByPos[pos];
     }
     void onFoodRemovedPos(uint8_t pos, int color) {
         --foodCount;
-        foodColorOccClearPos(color, pos);
+        int blk = gBlkByPos[pos]; uint64_t mask = gMaskByPos[pos];
+        foodOcc[blk] &= ~mask;
+        foodColorOcc[color][blk] &= ~mask;
         wallFoodCount -= gWallByPos[pos];
         cornerFoodCount -= gCornerByPos[pos];
     }
     bool bodyOccupiedPos(uint8_t pos) const {
-        uint16_t idx = gCellIdxByPos[pos];
-        return (bodyOcc[idx >> 6] & (1ULL << (idx & 63))) != 0;
+        return (bodyOcc[gBlkByPos[pos]] & gMaskByPos[pos]) != 0;
     }
     void bodyOccSetPos(uint8_t pos) {
-        uint16_t idx = gCellIdxByPos[pos];
-        bodyOcc[idx >> 6] |= 1ULL << (idx & 63);
+        bodyOcc[gBlkByPos[pos]] |= gMaskByPos[pos];
     }
     void bodyOccRemoveOnePos(uint8_t pos) {
         if (overlapPos == pos) {
             overlapPos = NO_OVERLAP_POS;
             return;
         }
-        uint16_t idx = gCellIdxByPos[pos];
-        bodyOcc[idx >> 6] &= ~(1ULL << (idx & 63));
+        bodyOcc[gBlkByPos[pos]] &= ~gMaskByPos[pos];
     }
 
-    int prefixLen(const int8_t* desired, int desiredLen) const {
+    int prefixLen(const int8_t* desired, int desiredLen, int knownPrefix = 0) const {
         int lim = min((int)colorLen, desiredLen);
-        if (lim == 0) return 0;
-        int i = 0;
+        if (lim <= knownPrefix) return lim;
+        int i = knownPrefix;
         // Bulk path: when rawIdx is even (byte-aligned) and no wrap, unpack 8 nibbles at once
         while (i + 8 <= lim) {
             int rawIdx = (colorHead + i) & SMASK;
@@ -313,15 +327,24 @@ struct SnakeState {
         uint8_t npos = (uint8_t)next;
         if (bodyLen >= 2 && npos == bodyAt(1)) return ret;
 
-        bool eats = grid[npos] != 0;
+        int nposBlk = gBlkByPos[npos];
+        uint64_t nposMask = gMaskByPos[npos];
+        bool occupied = (bodyOcc[nposBlk] & nposMask) != 0;
+        bool eats = (foodOcc[nposBlk] & nposMask) != 0;
         uint8_t tail = bodyBack();
-        bool biteCandidate = bodyOccupiedPos(npos) && (eats || npos != tail || overlapPos == npos);
+        bool biteCandidate = occupied && (eats || npos != tail || overlapPos == npos);
 
         if (__builtin_expect(!eats && !biteCandidate, 1)) {
             bodyPushFront(npos);
-            bodyOccSetPos(npos);
+            bodyOcc[nposBlk] |= nposMask;
             bodyPopBack();
-            if (tail != npos) bodyOccRemoveOnePos(tail);
+            if (tail != npos) {
+                if (overlapPos == tail) {
+                    overlapPos = NO_OVERLAP_POS;
+                } else {
+                    bodyOcc[gBlkByPos[tail]] &= ~gMaskByPos[tail];
+                }
+            }
             overlapPos = (bodyBack() == npos) ? npos : NO_OVERLAP_POS;
             ++turn;
             ret.ok = true;
@@ -329,16 +352,25 @@ struct SnakeState {
         }
 
         bodyPushFront(npos);
-        bodyOccSetPos(npos);
+        bodyOcc[nposBlk] |= nposMask;
 
         if (eats) {
-            int eatenColor = grid[npos];
-            grid[npos] = 0;
+            int eatenColor = foodColorAtIdx(nposBlk, nposMask);
             colorPushBack((int8_t)eatenColor);
-            onFoodRemovedPos(npos, eatenColor);
+            --foodCount;
+            foodOcc[nposBlk] &= ~nposMask;
+            foodColorOcc[eatenColor][nposBlk] &= ~nposMask;
+            wallFoodCount -= gWallByPos[npos];
+            cornerFoodCount -= gCornerByPos[npos];
         } else {
             bodyPopBack();
-            if (tail != npos) bodyOccRemoveOnePos(tail);
+            if (tail != npos) {
+                if (overlapPos == tail) {
+                    overlapPos = NO_OVERLAP_POS;
+                } else {
+                    bodyOcc[gBlkByPos[tail]] &= ~gMaskByPos[tail];
+                }
+            }
         }
 
         if (__builtin_expect(!biteCandidate, 1)) {
@@ -361,18 +393,17 @@ struct SnakeState {
                     int restoredCorner = 0;
                     for (int p = h + 1; p < k; ++p) {
                         uint8_t bp = bodyBuf[restoreBodyIdx];
-                        uint16_t bpIdx = gCellIdxByPos[bp];
-                        int bpBlk = bpIdx >> 6;
-                        uint64_t bpMask = 1ULL << (bpIdx & 63);
+                        int bpBlk = gBlkByPos[bp];
+                        uint64_t bpMask = gMaskByPos[bp];
                         if (overlapPos == bp) {
                             overlapPos = NO_OVERLAP_POS;
                         } else {
                             bodyOcc[bpBlk] &= ~bpMask;
                         }
                         int color = colorAtRaw(restoreColorIdx);
-                        grid[bp] = (int8_t)color;
-                        ++restoredFood;
+                        foodOcc[bpBlk] |= bpMask;
                         foodColorOcc[color][bpBlk] |= bpMask;
+                        ++restoredFood;
                         restoredWall += gWallByPos[bp];
                         restoredCorner += gCornerByPos[bp];
                         restoreBodyIdx = (restoreBodyIdx + 1) & SMASK;
@@ -443,21 +474,24 @@ struct BeamNode {
     int prefix = 0;
     int maxPrefix = 0;
     int optimisticLB = -1;
+    uint64_t stateKey = 0;
     long long eval = (long long)4e18;
 };
 
+struct BeamKey { long long eval; int maxPrefix; int turn; uint64_t stateKey; };
+
 array<vector<BeamNode>, BEAM_TURN_CAP_MAX + 1> layersBuf;
-array<vector<uint64_t>, BEAM_TURN_CAP_MAX + 1> layerKeysBuf;
+array<vector<BeamKey>, BEAM_TURN_CAP_MAX + 1> layerKeysBuf;
 int layerRunStamp[BEAM_TURN_CAP_MAX + 1] = {};
 int currentRunStamp = 1;
 
-mutable uint16_t bfsSeenStamp[SCAP] = {};
+mutable uint16_t bfsSeenStamp[NCELLS] = {};
 mutable uint16_t bfsStamp = 1;
-mutable uint16_t releaseStamp[SCAP] = {};
+mutable uint16_t releaseStamp[NCELLS] = {};
 mutable uint16_t releaseCur = 1;
-mutable int16_t releaseValue[SCAP] = {};
-mutable uint8_t bfsParent[SCAP] = {};
-mutable int8_t bfsPdir[SCAP] = {};
+mutable int16_t releaseValue[NCELLS] = {};
+mutable uint8_t bfsParent[NCELLS] = {};
+mutable int8_t bfsPdir[NCELLS] = {};
 
 SolverT() {
     constexpr uint64_t seed = 0x8f3a2b1c7d9e5a61ULL;
@@ -489,12 +523,16 @@ void readInput(int n, int m, int c) {
     memset(gNextPos, 0xFF, sizeof(gNextPos));
     memset(gWallByPos, 0, sizeof(gWallByPos));
     memset(gCornerByPos, 0, sizeof(gCornerByPos));
+    memset(gBlkByPos, 0, sizeof(gBlkByPos));
+    memset(gMaskByPos, 0, sizeof(gMaskByPos));
     for (int r = 0; r < SIDE; ++r) {
         for (int cc = 0; cc < SIDE; ++cc) {
             uint8_t pos = packPos(r, cc);
             if (r < N && cc < N) {
                 int idx = r * N + cc;
                 gCellIdxByPos[pos] = (uint16_t)idx;
+                gBlkByPos[pos] = (uint8_t)(idx >> 6);
+                gMaskByPos[pos] = 1ULL << (idx & 63);
                 for (int d = 0; d < 4; ++d) {
                     int nr = r + DR[d], nc = cc + DC[d];
                     if ((unsigned)nr < (unsigned)N && (unsigned)nc < (unsigned)N) {
@@ -518,7 +556,7 @@ void readInput(int n, int m, int c) {
         desired[i] = (int8_t)x;
     }
 
-    memset(state.grid, 0, sizeof(state.grid));
+    memset(state.foodOcc, 0, sizeof(state.foodOcc));
     memset(state.bodyOcc, 0, sizeof(state.bodyOcc));
     state.overlapPos = NO_OVERLAP_POS;
     state.foodCount = 0;
@@ -529,7 +567,6 @@ void readInput(int n, int m, int c) {
         for (int j = 0; j < N; ++j) {
             int x; cin >> x;
             uint8_t pos = packPos(i, j);
-            state.grid[pos] = (int8_t)x;
             if (x != 0) {
                 state.onFoodAddedPos(pos, x);
             }
@@ -591,7 +628,7 @@ FixedPath buildRecoveryPathByOldBody(
 }
 
 bool hasFoodColor(const SnakeState& st, int color) const {
-    if ((unsigned)color >= MAXC) return false;
+    if ((unsigned)color >= CMAXP1) return false;
     for (int blk = 0; blk < BLOCKS; ++blk) {
         if (st.foodColorOcc[color][blk]) return true;
     }
@@ -629,13 +666,39 @@ inline int releaseAt(uint8_t pos) const {
     return releaseStamp[pos] == releaseCur ? releaseValue[pos] : 0;
 }
 
+// Quick check: is target food adjacent to head and reachable in 1 step?
+// Returns number of 1-step paths found (0 if none).
+int findAdjacentTargetPaths(
+    const SnakeState& st, int targetColor, int topK, FixedPath* out
+) const {
+    if (st.bodyLen == 0) return 0;
+    uint8_t head = st.bodyFront();
+    uint8_t neck = (st.bodyLen >= 2) ? st.bodyAt(1) : 255;
+    int cnt = 0;
+    for (int d = 0; d < 4 && cnt < topK; ++d) {
+        uint16_t next = gNextPos[head][d];
+        if (next == INVALID_NEXT_POS) continue;
+        uint8_t npos = (uint8_t)next;
+        if (npos == neck) continue;
+        if (!st.isFoodColor(gBlkByPos[npos], gMaskByPos[npos], targetColor)) continue;
+        // Check body collision: if body occupies npos and release time > 1, skip
+        if (st.bodyOccupiedPos(npos)) {
+            if (releaseAt(npos) > 1) continue;
+        }
+        out[cnt].len = 1;
+        out[cnt].d[0] = (int8_t)d;
+        ++cnt;
+    }
+    return cnt;
+}
+
 int findDynamicStrictPathsToTarget(
     const SnakeState& st, int targetColor, int topK, FixedPath* out
 ) const {
     if (st.bodyLen == 0) return 0;
     if (!hasFoodColor(st, targetColor)) return 0;
     topK = max(1, topK);
-    buildReleaseSparse(st);
+    // buildReleaseSparse must be called by the caller before this
     beginBfsVisit();
 
     uint8_t head = st.bodyFront();
@@ -644,11 +707,8 @@ int findDynamicStrictPathsToTarget(
 
     uint8_t bq[NCELLS];
     int16_t bqd[NCELLS];
-    int qh = 0, qt = 0;
+    int qt = 0;
     bfsSeenStamp[head] = bfsStamp;
-    bq[qt] = head;
-    bqd[qt] = 0;
-    ++qt;
 
     struct Goal { int16_t dist; uint8_t pos; };
     Goal goals[NCELLS];
@@ -656,33 +716,61 @@ int findDynamicStrictPathsToTarget(
     int goalMaxDist = -1;
     const int8_t* dirOrder = chooseDirOrder();
 
+    // Precompute non-target food bitmask for fast inner loop filtering
+    uint64_t nonTargetFood[BLOCKS];
+    for (int b = 0; b < BLOCKS; ++b)
+        nonTargetFood[b] = st.foodOcc[b] & ~st.foodColorOcc[targetColor][b];
+
+    // Expand head neighbors separately (skip neck, no neck check in main loop)
+    for (int di = 0; di < 4; ++di) {
+        int d = dirOrder[di];
+        uint16_t next = gNextPos[head][d];
+        if (next == INVALID_NEXT_POS) continue;
+        uint8_t npos = (uint8_t)next;
+        if (npos == neck) continue;
+        if (nonTargetFood[gBlkByPos[npos]] & gMaskByPos[npos]) continue;
+        if (1 < releaseAt(npos)) continue;
+        if (bfsSeenStamp[npos] == bfsStamp) continue;
+        bfsSeenStamp[npos] = bfsStamp;
+        bfsParent[npos] = head;
+        bfsPdir[npos] = (int8_t)d;
+        // Check if this neighbor is a goal
+        if (st.isFoodColor(gBlkByPos[npos], gMaskByPos[npos], targetColor)) {
+            goals[gn++] = {1, npos};
+            goalMaxDist = 1;
+        } else {
+            bq[qt] = npos;
+            bqd[qt] = 1;
+            ++qt;
+        }
+    }
+
+    int qh = 0;
     while (qh < qt) {
         uint8_t pos = bq[qh];
         int t = bqd[qh];
         ++qh;
         if (gn >= topK && t > goalMaxDist) break;
-        if (pos != head && st.grid[pos] == targetColor) {
-            goals[gn++] = {(int16_t)t, pos};
-            goalMaxDist = t;
-            continue;
-        }
         for (int di = 0; di < 4; ++di) {
             int d = dirOrder[di];
             uint16_t next = gNextPos[pos][d];
             if (next == INVALID_NEXT_POS) continue;
             uint8_t npos = (uint8_t)next;
-            if (pos == head && npos == neck) continue;
-            int food = st.grid[npos];
-            if (food != 0 && food != targetColor) continue;
+            if (nonTargetFood[gBlkByPos[npos]] & gMaskByPos[npos]) continue;
             int nt = t + 1;
             if (nt < releaseAt(npos)) continue;
             if (bfsSeenStamp[npos] == bfsStamp) continue;
             bfsSeenStamp[npos] = bfsStamp;
             bfsParent[npos] = pos;
             bfsPdir[npos] = (int8_t)d;
-            bq[qt] = npos;
-            bqd[qt] = (int16_t)nt;
-            ++qt;
+            if (st.isFoodColor(gBlkByPos[npos], gMaskByPos[npos], targetColor)) {
+                goals[gn++] = {(int16_t)nt, npos};
+                goalMaxDist = nt;
+            } else {
+                bq[qt] = npos;
+                bqd[qt] = (int16_t)nt;
+                ++qt;
+            }
         }
     }
     if (gn == 0) return 0;
@@ -703,7 +791,7 @@ FixedPath findPreferFoodAvoidPathToTarget(const SnakeState& st, int targetColor)
     FixedPath result;
     if (st.bodyLen == 0) return result;
     if (!hasFoodColor(st, targetColor)) return result;
-    buildReleaseSparse(st);
+    // buildReleaseSparse must be called by the caller before this
     beginBfsVisit();
 
     uint8_t head = st.bodyFront();
@@ -712,38 +800,59 @@ FixedPath findPreferFoodAvoidPathToTarget(const SnakeState& st, int targetColor)
 
     uint8_t q[NCELLS];
     int16_t qd[NCELLS];
-    int qh = 0, qt = 0;
+    int qt = 0;
     bfsSeenStamp[head] = bfsStamp;
-    q[qt] = head;
-    qd[qt] = 0;
-    ++qt;
     const int8_t* dirOrder = chooseDirOrder();
 
     uint8_t goalPos = 0;
-    bool goalFound = false;
     int goalDist = 0;
-    while (qh < qt) {
+    bool goalFound = false;
+
+    // Expand head neighbors separately (skip neck, remove neck check from main loop)
+    for (int di = 0; di < 4; ++di) {
+        int d = dirOrder[di];
+        uint16_t next = gNextPos[head][d];
+        if (next == INVALID_NEXT_POS) continue;
+        uint8_t npos = (uint8_t)next;
+        if (npos == neck) continue;
+        if (1 < releaseAt(npos)) continue;
+        if (bfsSeenStamp[npos] == bfsStamp) continue;
+        bfsSeenStamp[npos] = bfsStamp;
+        bfsParent[npos] = head;
+        bfsPdir[npos] = (int8_t)d;
+        if (st.isFoodColor(gBlkByPos[npos], gMaskByPos[npos], targetColor)) {
+            goalPos = npos;
+            goalDist = 1;
+            goalFound = true;
+            break;
+        }
+        q[qt] = npos;
+        qd[qt] = 1;
+        ++qt;
+    }
+
+    int qh = 0;
+    while (!goalFound && qh < qt) {
         uint8_t pos = q[qh];
         int t = qd[qh];
         ++qh;
-        if (pos != head && st.grid[pos] == targetColor) {
-            goalPos = pos;
-            goalFound = true;
-            goalDist = t;
-            break;
-        }
         for (int di = 0; di < 4; ++di) {
             int d = dirOrder[di];
             uint16_t next = gNextPos[pos][d];
             if (next == INVALID_NEXT_POS) continue;
             uint8_t npos = (uint8_t)next;
-            if (pos == head && npos == neck) continue;
             int nt = t + 1;
             if (nt < releaseAt(npos)) continue;
             if (bfsSeenStamp[npos] == bfsStamp) continue;
             bfsSeenStamp[npos] = bfsStamp;
             bfsParent[npos] = pos;
             bfsPdir[npos] = (int8_t)d;
+            if (st.isFoodColor(gBlkByPos[npos], gMaskByPos[npos], targetColor)) {
+                goalPos = npos;
+                goalDist = nt;
+                goalFound = true;
+                break;
+            }
             q[qt] = npos;
             qd[qt] = (int16_t)nt;
             ++qt;
@@ -762,27 +871,40 @@ bool isTargetAdjacentToPrefixSegment(const SnakeState& st, int anchorLen, int ta
         uint16_t next = gNextPos[bp][d];
         if (next == INVALID_NEXT_POS) continue;
         uint8_t np = (uint8_t)next;
-        if (st.grid[np] == targetColor) return true;
+        if (st.isFoodColor(gBlkByPos[np], gMaskByPos[np], targetColor)) return true;
     }
     return false;
 }
 
 void enumerateCutCandidatesDFS(
-    const SnakeState& cur, int depth, int maxDepth,
+    SnakeState& cur, int depth, int maxDepth,
     int baseL, int targetColor,
     int8_t seq[CUT_ENUM_MAX_DEPTH_HARD_MAX], int seqLen,
     CutCandidateList& out
 ) const {
     if (depth >= maxDepth) return;
-    DirList dirs = cur.legalDirs();
-    for (int di = 0; di < dirs.n; ++di) {
-        int d = dirs.d[di];
-        SnakeState nxt = cur;
-        MoveResult ret = nxt.apply(d);
-        if (!ret.ok) continue;
+    uint8_t head = cur.bodyFront();
+    uint8_t neck = (cur.bodyLen >= 2) ? cur.bodyAt(1) : 255;
+    uint8_t tail = cur.bodyBack();
+    for (int d = 0; d < 4; ++d) {
         seq[seqLen] = (int8_t)d;
         int newLen = seqLen + 1;
-        if (ret.bite) {
+
+        uint16_t next = gNextPos[head][d];
+        if (next == INVALID_NEXT_POS) continue;
+        uint8_t npos = (uint8_t)next;
+        if (npos == neck) continue;
+        int nposBlk = gBlkByPos[npos];
+        uint64_t nposMask = gMaskByPos[npos];
+        bool occupied = cur.bodyOccupiedPos(npos);
+        bool eats = cur.hasFoodAtIdx(nposBlk, nposMask);
+        bool biteCandidate = occupied && (eats || npos != tail || cur.overlapPos == npos);
+
+        if (biteCandidate) {
+            // Bite is terminal — use full copy (no recursion needed)
+            SnakeState nxt = cur;
+            MoveResult ret = nxt.apply(d);
+            if (!ret.ok || !ret.bite) continue;
             int lenAfter = nxt.bodyLen;
             if (lenAfter >= CUT_KEEP_MIN_LEN && (lenAfter % 2 == 1)) {
                 int anchorLen = min(baseL, lenAfter);
@@ -794,7 +916,58 @@ void enumerateCutCandidatesDFS(
                 out.push_back(cand);
             }
         } else {
-            enumerateCutCandidatesDFS(nxt, depth + 1, maxDepth, baseL, targetColor, seq, newLen, out);
+            // Non-bite: apply in-place, recurse, then undo
+            // Save state needed for undo
+            int16_t svBodyHead = cur.bodyHead;
+            int16_t svBodyLen = cur.bodyLen;
+            uint8_t svOverlapPos = cur.overlapPos;
+            int svTurn = cur.turn;
+            // Save bodyOcc blocks
+            uint64_t svBodyOcc[BLOCKS];
+            memcpy(svBodyOcc, cur.bodyOcc, sizeof(svBodyOcc));
+            // Save the bodyBuf slot that will be overwritten by bodyPushFront
+            int16_t newHeadSlot = (svBodyHead - 1) & SMASK;
+            uint8_t svBodyBufAtNewHead = cur.bodyBuf[newHeadSlot];
+
+            // Eat-specific saves
+            uint64_t svFoodOccBlk = cur.foodOcc[nposBlk];
+            int16_t svColorLen = cur.colorLen;
+            int16_t svFoodCount = cur.foodCount;
+            int16_t svWallFoodCount = cur.wallFoodCount;
+            int16_t svCornerFoodCount = cur.cornerFoodCount;
+            // Save colorBuf byte and foodColorOcc block that may change
+            int colorBufSlot = ((cur.colorHead + cur.colorLen) & SMASK) >> 1;
+            uint8_t svColorBufByte = cur.colorBuf[colorBufSlot];
+            uint64_t svFoodColorOccBlk = 0;
+            int svEatenColor = eats ? cur.foodColorAtIdx(nposBlk, nposMask) : 0;
+            if (eats && (unsigned)svEatenColor < CMAXP1) {
+                svFoodColorOccBlk = cur.foodColorOcc[svEatenColor][nposBlk];
+            }
+
+            MoveResult ret = cur.apply(d);
+            if (ret.ok && !ret.bite) {
+                enumerateCutCandidatesDFS(cur, depth + 1, maxDepth, baseL, targetColor, seq, newLen, out);
+            }
+
+            // Undo: restore all modified fields
+            cur.bodyHead = svBodyHead;
+            cur.bodyLen = svBodyLen;
+            cur.overlapPos = svOverlapPos;
+            cur.turn = svTurn;
+            memcpy(cur.bodyOcc, svBodyOcc, sizeof(svBodyOcc));
+            cur.bodyBuf[newHeadSlot] = svBodyBufAtNewHead;
+
+            if (eats) {
+                cur.foodOcc[nposBlk] = svFoodOccBlk;
+                cur.colorLen = svColorLen;
+                cur.colorBuf[colorBufSlot] = svColorBufByte;
+                cur.foodCount = svFoodCount;
+                cur.wallFoodCount = svWallFoodCount;
+                cur.cornerFoodCount = svCornerFoodCount;
+                if ((unsigned)svEatenColor < CMAXP1) {
+                    cur.foodColorOcc[svEatenColor][nposBlk] = svFoodColorOccBlk;
+                }
+            }
         }
     }
 }
@@ -804,7 +977,8 @@ CutCandidateList enumerateCutCandidates(
 ) const {
     CutCandidateList out;
     int8_t seq[CUT_ENUM_MAX_DEPTH_HARD_MAX];
-    enumerateCutCandidatesDFS(src, 0, maxDepth, baseL, targetColor, seq, 0, out);
+    SnakeState mutableSrc = src;
+    enumerateCutCandidatesDFS(mutableSrc, 0, maxDepth, baseL, targetColor, seq, 0, out);
     return out;
 }
 
@@ -871,7 +1045,7 @@ int safeOptimisticLowerBound(const SnakeState& st, int p) const {
     if (rem <= 0) return 0;
     if (st.bodyLen <= 0) return rem;
     int tc = desired[p];
-    if ((unsigned)tc >= MAXC) return rem;
+    if ((unsigned)tc >= CMAXP1) return rem;
     uint8_t head = st.bodyFront();
     int headIdx = gCellIdxByPos[head];
     int best = INT_MAX;
@@ -893,28 +1067,14 @@ int safeOptimisticLowerBound(const SnakeState& st, int p) const {
 uint64_t beamStateKey(const SnakeState& st) const {
     uint64_t h = 0x9e3779b97f4a7c15ULL;
     if constexpr (BLOCKS == 1) {
-        uint64_t food0 = 0;
-        for (int color = 1; color <= C; ++color) food0 |= st.foodColorOcc[color][0];
-        h ^= food0 * 0xbf58476d1ce4e5b9ULL;
-        h ^= st.bodyOcc[0] * 0xe7037ed1a0b428dbULL;
+        h ^= st.foodOcc[0] * 0xbf58476d1ce4e5b9ULL;
     } else {
-        uint64_t food0 = 0, food1 = 0, food2 = 0, food3 = 0;
-        for (int color = 1; color <= C; ++color) {
-            food0 |= st.foodColorOcc[color][0];
-            food1 |= st.foodColorOcc[color][1];
-            food2 |= st.foodColorOcc[color][2];
-            food3 |= st.foodColorOcc[color][3];
-        }
-        h ^= food0 * 0xbf58476d1ce4e5b9ULL;
-        h ^= food1 * 0x94d049bb133111ebULL;
-        h ^= food2 * 0xd6e8feb86659fd93ULL;
-        h ^= food3 * 0xa0761d6478bd642fULL;
-        h ^= st.bodyOcc[0] * 0xe7037ed1a0b428dbULL;
-        h ^= st.bodyOcc[1] * 0x8ebc6af09c88c6e3ULL;
-        h ^= st.bodyOcc[2] * 0x589965cc75374cc3ULL;
-        h ^= st.bodyOcc[3] * 0x1d8e4e27c47d124fULL;
+        h ^= st.foodOcc[0] * 0xbf58476d1ce4e5b9ULL;
+        h ^= st.foodOcc[1] * 0x94d049bb133111ebULL;
+        h ^= st.foodOcc[2] * 0xd6e8feb86659fd93ULL;
+        h ^= st.foodOcc[3] * 0xa0761d6478bd642fULL;
     }
-    h ^= ((uint64_t)st.bodyFront() | ((uint64_t)(uint16_t)st.bodyLen << 8)) * 0x369dea0f31a53f85ULL;
+    h ^= (uint64_t)st.bodyFront() * 0x369dea0f31a53f85ULL;
     return h;
 }
 
@@ -922,6 +1082,12 @@ bool betterBeamNode(const BeamNode& a, const BeamNode& b) const {
     if (a.eval != b.eval) return a.eval < b.eval;
     if (a.maxPrefix != b.maxPrefix) return a.maxPrefix > b.maxPrefix;
     return a.st.turn < b.st.turn;
+}
+
+static bool betterKey(const BeamKey& a, const BeamKey& b) {
+    if (a.eval != b.eval) return a.eval < b.eval;
+    if (a.maxPrefix != b.maxPrefix) return a.maxPrefix > b.maxPrefix;
+    return a.turn < b.turn;
 }
 
 
@@ -940,6 +1106,15 @@ inline bool appendMove(BeamNode& node, int8_t dir) const {
     return true;
 }
 
+inline bool appendMoveNoBite(BeamNode& node, int8_t dir) const {
+    if (node.st.turn >= activeTurnLimit) return false;
+    MoveResult ret = node.st.apply(dir);
+    if (!ret.ok || ret.bite) return false;
+    node.pathTail = gPool.add(dir, node.pathTail);
+    node.pathLen++;
+    return true;
+}
+
 inline bool appendPath(BeamNode& node, const FixedPath& path) const {
     for (int i = 0; i < path.len; ++i) {
         if (!appendMove(node, path.d[i])) return false;
@@ -947,10 +1122,18 @@ inline bool appendPath(BeamNode& node, const FixedPath& path) const {
     return true;
 }
 
-inline void finalizeBeamNodeAfterTransition(const BeamNode& cur, BeamNode& nxt) const {
-    int np = nxt.st.prefixLen(desired, M);
+inline bool appendPathNoBite(BeamNode& node, const FixedPath& path) const {
+    for (int i = 0; i < path.len; ++i) {
+        if (!appendMoveNoBite(node, path.d[i])) return false;
+    }
+    return true;
+}
+
+inline void finalizeBeamNodeAfterTransition(const BeamNode& cur, BeamNode& nxt, int prefixHint = 0) const {
+    int np = nxt.st.prefixLen(desired, M, prefixHint);
     nxt.prefix = np;
     nxt.maxPrefix = max(cur.maxPrefix, np);
+    nxt.stateKey = beamStateKey(nxt.st);
     nxt.eval = evaluateBeamStateFromPrefix(nxt.st, np);
 }
 
@@ -962,31 +1145,25 @@ inline bool pruneByIncumbent(BeamNode& node, int incumbentBestLen) const {
     return node.st.turn + node.optimisticLB >= incumbentBestLen;
 }
 
-int selectTopBeamIndices(const vector<BeamNode>& beam, int beamWidth, int* order) const {
-    int n = (int)beam.size();
-    struct SK { long long eval; int maxPrefix; int turn; int idx; };
-    static SK sk[16384];
-    int skN = min(n, 16384);
-    for (int i = 0; i < skN; ++i) {
-        sk[i] = {beam[i].eval, beam[i].maxPrefix, beam[i].st.turn, i};
-    }
-    auto better = [](const SK& a, const SK& b) {
-        if (a.eval != b.eval) return a.eval < b.eval;
-        if (a.maxPrefix != b.maxPrefix) return a.maxPrefix > b.maxPrefix;
-        return a.turn < b.turn;
+int selectTopBeamIndices(const vector<BeamKey>& keys, int beamWidth, int* order) const {
+    int n = min((int)keys.size(), 16384);
+    auto better = [&](int a, int b) {
+        if (keys[a].eval != keys[b].eval) return keys[a].eval < keys[b].eval;
+        if (keys[a].maxPrefix != keys[b].maxPrefix) return keys[a].maxPrefix > keys[b].maxPrefix;
+        return keys[a].turn < keys[b].turn;
     };
     int ordN = 0;
-    for (int i = 0; i < skN; ++i) {
+    for (int i = 0; i < n; ++i) {
         if (ordN < beamWidth) {
             int pos = ordN++;
-            while (pos > 0 && better(sk[i], sk[order[pos - 1]])) {
+            while (pos > 0 && better(i, order[pos - 1])) {
                 order[pos] = order[pos - 1];
                 --pos;
             }
             order[pos] = i;
-        } else if (better(sk[i], sk[order[ordN - 1]])) {
+        } else if (better(i, order[ordN - 1])) {
             int pos = ordN - 1;
-            while (pos > 0 && better(sk[i], sk[order[pos - 1]])) {
+            while (pos > 0 && better(i, order[pos - 1])) {
                 order[pos] = order[pos - 1];
                 --pos;
             }
@@ -1014,8 +1191,9 @@ int pickWanderStepForState(const SnakeState& st) {
         if (npos == neck) continue;
         // Skip if moving here would cause bite:
         // A bite happens when npos is occupied by body AND it's not just the tail
-        // (the tail will leave if we don't eat, and grid[npos]==0 means no eat)
-        if (st.grid[npos] == 0) {
+        // (the tail will leave if we don't eat, and no food means no eat)
+        bool hasFood = st.hasFoodAtIdx(gBlkByPos[npos], gMaskByPos[npos]);
+        if (!hasFood) {
             // Normal move (no eat):
             // - old tail is safe
             // - old tailPrev is also safe because it becomes the new tail
@@ -1046,6 +1224,9 @@ void transitionGoTargetCandidates(
     int tc = desired[p];
     bool prefBroken = (p < cur.st.colorLen);
 
+    // Build release schedule once for all BFS calls on this node
+    buildReleaseSparse(cur.st);
+
     FixedPath paths[8];
     int pathCount = 0;
     auto tryPush = [&](const FixedPath& path) {
@@ -1053,12 +1234,23 @@ void transitionGoTargetCandidates(
         for (int i = 0; i < pathCount; ++i) if (paths[i] == path) return;
         if (pathCount < 8) paths[pathCount++] = path;
     };
+
     if (!prefBroken) {
-        FixedPath fp[8];
-        int fpn = findDynamicStrictPathsToTarget(cur.st, tc, min(topK, 8), fp);
-        for (int i = 0; i < fpn; ++i) {
-            tryPush(fp[i]);
+        // Quick adjacent check first — O(4) instead of O(N²) BFS
+        FixedPath adjPaths[4];
+        int adjn = findAdjacentTargetPaths(cur.st, tc, min(topK, 4), adjPaths);
+        for (int i = 0; i < adjn; ++i) {
+            tryPush(adjPaths[i]);
             if (pathCount >= topK) break;
+        }
+        // Only run full BFS if we need more paths
+        if (pathCount < topK) {
+            FixedPath fp[8];
+            int fpn = findDynamicStrictPathsToTarget(cur.st, tc, min(topK, 8), fp);
+            for (int i = 0; i < fpn; ++i) {
+                tryPush(fp[i]);
+                if (pathCount >= topK) break;
+            }
         }
     }
     if (prefBroken || pathCount == 0) {
@@ -1073,8 +1265,8 @@ void transitionGoTargetCandidates(
         if (!gPool.hasSpace(path.len)) continue;
         BeamNode nxt;
         initChildNode(cur, nxt);
-        if (!appendPath(nxt, path)) continue;
-        finalizeBeamNodeAfterTransition(cur, nxt);
+        if (!appendPathNoBite(nxt, path)) continue;
+        finalizeBeamNodeAfterTransition(cur, nxt, cur.prefix);
         insertFn(move(nxt));
     }
 }
@@ -1100,19 +1292,33 @@ void transitionCutRecoverCandidates(
         for (int si = 0; si < cut.seqLen; ++si) {
             if (si + 1 == cut.seqLen) {
                 uint8_t savedBodyBuf[SCAP];
-                memcpy(savedBodyBuf, nxt.st.bodyBuf, sizeof(savedBodyBuf));
                 int16_t savedBodyHead = nxt.st.bodyHead;
                 int16_t savedBodyLen = nxt.st.bodyLen;
-                int pb = nxt.st.prefixLen(desired, M);
+                {
+                    int h = savedBodyHead, len = savedBodyLen;
+                    if (h + len <= SCAP) {
+                        memcpy(savedBodyBuf + h, nxt.st.bodyBuf + h, len);
+                    } else {
+                        int first = SCAP - h;
+                        memcpy(savedBodyBuf + h, nxt.st.bodyBuf + h, first);
+                        memcpy(savedBodyBuf, nxt.st.bodyBuf, len - first);
+                    }
+                }
+                int pb = nxt.st.prefixLen(desired, M, cur.prefix);
                 MoveResult ret = nxt.st.apply(cut.seq[si]);
                 if (!ret.ok || !ret.bite) { ok = false; break; }
                 nxt.pathTail = gPool.add(cut.seq[si], nxt.pathTail);
                 nxt.pathLen++;
                 bitten = true;
+                int hintAfterBite = min((int)pb, (int)nxt.st.colorLen);
                 FixedPath recovery = buildRecoveryPathByOldBody(
                     savedBodyBuf, savedBodyHead, savedBodyLen, nxt.st, pb
                 );
                 if (!appendPath(nxt, recovery)) ok = false;
+                if (ok) {
+                    finalizeBeamNodeAfterTransition(cur, nxt, hintAfterBite);
+                    insertFn(move(nxt));
+                }
                 break;
             }
             MoveResult ret = nxt.st.apply(cut.seq[si]);
@@ -1120,9 +1326,7 @@ void transitionCutRecoverCandidates(
             nxt.pathTail = gPool.add(cut.seq[si], nxt.pathTail);
             nxt.pathLen++;
         }
-        if (!ok || !bitten) continue;
-        finalizeBeamNodeAfterTransition(cur, nxt);
-        insertFn(move(nxt));
+        // finalize/insert already done inside bite branch
     }
 }
 
@@ -1131,37 +1335,27 @@ void transitionWander(const BeamNode& cur, DeadlineChecker& timer, int topK, Ins
     if (timer.isOver()) return;
     int p = cur.prefix;
     if (p >= M) return;
+    if (topK <= 0) return;
     const int wanderLen = WANDER_LEN_BY_N[N];
-    FixedPath seen[WANDER_CANDIDATE_TOP_K_HARD_MAX];
-    int seenCount = 0;
-    for (int wi = 0; wi < topK; ++wi) {
-        if (timer.isOver()) break;
-        if (!gPool.hasSpace(wanderLen)) break;
-        BeamNode out;
-        initChildNode(cur, out);
-        FixedPath path;
-        int moved = 0;
-        for (int t = 0; t < wanderLen; ++t) {
-            int d = pickWanderStepForState(out.st);
-            if (d == -1) break;
-            if (!appendMove(out, (int8_t)d)) break;
-            path.push_back((int8_t)d);
-            ++moved;
-            if (out.st.prefixLen(desired, M) >= M) break;
+    if (!gPool.hasSpace(wanderLen)) return;
+    BeamNode out;
+    initChildNode(cur, out);
+    int moved = 0;
+    int knownPrefix = cur.prefix;
+    for (int t = 0; t < wanderLen; ++t) {
+        int d = pickWanderStepForState(out.st);
+        if (d == -1) break;
+        int16_t prevColorLen = out.st.colorLen;
+        if (!appendMove(out, (int8_t)d)) break;
+        ++moved;
+        if (out.st.colorLen > prevColorLen) {
+            knownPrefix = out.st.prefixLen(desired, M, knownPrefix);
+            if (knownPrefix >= M) break;
         }
-        if (moved == 0) continue;
-        bool dup = false;
-        for (int i = 0; i < seenCount; ++i) {
-            if (seen[i] == path) {
-                dup = true;
-                break;
-            }
-        }
-        if (dup) continue;
-        seen[seenCount++] = path;
-        finalizeBeamNodeAfterTransition(cur, out);
-        insertFn(move(out));
     }
+    if (moved == 0) return;
+    finalizeBeamNodeAfterTransition(cur, out, knownPrefix);
+    insertFn(move(out));
 }
 
 bool isDoneNode(const BeamNode& node) const { return node.prefix >= M; }
@@ -1181,6 +1375,7 @@ bool runBeamSearch(
     init.prefix = init.st.prefixLen(desired, M);
     init.maxPrefix = init.prefix;
     init.optimisticLB = safeOptimisticLowerBound(init.st, init.prefix);
+    init.stateKey = beamStateKey(init.st);
     init.eval = evaluateBeamStateFromPrefix(init.st, init.prefix);
     init.pathTail = -1;
     init.pathLen = 0;
@@ -1194,7 +1389,6 @@ bool runBeamSearch(
     }
     const int runStamp = currentRunStamp;
     auto& layers = layersBuf;
-    auto& layerKeys = layerKeysBuf;
     DeadlineChecker timer{deadline};
     const int goTargetCandidateTopK = BEAM_CANDIDATE_TOP_K_BY_N[N];
     const int cutApplyNodeLimit = CUT_APPLY_NODE_LIMIT_BY_N[N];
@@ -1205,13 +1399,12 @@ bool runBeamSearch(
         if (layerRunStamp[t] == runStamp) return;
         layerRunStamp[t] = runStamp;
         auto& vec = layers[t];
-        auto& keys = layerKeys[t];
+        auto& kvec = layerKeysBuf[t];
         vec.clear();
-        keys.clear();
+        kvec.clear();
         int expected = beamWidth * (goTargetCandidateTopK + cutCandidateTopK + wanderCandidateTopK) * 2;
         expected = max(expected, beamWidth * 4);
-        if ((int)vec.capacity() < expected) vec.reserve(expected);
-        if ((int)keys.capacity() < expected) keys.reserve(expected);
+        if ((int)vec.capacity() < expected) { vec.reserve(expected); kvec.reserve(expected); }
     };
 
     auto ins = [&](BeamNode&& cand) {
@@ -1220,58 +1413,57 @@ bool runBeamSearch(
         if (pruneByIncumbent(cand, incumbentBestLen)) return;
         ensureLayer(t);
         auto& vec = layers[t];
-        auto& keys = layerKeys[t];
-        uint64_t key = beamStateKey(cand.st);
+        auto& kvec = layerKeysBuf[t];
         int dupIdx = -1;
         {
-            const int sz = (int)keys.size();
-            const uint64_t* kp = keys.data();
-            // Scan only recent 32 entries — covers nearly all true dups
-            // while cutting O(n) linear scan to O(1) amortized
+            const int sz = (int)kvec.size();
             const int scanFrom = (sz > 32) ? sz - 32 : 0;
             for (int i = sz - 1; i >= scanFrom; --i) {
-                if (kp[i] == key) { dupIdx = i; goto found; }
+                if (kvec[i].stateKey == cand.stateKey) { dupIdx = i; break; }
             }
         }
-        found:
         if (dupIdx < 0) {
             if (__builtin_expect((int)vec.size() >= (int)vec.capacity(), 0)) return;
-            keys.push_back(key);
+            kvec.push_back({cand.eval, cand.maxPrefix, cand.st.turn, cand.stateKey});
             vec.push_back(move(cand));
         } else {
-            if (betterBeamNode(cand, vec[dupIdx])) vec[dupIdx] = move(cand);
+            BeamKey candKey = {cand.eval, cand.maxPrefix, cand.st.turn, cand.stateKey};
+            if (betterKey(candKey, kvec[dupIdx])) {
+                kvec[dupIdx] = candKey;
+                vec[dupIdx] = move(cand);
+            }
         }
     };
 
     ensureLayer(startTurn);
     layers[startTurn].push_back(init);
-    layerKeys[startTurn].push_back(beamStateKey(init.st));
+    layerKeysBuf[startTurn].push_back({init.eval, init.maxPrefix, init.st.turn, init.stateKey});
 
     bool hasDone = false; BeamNode bestDone, bestSeen = init;
-    auto timeUp = [&]() -> bool {
-        return timer.isOver();
-    };
+    BeamKey bestSeenKey = {init.eval, init.maxPrefix, init.st.turn, init.stateKey};
+    BeamKey bestDoneKey;
 
     for (int turn = startTurn; turn <= beamTurnCap; ++turn) {
-        if (timeUp()) break;
+        if (timer.isOver()) break;
         if (layerRunStamp[turn] != runStamp) continue;
         auto& beam = layers[turn];
-        auto& keys = layerKeys[turn];
-        if (beam.empty()) {
-            keys.clear();
-            continue;
-        }
+        if (beam.empty()) continue;
 
         int order[BEAM_WIDTH_HARD_MAX];
-        int ordN = selectTopBeamIndices(beam, beamWidth, order);
+        int ordN = selectTopBeamIndices(layerKeysBuf[turn], beamWidth, order);
+        auto& kbeam = layerKeysBuf[turn];
 
         for (int oi = 0; oi < ordN; ++oi) {
             int bi = order[oi];
-            if (timeUp()) break;
+            if (timer.isOver()) break;
             auto& node = beam[bi];
-            if (betterBeamNode(node, bestSeen)) bestSeen = node;
+            auto& nkey = kbeam[bi];
+            if (betterKey(nkey, bestSeenKey)) { bestSeenKey = nkey; bestSeen = node; }
             int p = node.prefix;
-            if (p >= M) { if (!hasDone || betterBeamNode(node, bestDone)) { hasDone = true; bestDone = node; } continue; }
+            if (p >= M) {
+                if (!hasDone || betterKey(nkey, bestDoneKey)) { hasDone = true; bestDoneKey = nkey; bestDone = node; }
+                continue;
+            }
             if (node.st.turn >= beamTurnCap) continue;
             if (pruneByIncumbent(node, incumbentBestLen)) continue;
 
@@ -1282,8 +1474,8 @@ bool runBeamSearch(
             if (oi < wanderApplyNodeLimit) transitionWander(node, timer, wanderCandidateTopK, ins);
         }
         if (hasDone) break;
-        keys.clear();
         beam.clear();
+        layerKeysBuf[turn].clear();
     }
     outBest = hasDone ? bestDone : bestSeen;
     return true;
@@ -1365,16 +1557,20 @@ int main() {
     cin.tie(nullptr);
     int N, M, C;
     cin >> N >> M >> C;
+    auto run = [&](auto& solver) {
+        solver.readInput(N, M, C);
+        solver.solve();
+        solver.printAnswer();
+    };
     if (N <= 8) {
-        SolverT<3, 8, 64, 63, 1> solver;
-        solver.readInput(N, M, C);
-        solver.solve();
-        solver.printAnswer();
+        if (C <= 4) { SolverT<3, 8, 64, 63, 1, 5> s; run(s); }
+        else { SolverT<3, 8, 64, 63, 1, 8> s; run(s); }
+    } else if (N <= 11) {
+        if (C <= 4) { SolverT<4, 16, 128, 127, 4, 5> s; run(s); }
+        else { SolverT<4, 16, 128, 127, 4, 8> s; run(s); }
     } else {
-        SolverT<4, 16, 256, 255, 4> solver;
-        solver.readInput(N, M, C);
-        solver.solve();
-        solver.printAnswer();
+        if (C <= 4) { SolverT<4, 16, 256, 255, 4, 5> s; run(s); }
+        else { SolverT<4, 16, 256, 255, 4, 8> s; run(s); }
     }
     return 0;
 }
