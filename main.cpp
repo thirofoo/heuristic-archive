@@ -614,10 +614,14 @@ void buildReleaseSparse(const SnakeState& st) const {
     }
     for (int i = 1; i < st.bodyLen; ++i) {
         uint8_t bp = st.bodyAt(i);
-        releaseStamp[bp] = releaseCur;
         int rel = st.bodyLen - 1 - i;
         if (rel < 1) rel = 1;
-        releaseValue[bp] = (int16_t)rel;
+        if (releaseStamp[bp] != releaseCur) {
+            releaseStamp[bp] = releaseCur;
+            releaseValue[bp] = (int16_t)rel;
+        } else if (releaseValue[bp] < rel) {
+            releaseValue[bp] = (int16_t)rel;
+        }
     }
 }
 
@@ -998,6 +1002,7 @@ int pickWanderStepForState(const SnakeState& st) {
     uint8_t head = st.bodyFront();
     uint8_t neck = (st.bodyLen >= 2) ? st.bodyAt(1) : 255;
     uint8_t tail = st.bodyBack();
+    uint8_t tailPrev = (st.bodyLen >= 2) ? st.bodyAt(st.bodyLen - 2) : 255;
     int8_t candidates[4];
     int candN = 0;
     const int8_t* dirOrder = chooseDirOrder();
@@ -1011,9 +1016,16 @@ int pickWanderStepForState(const SnakeState& st) {
         // A bite happens when npos is occupied by body AND it's not just the tail
         // (the tail will leave if we don't eat, and grid[npos]==0 means no eat)
         if (st.grid[npos] == 0) {
-            // Normal move (no eat): tail leaves. Bite if npos is in body and npos != tail
-            // (or if there's an overlap at tail)
-            if (st.bodyOccupiedPos(npos) && (npos != tail || st.overlapPos == npos)) continue;
+            // Normal move (no eat):
+            // - old tail is safe
+            // - old tailPrev is also safe because it becomes the new tail
+            // - but if old tail overlaps some earlier body, entering that tail cell is
+            //   unsafe unless the overlap is exactly tailPrev==tail.
+            if (st.bodyOccupiedPos(npos)) {
+                bool safeTail = (npos == tail) && (st.overlapPos != npos || tailPrev == tail);
+                bool safeTailPrev = (npos == tailPrev);
+                if (!safeTail && !safeTailPrev) continue;
+            }
         } else {
             // Would eat: tail stays. Bite if npos is in body at all
             if (st.bodyOccupiedPos(npos)) continue;
