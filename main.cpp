@@ -56,7 +56,7 @@ constexpr array<int, 17> WANDER_APPLY_NODE_LIMIT_BY_N = {
 };
 constexpr array<int, 17> BEAM_CUT_CANDIDATE_TOP_K_BY_N = {
     -1, -1, -1, -1, -1, -1, -1, -1,
-    5, 5, 4, 4, 1, 1, 1, 1, 1,
+    5, 5, 4, 4, 2, 1, 1, 1, 1,
 };
 constexpr array<int, 17> WANDER_CANDIDATE_TOP_K_BY_N = {
     -1, -1, -1, -1, -1, -1, -1, -1,
@@ -65,7 +65,7 @@ constexpr array<int, 17> WANDER_CANDIDATE_TOP_K_BY_N = {
 
 constexpr array<int, 17> NEAR_P_ALLOW_BY_N = {
     -1, -1, -1, -1, -1, -1, -1, -1,
-    0, 4, 4, 4, 4, 4, 4, 5, 6,
+    0, 4, 4, 4, 4, 4, 4, 4, 4,
 };
 constexpr array<int, 17> PCUT_APPLY_NODE_LIMIT_BY_N = {
     -1, -1, -1, -1, -1, -1, -1, -1,
@@ -73,7 +73,7 @@ constexpr array<int, 17> PCUT_APPLY_NODE_LIMIT_BY_N = {
 };
 constexpr array<int, 17> PCUT_CANDIDATE_TOP_K_BY_N = {
     -1, -1, -1, -1, -1, -1, -1, -1,
-    0, 3, 3, 3, 3, 3, 3, 3, 4,
+    0, 3, 3, 3, 3, 3, 3, 3, 5,
 };
 
 constexpr uint16_t INVALID_NEXT_POS = 0xFFFFu;
