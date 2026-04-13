@@ -13,20 +13,20 @@ alignas(64) constexpr int8_t DIR_ORDERS[DIR_ORDER_COUNT][4] = {
     {0, 1, 2, 3}, {3, 2, 1, 0},
 };
 constexpr int MAX_TURN_LIMIT = 100000;
-constexpr int SEARCH_TIME_LIMIT_MS = 1850;
+constexpr int SEARCH_TIME_LIMIT_MS = 1900;
 
-constexpr int CUT_ENUM_MAX_DEPTH_HARD_MAX = 5;
+constexpr int CUT_ENUM_MAX_DEPTH_HARD_MAX = 7;
 constexpr int CUT_CANDIDATE_CAP = 64;
 constexpr int CUT_KEEP_MIN_LEN = 5;
 constexpr int INITIAL_SNAKE_LEN = 5;
 
 constexpr long long SCORE_PREFIX_PRIMARY_WEIGHT = 25LL;
 constexpr long long SCORE_PREFIX_PRIMARY_WEIGHT_LONG_BEST = 1'000'000LL;
-constexpr int SCORE_PREFIX_PRIMARY_WEIGHT_LONG_BEST_THRESHOLD = 500;
+constexpr int SCORE_PREFIX_PRIMARY_WEIGHT_LONG_BEST_THRESHOLD = 1000;
 constexpr long long SCORE_FOOD_WALL_PENALTY_WEIGHT = 10LL;
 constexpr long long SCORE_FOOD_CORNER_EXTRA_PENALTY_WEIGHT = 20LL;
 
-constexpr int BEAM_WIDTH = 5;
+constexpr int BEAM_WIDTH = 20;
 constexpr int BEAM_TURN_CAP_MAX = 4000;
 constexpr int BEAM_WIDTH_HARD_MAX = 160;
 constexpr int WANDER_CANDIDATE_TOP_K_HARD_MAX = 1;
@@ -56,11 +56,24 @@ constexpr array<int, 17> WANDER_APPLY_NODE_LIMIT_BY_N = {
 };
 constexpr array<int, 17> BEAM_CUT_CANDIDATE_TOP_K_BY_N = {
     -1, -1, -1, -1, -1, -1, -1, -1,
-    5, 5, 4, 4, 4, 3, 2, 2, 2,
+    5, 5, 4, 4, 1, 1, 1, 1, 1,
 };
 constexpr array<int, 17> WANDER_CANDIDATE_TOP_K_BY_N = {
     -1, -1, -1, -1, -1, -1, -1, -1,
     1, 1, 1, 1, 1, 1, 1, 1, 1,
+};
+
+constexpr array<int, 17> NEAR_P_ALLOW_BY_N = {
+    -1, -1, -1, -1, -1, -1, -1, -1,
+    0, 4, 4, 4, 4, 4, 4, 5, 6,
+};
+constexpr array<int, 17> PCUT_APPLY_NODE_LIMIT_BY_N = {
+    -1, -1, -1, -1, -1, -1, -1, -1,
+    0, 40, 40, 40, 40, 40, 40, 40, 40,
+};
+constexpr array<int, 17> PCUT_CANDIDATE_TOP_K_BY_N = {
+    -1, -1, -1, -1, -1, -1, -1, -1,
+    0, 3, 3, 3, 3, 3, 3, 3, 4,
 };
 
 constexpr uint16_t INVALID_NEXT_POS = 0xFFFFu;
@@ -123,7 +136,7 @@ struct DeadlineChecker {
     uint32_t tick = 0;
 
     bool isOver() {
-        if ((++tick & 7u) != 0) return false;
+        // if ((++tick & 15u) != 0) return false;
         return chrono::steady_clock::now() >= deadline;
     }
 };
@@ -1030,6 +1043,130 @@ CutCandidateList chooseTopCutCandidatesForBeam(
     return out;
 }
 
+// BFS to find shortest paths from head to body segments whose bite gives
+// afterBodyLen in [p - NEAR_P_ALLOW_BY_N[N], p] (i.e., afterBodyLen <= p, close to p).
+// Key formula: biting original bodyAt(j) at BFS distance d → afterBodyLen = j + d.
+// So at distance d, target body index = (desired afterBodyLen) - d.
+// Soft BFS: only avoids body cells with index < p (prefix side to keep).
+// Body cells with index >= p (tail side to cut) and food cells are freely passable.
+int findPrefixBrokenCutPaths(const SnakeState& st, int p, int topK, FixedPath* out) const {
+    if (st.bodyLen == 0 || p >= st.colorLen || p < 3) return 0;
+    topK = max(1, topK);
+
+    // buildReleaseSparse must be called by caller
+    // releaseAt threshold: body index i has release = bodyLen-1-i.
+    // index < p  → release > bodyLen-1-p  (must avoid)
+    // index >= p → release <= bodyLen-1-p  (can pass)
+    int releaseThresh = st.bodyLen - 1 - p; // cells with releaseAt > this are prefix-side → block
+
+    beginBfsVisit();
+
+    uint8_t head = st.bodyFront();
+    uint8_t neck = (st.bodyLen >= 2) ? st.bodyAt(1) : 255;
+
+    // Check if npos is a valid bite target at BFS distance d.
+    auto isGoal = [&](uint8_t npos, int d) -> bool {
+        const int nearPAllow = NEAR_P_ALLOW_BY_N[N];
+        for (int delta = 0; delta <= nearPAllow; ++delta) {
+            int targetL = p - delta;
+            if (targetL < CUT_KEEP_MIN_LEN) continue;
+            int j = targetL - d;
+            if (j < 2 || j >= st.bodyLen) continue;
+            if (st.bodyAt(j) == npos) return true;
+        }
+        return false;
+    };
+
+    // Block check: only block prefix-side body (releaseAt > releaseThresh)
+    auto isBlocked = [&](uint8_t npos) -> bool {
+        int r = releaseAt(npos);
+        return r > releaseThresh;
+    };
+
+    int maxDist = p - 2; // need j = p - d >= 2
+
+    struct Goal { int16_t dist; uint8_t pos; };
+    Goal goals[NCELLS];
+    int gn = 0;
+    int goalMaxDist = -1;
+
+    uint8_t bq[NCELLS];
+    int16_t bqd[NCELLS];
+    int qt = 0;
+    bfsSeenStamp[head] = bfsStamp;
+
+    // Expand head neighbors (skip neck)
+    for (int di = 0; di < 4; ++di) {
+        uint16_t next = gNextPos[head][di];
+        if (next == INVALID_NEXT_POS) continue;
+        uint8_t npos = (uint8_t)next;
+        if (npos == neck) continue;
+
+        if (isGoal(npos, 1)) {
+            bfsSeenStamp[npos] = bfsStamp;
+            bfsParent[npos] = head;
+            bfsPdir[npos] = (int8_t)di;
+            goals[gn++] = {1, npos};
+            goalMaxDist = 1;
+            continue;
+        }
+
+        if (isBlocked(npos)) continue;
+        if (bfsSeenStamp[npos] == bfsStamp) continue;
+        bfsSeenStamp[npos] = bfsStamp;
+        bfsParent[npos] = head;
+        bfsPdir[npos] = (int8_t)di;
+        bq[qt] = npos;
+        bqd[qt] = 1;
+        ++qt;
+    }
+
+    int qh = 0;
+    while (qh < qt) {
+        uint8_t pos = bq[qh];
+        int t = bqd[qh];
+        ++qh;
+        if (t >= maxDist) break;
+        if (gn >= topK && t > goalMaxDist) break;
+
+        for (int di = 0; di < 4; ++di) {
+            uint16_t next = gNextPos[pos][di];
+            if (next == INVALID_NEXT_POS) continue;
+            uint8_t npos = (uint8_t)next;
+            int nt = t + 1;
+
+            if (bfsSeenStamp[npos] == bfsStamp) continue;
+
+            if (isGoal(npos, nt)) {
+                bfsSeenStamp[npos] = bfsStamp;
+                bfsParent[npos] = pos;
+                bfsPdir[npos] = (int8_t)di;
+                goals[gn++] = {(int16_t)nt, npos};
+                goalMaxDist = nt;
+                continue;
+            }
+
+            if (isBlocked(npos)) continue;
+            bfsSeenStamp[npos] = bfsStamp;
+            bfsParent[npos] = pos;
+            bfsPdir[npos] = (int8_t)di;
+            bq[qt] = npos;
+            bqd[qt] = (int16_t)nt;
+            ++qt;
+        }
+    }
+
+    if (gn == 0) return 0;
+    int take = min(topK, gn);
+    int cnt = 0;
+    for (int gi = 0; gi < take; ++gi) {
+        FixedPath& path = out[cnt];
+        reconstructPathBackward(path, goals[gi].dist, goals[gi].pos, bfsParent, bfsPdir);
+        if (path.len > 0) ++cnt;
+    }
+    return cnt;
+}
+
 long long foodWallPenalty(const SnakeState& st) const {
     if (st.foodCount <= 0) return 0LL;
     return SCORE_FOOD_WALL_PENALTY_WEIGHT * (long long)st.wallFoodCount
@@ -1145,32 +1282,25 @@ inline bool pruneByIncumbent(BeamNode& node, int incumbentBestLen) const {
     return node.st.turn + node.optimisticLB >= incumbentBestLen;
 }
 
+static constexpr int SELECT_BUF_CAP = 16384;
+mutable int selectBuf[SELECT_BUF_CAP];
+
 int selectTopBeamIndices(const vector<BeamKey>& keys, int beamWidth, int* order) const {
-    int n = min((int)keys.size(), 16384);
+    int n = min((int)keys.size(), SELECT_BUF_CAP);
+    if (n == 0) return 0;
+    int take = min(n, beamWidth);
+    for (int i = 0; i < n; ++i) selectBuf[i] = i;
     auto better = [&](int a, int b) {
         if (keys[a].eval != keys[b].eval) return keys[a].eval < keys[b].eval;
         if (keys[a].maxPrefix != keys[b].maxPrefix) return keys[a].maxPrefix > keys[b].maxPrefix;
         return keys[a].turn < keys[b].turn;
     };
-    int ordN = 0;
-    for (int i = 0; i < n; ++i) {
-        if (ordN < beamWidth) {
-            int pos = ordN++;
-            while (pos > 0 && better(i, order[pos - 1])) {
-                order[pos] = order[pos - 1];
-                --pos;
-            }
-            order[pos] = i;
-        } else if (better(i, order[ordN - 1])) {
-            int pos = ordN - 1;
-            while (pos > 0 && better(i, order[pos - 1])) {
-                order[pos] = order[pos - 1];
-                --pos;
-            }
-            order[pos] = i;
-        }
+    if (take < n) {
+        nth_element(selectBuf, selectBuf + take, selectBuf + n, better);
     }
-    return ordN;
+    sort(selectBuf, selectBuf + take, better);
+    memcpy(order, selectBuf, take * sizeof(int));
+    return take;
 }
 
 // O(1) per direction: no SnakeState copy, no apply, just bitwise check
@@ -1330,6 +1460,68 @@ void transitionCutRecoverCandidates(
     }
 }
 
+// Prefix-broken specialized cut: BFS to body segment near index p, bite there.
+// afterBodyLen in [p - NEAR_P_ALLOW_BY_N[N], p], recovery if afterBodyLen < p.
+template<typename InsertFn>
+void transitionPrefixBrokenCutRecover(
+    const BeamNode& cur, DeadlineChecker& timer, int topK, InsertFn& insertFn
+) {
+    if (timer.isOver()) return;
+    int p = cur.prefix;
+    if (p >= M) return;
+    if (p >= cur.st.colorLen) return;
+
+    buildReleaseSparse(cur.st);
+    FixedPath paths[8];
+    int pathCount = findPrefixBrokenCutPaths(cur.st, p, min(topK, 8), paths);
+    if (pathCount == 0) return;
+
+    for (int pi = 0; pi < pathCount; ++pi) {
+        if (timer.isOver()) break;
+        const FixedPath& path = paths[pi];
+        if (!gPool.hasSpace(path.len + NCELLS)) continue;
+
+        BeamNode nxt;
+        initChildNode(cur, nxt);
+        bool ok = true;
+        for (int si = 0; si < path.len; ++si) {
+            // Save body state before every step (needed if this step causes a bite)
+            uint8_t savedBodyBuf[SCAP];
+            int16_t savedBodyHead = nxt.st.bodyHead;
+            int16_t savedBodyLen = nxt.st.bodyLen;
+            {
+                int h = savedBodyHead, len = savedBodyLen;
+                if (h + len <= SCAP) {
+                    memcpy(savedBodyBuf + h, nxt.st.bodyBuf + h, len);
+                } else {
+                    int first = SCAP - h;
+                    memcpy(savedBodyBuf + h, nxt.st.bodyBuf + h, first);
+                    memcpy(savedBodyBuf, nxt.st.bodyBuf, len - first);
+                }
+            }
+            int pb = nxt.st.prefixLen(desired, M, cur.prefix);
+            MoveResult ret = nxt.st.apply(path.d[si]);
+            if (!ret.ok) { ok = false; break; }
+            nxt.pathTail = gPool.add(path.d[si], nxt.pathTail);
+            nxt.pathLen++;
+
+            if (ret.bite) {
+                // Bite happened (intended final or mid-path) — do recovery and emit
+                int hintAfterBite = min((int)pb, (int)nxt.st.colorLen);
+                FixedPath recovery = buildRecoveryPathByOldBody(
+                    savedBodyBuf, savedBodyHead, savedBodyLen, nxt.st, pb
+                );
+                if (!appendPath(nxt, recovery)) { ok = false; break; }
+                finalizeBeamNodeAfterTransition(cur, nxt, hintAfterBite);
+                insertFn(move(nxt));
+                ok = false; // signal: already handled, don't emit again
+                break;
+            }
+            // No bite — continue to next step (eat is fine, just keep going)
+        }
+    }
+}
+
 template<typename InsertFn>
 void transitionWander(const BeamNode& cur, DeadlineChecker& timer, int topK, InsertFn& insertFn) {
     if (timer.isOver()) return;
@@ -1392,6 +1584,8 @@ bool runBeamSearch(
     DeadlineChecker timer{deadline};
     const int goTargetCandidateTopK = BEAM_CANDIDATE_TOP_K_BY_N[N];
     const int cutApplyNodeLimit = CUT_APPLY_NODE_LIMIT_BY_N[N];
+    const int pcutApplyNodeLimit = PCUT_APPLY_NODE_LIMIT_BY_N[N];
+    const int pcutCandidateTopK = PCUT_CANDIDATE_TOP_K_BY_N[N];
     const int wanderApplyNodeLimit = WANDER_APPLY_NODE_LIMIT_BY_N[N];
     const int cutCandidateTopK = BEAM_CUT_CANDIDATE_TOP_K_BY_N[N];
     const int wanderCandidateTopK = WANDER_CANDIDATE_TOP_K_BY_N[N];
@@ -1402,7 +1596,7 @@ bool runBeamSearch(
         auto& kvec = layerKeysBuf[t];
         vec.clear();
         kvec.clear();
-        int expected = beamWidth * (goTargetCandidateTopK + cutCandidateTopK + wanderCandidateTopK) * 2;
+        int expected = beamWidth * (goTargetCandidateTopK + cutCandidateTopK + 1 + wanderCandidateTopK) * 2;
         expected = max(expected, beamWidth * 4);
         if ((int)vec.capacity() < expected) { vec.reserve(expected); kvec.reserve(expected); }
     };
@@ -1468,9 +1662,10 @@ bool runBeamSearch(
             if (pruneByIncumbent(node, incumbentBestLen)) continue;
 
             transitionGoTargetCandidates(node, timer, goTargetCandidateTopK, ins);
-            if (oi < cutApplyNodeLimit) {
+            if (oi < cutApplyNodeLimit)
                 transitionCutRecoverCandidates(node, timer, cutCandidateTopK, ins);
-            }
+            if (oi < pcutApplyNodeLimit)
+                transitionPrefixBrokenCutRecover(node, timer, pcutCandidateTopK, ins);
             if (oi < wanderApplyNodeLimit) transitionWander(node, timer, wanderCandidateTopK, ins);
         }
         if (hasDone) break;
