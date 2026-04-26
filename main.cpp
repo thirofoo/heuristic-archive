@@ -157,19 +157,6 @@ struct Solver {
     }
   }
 
-  void build_line(int r, int scratch) {
-    rep(pos, 10) {
-      int target = 10 * r + pos;
-      while(side[r].front() != target) {
-        add_op(1, scratch, r);
-      }
-      add_op(1, r, r);
-      while(!dep[scratch].empty()) {
-        add_op(0, scratch, r);
-      }
-    }
-  }
-
   bool is_complete() const {
     rep(r, R) {
       if((int)dep[r].size() != 10) return false;
@@ -181,27 +168,26 @@ struct Solver {
   }
 
   void solve() {
-    // First classify every railcar into the siding of its final departure line.
+    // Put each railcar into the siding corresponding to its final position.
     rep(i, R) {
       while(!dep[i].empty()) {
         int car = dep[i].back();
-        add_op(0, i, car / 10);
+        int pos = car % 10;
+        int k = 1;
+        while(k < (int)dep[i].size() && dep[i][(int)dep[i].size() - 1 - k] % 10 == pos) {
+          k++;
+        }
+        add_op(0, i, pos, k);
       }
     }
 
-    // Build lines 0..8. Departure line 9 is kept empty and used as workspace.
-    for(int r = 0; r + 1 < R; r++) {
-      build_line(r, R - 1);
-    }
-
-    // To build the last line, temporarily store the already completed line 0
-    // in its empty siding and use departure line 0 as workspace.
-    while(!dep[0].empty()) {
-      add_op(0, 0, 0);
-    }
-    build_line(R - 1, 0);
-    while(!side[0].empty()) {
-      add_op(1, 0, 0);
+    // Restore positions from front to tail. Siding p contains exactly the
+    // railcars whose final position is p, so any order inside the siding works.
+    rep(pos, 10) {
+      while(!side[pos].empty()) {
+        int car = side[pos].front();
+        add_op(1, car / 10, pos);
+      }
     }
 
     assert((int)turns.size() <= 4000);
