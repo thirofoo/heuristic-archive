@@ -27,30 +27,6 @@ static constexpr int TIME_LIMIT_MS = 1900;
 static constexpr int BEAM_WIDTH = 200;
 static constexpr int TOP_TRANSITIONS = 10;
 
-static constexpr long long EVAL_CORRECT_PREFIX_WEIGHT = 500'000'000LL;
-static constexpr long long EVAL_BUILDABLE_ROWS_WEIGHT = 30'000'000LL;
-static constexpr long long EVAL_SIDE_CARS_WEIGHT = 1'000'000LL;
-static constexpr long long EVAL_REMAINING_BLOCKS_WEIGHT = 10'000LL;
-static constexpr long long EVAL_ACCEPTOR_SHORTAGE_WEIGHT = 20'000LL;
-static constexpr long long EVAL_SIDE_BALANCE_WEIGHT = 2'000LL;
-static constexpr long long EVAL_BUCKET_QUALITY_WEIGHT = 30'000LL;
-static constexpr long long EVAL_READY_OPS_WEIGHT = 5'000'000LL;
-static constexpr long long EVAL_LAST_MOVED_OPS_WEIGHT = 2'000'000LL;
-static constexpr long long EVAL_LAST_MOVED_CARS_WEIGHT = 100'000LL;
-static constexpr long long EVAL_TURNS_WEIGHT = 1'000LL;
-
-static constexpr long long LOCAL_MOVED_OPS_WEIGHT = 10'000'000LL;
-static constexpr long long LOCAL_MOVED_CARS_WEIGHT = 2'000'000LL;
-static constexpr long long LOCAL_RESTORE_OPS_BONUS = 50'000'000LL;
-static constexpr long long LOCAL_RESTORE_CARS_BONUS = 5'000'000LL;
-static constexpr long long LOCAL_CROSSING_PRESSURE_WEIGHT = 10'000LL;
-static constexpr long long LOCAL_BUCKET_FIT_WEIGHT = 80'000LL;
-
-static constexpr int SIDE_FRONT_ZERO_EXTRA_PENALTY = 200;
-static constexpr int DEAD_ACCEPTOR_BASE_PENALTY = 100000;
-static constexpr int DEAD_ACCEPTOR_TAIL_WEIGHT = 1000;
-static constexpr int ACCEPTOR_SHORTAGE_DEAD_WEIGHT = 100000;
-
 struct Operation {
   int type, i, j, k;
 };
@@ -75,11 +51,6 @@ struct TurnCandidate {
   Turn turn;
   int moved_cars = 0;
   int moved_ops = 0;
-  int restore_ops = 0;
-  int restore_cars = 0;
-  int crossing_pressure = 0;
-  int bucket_fit = 0;
-  long long local_score = 0;
 };
 
 struct State {
@@ -95,13 +66,16 @@ struct State {
 };
 
 struct BeamItem {
-  long long score;
+  int moved_ops = 0;
+  int moved_cars = 0;
   State st;
   int parent_trace;
   Turn turn;
 
   bool operator<(const BeamItem& other) const {
-    return score > other.score;
+    if(moved_ops != other.moved_ops) return moved_ops > other.moved_ops;
+    if(moved_cars != other.moved_cars) return moved_cars > other.moved_cars;
+    return st.turns < other.st.turns;
   }
 };
 
@@ -241,17 +215,6 @@ struct Solver {
     return res;
   }
 
-  int correct_side_cars(const State& st) const {
-    int res = 0;
-    rep(j, R) {
-      rep(p, st.side_len[j]) {
-        int car = st.side[j][p];
-        if(car % 10 == j) res++;
-      }
-    }
-    return res;
-  }
-
   int correct_dep_prefix_cars(const State& st) const {
     int res = 0;
     rep(i, R) {
@@ -262,203 +225,6 @@ struct Solver {
       }
     }
     return res;
-  }
-
-  int dep_mod_blocks(const State& st) const {
-    int blocks = 0;
-    rep(i, R) {
-      int len = st.dep_len[i];
-      if(len == 0) continue;
-
-      int prefix_len = 0;
-      rep(p, len) {
-        if((int)st.dep[i][p] == 10 * i + p) prefix_len++;
-        else break;
-      }
-      if(prefix_len == len) continue;
-
-      blocks++;
-      for(int p = len - 2; p >= prefix_len; p--) {
-        int a = (int)st.dep[i][p] % 10;
-        int b = (int)st.dep[i][p + 1] % 10;
-        if(a != b) blocks++;
-      }
-    }
-    return blocks;
-  }
-
-  int side_row_blocks(const State& st) const {
-    int blocks = 0;
-
-    rep(j, R) {
-      int len = st.side_len[j];
-      if(len == 0) continue;
-
-      blocks++;
-      for(int p = 1; p < len; p++) {
-        int a = (int)st.side[j][p - 1] / 10;
-        int b = (int)st.side[j][p] / 10;
-        if(a != b) blocks++;
-      }
-    }
-
-    return blocks;
-  }
-
-  int side_row_inversions(const State& st) const {
-    int inv = 0;
-    rep(j, R) {
-      int len = st.side_len[j];
-      rep(a, len) {
-        for(int b = a + 1; b < len; b++) {
-          int ra = (int)st.side[j][a] / 10;
-          int rb = (int)st.side[j][b] / 10;
-          if(ra > rb) inv++;
-        }
-      }
-    }
-    return inv;
-  }
-
-  int side_front_block_penalty(const State& st) const {
-    int penalty = 0;
-    rep(j, R) {
-      if(st.side_len[j] == 0) continue;
-      int front_mod = st.side[j][0] % 10;
-      int room = SIDE_CAP - st.side_len[j];
-
-      penalty += (9 - front_mod) * (room + 1);
-      if(front_mod == 0 && room > 0) penalty += SIDE_FRONT_ZERO_EXTRA_PENALTY;
-    }
-    return penalty;
-  }
-
-  int next_block_dead_penalty(const State& st) const {
-    int penalty = 0;
-
-    rep(i, R) {
-      int len = st.dep_len[i];
-      if(len == 0) continue;
-
-      int prefix_len = 0;
-      rep(p, len) {
-        if((int)st.dep[i][p] == 10 * i + p) prefix_len++;
-        else break;
-      }
-      if(prefix_len == len) continue;
-
-      int k = 1;
-      while(prefix_len + k < len) {
-        int prev = st.dep[i][len - 1 - k] % 10;
-        int cur = st.dep[i][len - k] % 10;
-        if(prev > cur) break;
-        k++;
-      }
-
-      int block_tail_mod = st.dep[i][len - 1] % 10;
-      int acceptors = 0;
-
-      rep(j, R) {
-        if((int)st.side_len[j] + k > SIDE_CAP) continue;
-
-        bool ok = false;
-        if(st.side_len[j] == 0) ok = true;
-        else {
-          int front_mod = st.side[j][0] % 10;
-          if(block_tail_mod <= front_mod) ok = true;
-        }
-
-        if(j == block_tail_mod) ok = true;
-
-        if(ok) acceptors++;
-      }
-
-      if(acceptors == 0) {
-        penalty += DEAD_ACCEPTOR_BASE_PENALTY + block_tail_mod * block_tail_mod * DEAD_ACCEPTOR_TAIL_WEIGHT;
-      } else {
-        int lack = 10 - min(10, acceptors);
-        penalty += lack * lack * (block_tail_mod + 1) * (block_tail_mod + 1);
-      }
-    }
-
-    return penalty;
-  }
-
-  int high_col_acceptor_penalty(const State& st) const {
-    int penalty = 0;
-    for(int col = 7; col < R; col++) {
-      int acceptors = 0;
-      rep(j, R) {
-        if(st.side_len[j] >= SIDE_CAP) continue;
-        if(st.side_len[j] == 0 || col <= (int)st.side[j][0] % 10 || j == col) {
-          acceptors++;
-        }
-      }
-      int lack = 10 - min(10, acceptors);
-      penalty += lack * lack * (col + 1) * (col + 1);
-    }
-    return penalty;
-  }
-
-  int acceptor_shortage_penalty(const State& st) const {
-    array<int, RMAX> rem{};
-    rep(i, R) {
-      int prefix_len = 0;
-      rep(p, st.dep_len[i]) {
-        if((int)st.dep[i][p] == 10 * i + p) prefix_len++;
-        else break;
-      }
-      for(int p = prefix_len; p < (int)st.dep_len[i]; p++) {
-        rem[st.dep[i][p] % 10]++;
-      }
-    }
-
-    int penalty = 0;
-    rep(col, R) {
-      if(rem[col] == 0) continue;
-
-      int acceptors = 0;
-      rep(j, R) {
-        if(st.side_len[j] >= SIDE_CAP) continue;
-        if(col < j) continue;
-        if(st.side_len[j] > 0) {
-          int front_col = st.side[j][0] % 10;
-          if(col > front_col) continue;
-        }
-        acceptors++;
-      }
-
-      int weight = (col + 1) * (col + 1);
-      if(acceptors == 0) {
-        penalty += ACCEPTOR_SHORTAGE_DEAD_WEIGHT * weight;
-      } else {
-        int scarcity = 10 - min(10, acceptors);
-        penalty += rem[col] * scarcity * scarcity * weight;
-      }
-    }
-    return penalty;
-  }
-
-  int side_balance_penalty(const State& st) const {
-    int total = side_cars(st);
-    int penalty = 0;
-    rep(j, R) {
-      int diff = (int)st.side_len[j] * R - total;
-      penalty += diff * diff;
-    }
-    return penalty;
-  }
-
-  int side_bucket_quality(const State& st) const {
-    int quality = 0;
-    rep(j, R) {
-      rep(p, st.side_len[j]) {
-        int col = st.side[j][p] % 10;
-        quality += j * j;
-        quality -= (col - j) * (col - j);
-      }
-    }
-    return quality;
   }
 
   bool preserves_future_acceptors_after_classify(const State& st, int i, int j, int k) const {
@@ -507,65 +273,6 @@ struct Solver {
     }
 
     return true;
-  }
-
-  int restore_ready_ops(const State& st) const {
-    int ready = 0;
-    rep(j, R) {
-      if(st.side_len[j] == 0) continue;
-      int car = st.side[j][0];
-      int row = car / 10;
-      int col = car % 10;
-      if(!is_buildable_row(st, row)) continue;
-      if((int)st.dep_len[row] == col && (int)st.dep_len[row] < INIT_LEN) ready++;
-    }
-    return ready;
-  }
-
-  int restore_ready_cars(const State& st) const {
-    int ready = 0;
-    rep(j, R) {
-      if(st.side_len[j] == 0) continue;
-      int car = st.side[j][0];
-      int row = car / 10;
-      int col = car % 10;
-      if(!is_buildable_row(st, row)) continue;
-      if((int)st.dep_len[row] != col || (int)st.dep_len[row] >= INIT_LEN) continue;
-      int k = 1;
-      while(k < (int)st.side_len[j]) {
-        int nxt = st.side[j][k];
-        if(nxt / 10 != row || nxt % 10 != col + k) break;
-        if((int)st.dep_len[row] + k >= DEP_CAP) break;
-        k++;
-      }
-      ready += k;
-    }
-    return ready;
-  }
-
-  long long evaluate(const State& st) const {
-    int ok_side = side_cars(st);
-    int remaining_blocks = dep_mod_blocks(st);
-    int shortage_penalty = acceptor_shortage_penalty(st);
-    int balance_penalty = side_balance_penalty(st);
-    int bucket_quality = side_bucket_quality(st);
-    int correct_prefix = correct_dep_prefix_cars(st);
-    int b_rows = buildable_rows(st);
-    int ready = restore_ready_ops(st);
-
-    long long score = 0;
-    score += EVAL_CORRECT_PREFIX_WEIGHT * correct_prefix;
-    score += EVAL_BUILDABLE_ROWS_WEIGHT * b_rows;
-    score += EVAL_SIDE_CARS_WEIGHT * ok_side;
-    score -= EVAL_REMAINING_BLOCKS_WEIGHT * remaining_blocks;
-    score -= EVAL_ACCEPTOR_SHORTAGE_WEIGHT * shortage_penalty;
-    score -= EVAL_SIDE_BALANCE_WEIGHT * balance_penalty;
-    score += EVAL_BUCKET_QUALITY_WEIGHT * bucket_quality;
-    score += EVAL_READY_OPS_WEIGHT * ready;
-    score += EVAL_LAST_MOVED_OPS_WEIGHT * st.last_moved_ops;
-    score += EVAL_LAST_MOVED_CARS_WEIGHT * st.last_moved_cars;
-    score -= EVAL_TURNS_WEIGHT * st.turns;
-    return score;
   }
 
   uint64_t hash_state(const State& st) const {
@@ -673,20 +380,8 @@ struct Solver {
     return moves;
   }
 
-  long long local_turn_score(const TurnCandidate& tc) const {
-    long long score = 0;
-    score += LOCAL_MOVED_OPS_WEIGHT * tc.moved_ops;
-    score += LOCAL_MOVED_CARS_WEIGHT * tc.moved_cars;
-    score += LOCAL_RESTORE_OPS_BONUS * tc.restore_ops;
-    score += LOCAL_RESTORE_CARS_BONUS * tc.restore_cars;
-    score -= LOCAL_CROSSING_PRESSURE_WEIGHT * tc.crossing_pressure;
-    score += LOCAL_BUCKET_FIT_WEIGHT * tc.bucket_fit;
-    return score;
-  }
-
   vector<TurnCandidate> enumerate_turns(const vector<MoveCandidate>& moves) const {
     auto better = [](const TurnCandidate& a, const TurnCandidate& b) {
-      if(a.local_score != b.local_score) return a.local_score > b.local_score;
       if(a.moved_ops != b.moved_ops) return a.moved_ops > b.moved_ops;
       return a.moved_cars > b.moved_cars;
     };
@@ -706,13 +401,6 @@ struct Solver {
         tc.turn.ops[tc.turn.count++] = op;
         tc.moved_ops++;
         tc.moved_cars += mv.k;
-        if(mv.type == 1) {
-          tc.restore_ops++;
-          tc.restore_cars += mv.k;
-        }
-        tc.crossing_pressure += abs(mv.i - mv.j);
-        if(mv.type == 0) tc.bucket_fit += mv.j * mv.j * mv.k;
-        tc.local_score = local_turn_score(tc);
         next.push_back(tc);
       }
 
@@ -845,7 +533,8 @@ struct Solver {
     vector<State> beam;
     beam.push_back(initial);
     State best_state = initial;
-    long long best_score = evaluate(initial);
+    int best_prefix = correct_dep_prefix_cars(initial);
+    int best_side = side_cars(initial);
 
     while(true) {
       if(utility::mytm.elapsed() > TIME_LIMIT_MS) break;
@@ -855,9 +544,11 @@ struct Solver {
           return reconstruct(st.trace_id);
         }
 
-        long long sc = evaluate(st);
-        if(sc > best_score) {
-          best_score = sc;
+        int prefix = correct_dep_prefix_cars(st);
+        int side = side_cars(st);
+        if(prefix > best_prefix || (prefix == best_prefix && side > best_side)) {
+          best_prefix = prefix;
+          best_side = side;
           best_state = st;
         }
 
@@ -903,11 +594,9 @@ struct Solver {
           State ns = st;
           apply_turn(ns, tc.turn);
 
-          long long sc = evaluate(ns);
-          sc += tc.local_score;
-
           BeamItem item;
-          item.score = sc;
+          item.moved_ops = tc.moved_ops;
+          item.moved_cars = tc.moved_cars;
           item.st = ns;
           item.parent_trace = st.trace_id;
           item.turn = tc.turn;
@@ -952,8 +641,7 @@ struct Solver {
       beam.swap(next_beam);
     }
 
-    cerr << "Fallback: best score = " << best_score
-         << ", turns = " << best_state.turns
+    cerr << "Fallback: turns = " << best_state.turns
          << ", dep_cars = " << dep_cars(best_state)
          << ", side_cars = " << side_cars(best_state)
          << ", buildable = " << buildable_rows(best_state)
