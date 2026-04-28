@@ -1,0 +1,25 @@
+{
+  "id": "AHC010",
+  "title": "ALGO ARTIS Programming Contest 2022 (AtCoder Heuristic Contest 010)",
+  "date": "2022-04-24",
+  "startDate": "2022-04-24T15:00:00+09:00",
+  "endDate": "2022-04-24T19:00:00+09:00",
+  "durationMinutes": 240,
+  "durationText": "4時間",
+  "rank": 264,
+  "score": null,
+  "performance": 1396,
+  "tags": [
+    "短期"
+  ],
+  "visualizer": null,
+  "problemUrl": "https://atcoder.jp/contests/ahc010/tasks/ahc010_a",
+  "description": "30\\times 30 マスに並んだ線路タイルが与えられる。 タイルは回転したものを区別すると8種類あり、以下のように番号付ける。",
+  "editorials": [
+    {
+      "title": "解説",
+      "url": "https://atcoder.jp/contests/ahc010/editorial/3885",
+      "rank": null
+    }
+  ]
+}

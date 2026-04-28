@@ -1,0 +1,40 @@
+{
+  "id": "AHC015",
+  "title": "TOYOTA MOTOR CORPORATION Programming Contest 2022 (AtCoder Heuristic Contest 015)",
+  "date": "2022-10-30",
+  "startDate": "2022-10-30T15:00:00+09:00",
+  "endDate": "2022-10-30T19:00:00+09:00",
+  "durationMinutes": 240,
+  "durationText": "4時間",
+  "rank": 417,
+  "score": null,
+  "performance": 1196,
+  "tags": [
+    "短期"
+  ],
+  "visualizer": null,
+  "problemUrl": "https://atcoder.jp/contests/ahc015/tasks/ahc015_a",
+  "description": "格子状に 10\\times 10 個のキャンディーが入る箱がある。 箱は初期状態では空であり、100 個のキャンディーを順番に入れていく。 キャンディーは全部で 3 種類の味があり、事前に t 番目に受け取るキャンディーの味の種類 f_t (1\\leq f_t\\leq 3) が分かっている。 一方で、どの位置に入るかは事前には分からず、空いているマスの中から一様ランダムに選ばれる。 キャンディーを受け取る順番は固定で、変更することは出来ない。",
+  "editorials": [
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Feijirou-kyopro.hatenablog.com%2Fentry%2F2022%2F11%2F03%2F172820%3F_ga%3D2.150583857.685130743.1667373871-1742515623.1634302507",
+      "rank": 1
+    },
+    {
+      "title": "プレイアウトを使ったモンテカルロ法による3位解法の解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fymatsux-cp-ja.blogspot.com%2F2022%2F11%2Fahc015-3.html",
+      "rank": 3
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fgobi-tk.hatenablog.com%2Fentry%2F2022%2F11%2F01%2F230158",
+      "rank": 17
+    },
+    {
+      "title": "AHC典型解法シリーズ第1弾",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Fthun-c%2Fitems%2F8e7ae0249f1907854763",
+      "rank": null
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "id": "AHC011",
+  "title": "AtCoder Heuristic Contest 011",
+  "date": "2022-06-05",
+  "startDate": "2022-05-28T12:00:00+09:00",
+  "endDate": "2022-06-05T19:00:00+09:00",
+  "durationMinutes": 11940,
+  "durationText": "8日7時間",
+  "rank": 231,
+  "score": null,
+  "performance": 1554,
+  "tags": [
+    "長期"
+  ],
+  "visualizer": null,
+  "problemUrl": "https://atcoder.jp/contests/ahc011/tasks/ahc011_a",
+  "description": "N \\times N の盤面上に N^2-1 枚のタイルが配置されている。 上から i 行目 (0\\leq i \\leq N-1)、左から j 列目 (0\\leq j\\leq N-1) の座標を (i, j) とする。 各タイルは中心から上下左右の4方向のうち1つ以上の方向に向かって線が伸びた図形が描かれており、左方向を1、上方向を2、右方向を4、下方向を8としたビットマスクを用いて以下のように表現される。",
+  "editorials": [
+    {
+      "title": "解説",
+      "url": "https://atcoder.jp/contests/ahc011/editorial/4093",
+      "rank": null
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fsimanman.hatenablog.com%2Fentry%2F2022%2F06%2F06%2F210815",
+      "rank": 3
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fmtsd-programming.hatenablog.com%2Fentry%2F2022%2F06%2F12%2F190000",
+      "rank": 6
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.terry-u16.net%2Fentry%2Fahc011",
+      "rank": 13
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fassy.hatenablog.jp%2Fentry%2F2022%2F06%2F07%2F200218",
+      "rank": 20
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fks2m.hatenablog.com%2Fentry%2F2022%2F06%2F06%2F234343",
+      "rank": 65
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2022%2F06%2F05%2F190049",
+      "rank": 282
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "id": "AHC007",
+  "title": "THIRD PROGRAMMING CONTEST 2021 (AtCoder Heuristic Contest 007)",
+  "date": "2021-12-12",
+  "startDate": "2021-12-12T16:00:00+09:00",
+  "endDate": "2021-12-12T20:00:00+09:00",
+  "durationMinutes": 240,
+  "durationText": "4時間",
+  "rank": 613,
+  "score": null,
+  "performance": 126,
+  "tags": [
+    "短期"
+  ],
+  "visualizer": null,
+  "problemUrl": "https://atcoder.jp/contests/ahc007/tasks/ahc007_a",
+  "description": "頂点数が N、辺の数が M の無向グラフが与えられる。 各頂点は二次元平面上にあり、i 番目の頂点の座標は (x_i, y_i) である。 i 番目の辺は頂点 u_i と v_i を結び、その長さ l_i は、端点の間のユークリッド距離を整数に四捨五入したものを d_i=\\mathrm{round}(\\sqrt{(x_{u_i}-x_{v_i})^2+(y_{u_i}-y_{v_i})^2}) とすると、 d_i \\leq l_i \\leq 3 d_i を満たすことが事前に分かっている。",
+  "editorials": [
+    {
+      "title": "ユーザー解説へのリンク",
+      "url": "https://atcoder.jp/contests/ahc007/editorial/3098",
+      "rank": null
+    },
+    {
+      "title": "解説",
+      "url": "https://atcoder.jp/contests/ahc007/editorial/3099",
+      "rank": null
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.terry-u16.net%2Fentry%2Fahc007-explanation",
+      "rank": 22
+    }
+  ]
+}

@@ -1,0 +1,105 @@
+{
+  "id": "AHC017",
+  "title": "THIRD PROGRAMMING CONTEST 2022 (AtCoder Heuristic Contest 017)",
+  "date": "2023-02-05",
+  "startDate": "2023-01-28T12:00:00+09:00",
+  "endDate": "2023-02-05T20:00:00+09:00",
+  "durationMinutes": 12000,
+  "durationText": "8日8時間",
+  "rank": 139,
+  "score": null,
+  "performance": 1868,
+  "tags": [
+    "長期"
+  ],
+  "visualizer": null,
+  "problemUrl": "https://atcoder.jp/contests/ahc017/tasks/ahc017_a",
+  "description": "辺に重みの付いた N 頂点の無向平面グラフが与えられるので、D 日間で各辺をちょうど1回ずつ工事したい。 各辺の工事は 1 日で完了し、同じ日に最大で K 本の辺を同時に工事することが出来る。",
+  "editorials": [
+    {
+      "title": "解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DQivpbaQ1I1g",
+      "rank": null
+    },
+    {
+      "title": "スコア計算完全放棄！AHC017お手軽解法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Ffujikawa.hatenablog.com%2Fentry%2F2023%2F02%2F08%2F002856",
+      "rank": 194
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fbowwowforeach.hatenablog.com%2Fentry%2F2023%2F02%2F09%2F210819%3F_ga%3D2.40887968.324017556.1675935975-1509622582.1661469029",
+      "rank": 1
+    },
+    {
+      "title": "Lorem Ipsum",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fgithub.com%2FFakePsyho%2Fcpcontests%2Fblob%2Fmaster%2Fatcoder%2Fahc017%2Fapproach.md",
+      "rank": 2
+    },
+    {
+      "title": "My approach",
+      "url": "https://atcoder.jp/contests/ahc017/editorial/5690",
+      "rank": 3
+    },
+    {
+      "title": "20位以内のスコアを出すシンプルな解法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fnote.com%2Fymatsux%2Fn%2Fn74ced714fe20",
+      "rank": 7
+    },
+    {
+      "title": "16th Place: Post mortem",
+      "url": "https://atcoder.jp/contests/ahc017/editorial/5689",
+      "rank": 16
+    },
+    {
+      "title": "解法の簡単な説明とコンテスト期間中の取り組みについて",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fozy4dm.hateblo.jp%2Fentry%2F2023%2F02%2F07%2F071538",
+      "rank": 50
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/contests/ahc017/editorial/5704",
+      "rank": 59
+    },
+    {
+      "title": "THIRD プログラミングコンテスト 2022 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkusano-k.hatenablog.com%2Fentry%2F2023%2F02%2F06%2F014924",
+      "rank": 65
+    },
+    {
+      "title": "AHC017参加記~PyPyによる解法~",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fpy2k4.hatenablog.com%2Fentry%2F2023%2F02%2F08%2F005930",
+      "rank": 126
+    },
+    {
+      "title": "AHC017参加記録",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fhudeha.hatenablog.com%2Fentry%2F2023%2F02%2F07%2F195038%3F_ga%3D2.146847998.855471447.1675670945-243697783.1666169067",
+      "rank": 147
+    },
+    {
+      "title": "THIRDプログラミングコンテスト2022(AHC017)参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fstarpentagon.net%2Fanalytics%2Fahc017%2F",
+      "rank": 165
+    },
+    {
+      "title": "最適輸送問題への変換による解法、と感想（動画）",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fyoutube.com%2Flive%2F38zWv3uPOXM%3Ffeature%3Dshare",
+      "rank": 187
+    },
+    {
+      "title": "AHC017参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Fhiro1729%2Fitems%2F09fa8b1abc0e72ac3170",
+      "rank": 243
+    },
+    {
+      "title": "AHC017参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fberry-kyopro.hatenablog.com%2Fentry%2Fahc017",
+      "rank": 260
+    },
+    {
+      "title": "THIRD プロコン 2022 （AHC017)参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2023%2F02%2F05%2F200031",
+      "rank": 404
+    }
+  ]
+}

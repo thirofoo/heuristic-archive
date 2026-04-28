@@ -1,0 +1,75 @@
+{
+  "id": "AHC014",
+  "title": "estie Programming Contest 2022 (AtCoder Heuristic Contest 014)",
+  "date": "2022-10-01",
+  "startDate": "2022-09-17T15:00:00+09:00",
+  "endDate": "2022-10-01T19:00:00+09:00",
+  "durationMinutes": 20400,
+  "durationText": "14日4時間",
+  "rank": 91,
+  "score": null,
+  "performance": 1914,
+  "tags": [
+    "長期"
+  ],
+  "visualizer": null,
+  "problemUrl": "https://atcoder.jp/contests/ahc014/tasks/ahc014_a",
+  "description": "RectJoin は正方形の方眼紙と鉛筆を使って遊ぶ以下のような一人プレイゲームである。",
+  "editorials": [
+    {
+      "title": "解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fyoutu.be%2FeddDPITjzDc",
+      "rank": null
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fbowwowforeach.hatenablog.com%2Fentry%2F2022%2F10%2F03%2F221631%3F_ga%3D2.146070644.1334717408.1664750310-1509622582.1661469029",
+      "rank": 1
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fpenguin46.hatenablog.com%2Fentry%2F2022%2F10%2F01%2F191428",
+      "rank": 9
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Feijirou-kyopro.hatenablog.com%2Fentry%2F2022%2F10%2F02%2F184706%3F_ga%3D2.185527467.380618659.1664682624-1742515623.1634302507",
+      "rank": 10
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Farimatti.hatenadiary.com%2Fentry%2F2022%2F10%2F15%2F160042",
+      "rank": 21
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Fhari64%2Fitems%2F35002bf391deb0942e0b",
+      "rank": 24
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fdn154.hatenadiary.com%2Fentry%2F2022%2F11%2F10%2F235356",
+      "rank": 34
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Ftoast-uz%2Fitems%2F39ed10404f14123c6ee2",
+      "rank": 64
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fmakibishi.ninja%2Fahc014%2F",
+      "rank": 67
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fstarpentagon.net%2Fanalytics%2Fahc014%2F",
+      "rank": 84
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2022%2F10%2F01%2F190044%2520",
+      "rank": 369
+    }
+  ]
+}

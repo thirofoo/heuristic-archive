@@ -1,0 +1,130 @@
+{
+  "id": "AHC013",
+  "title": "RECRUIT Nihonbashi Half Marathon 2022 Summer (AHC013)",
+  "date": "2022-08-16",
+  "startDate": "2022-08-09T21:00:00+09:00",
+  "endDate": "2022-08-16T21:00:00+09:00",
+  "durationMinutes": 10080,
+  "durationText": "7日",
+  "rank": 96,
+  "score": null,
+  "performance": 1906,
+  "tags": [
+    "長期"
+  ],
+  "visualizer": null,
+  "problemUrl": "https://atcoder.jp/contests/ahc013/tasks/ahc013_a",
+  "description": "株式会社リクルートには N 行 N 列のグリッドで表されるサーバ室があります。 サーバ室の上から i 行目（ 0 \\leq i \\lt N ）、左から j 列目（ 0 \\leq j \\lt N ）のセルを (i, j) と表します。 各セルには、コンピュータを最大1個まで置くことができます。 また、サーバ室には K 種類のコンピュータが 100 個ずつあります。 既に 100 \\times K 個のコンピュータが 100 \\times K 個のセルに置かれていて、残りの N^2 - 100 \\times K 個のセルには何も置かれていません。",
+  "editorials": [
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fbowwowforeach.hatenablog.com%2Fentry%2F2022%2F08%2F18%2F205537%3F_ga%3D2.89825881.310502845.1660691221-2017915354.1639952297",
+      "rank": 1
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Fgmeriaog%2Farticles%2F7fb9bbdd84d2c0",
+      "rank": 4
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/contests/ahc013/editorial/4617",
+      "rank": 5
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fiwashi31.hatenablog.com%2Fentry%2F2022%2F08%2F17%2F000241",
+      "rank": 6
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fyunix-kyopro.hatenablog.com%2Fentry%2F2022%2F08%2F17%2F135701",
+      "rank": 8
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fphyllo-algo.hatenablog.com%2Fentry%2F2022%2F08%2F20%2F003758",
+      "rank": 16
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.terry-u16.net%2Fentry%2Fahc013",
+      "rank": 18
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fxyz600.hatenablog.com%2Fentry%2F2022%2F08%2F21%2F103333",
+      "rank": 19
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Ftanaka-a%2Fitems%2Fbafba33cda8f4c6bde24",
+      "rank": 27
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fks2m.hatenablog.com%2Fentry%2F2022%2F08%2F21%2F151236",
+      "rank": 31
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fgist.github.com%2Fmanta1130%2F977ae93343116c4f80db1e17d4fa97c5%23file-recruit-2022-atcoder-heuristic-contest-013-md",
+      "rank": 34
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Ftoriidao.hateblo.jp%2Fentry%2F2022%2F08%2F17%2F184337",
+      "rank": 37
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkiri8128.hatenablog.com%2Fentry%2F2022%2F08%2F16%2F215727",
+      "rank": 70
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fmakibishi.ninja%2Fahc013%2F",
+      "rank": 104
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fscrapbox.io%2Fallegro-procon%2FRECRUIT_%25E6%2597%25A5%25E6%259C%25AC%25E6%25A9%258B%25E3%2583%258F%25E3%2583%25BC%25E3%2583%2595%25E3%2583%259E%25E3%2583%25A9%25E3%2582%25BD%25E3%2583%25B3_2022%25E5%25A4%258F%25EF%25BC%2588AtCoder_Heuristic_Contest_013%25EF%25BC%2589",
+      "rank": 121
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Fhotpepsi%2Fitems%2F05aef3830137d3fddf9c",
+      "rank": 129
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fstarpentagon.net%2Fanalytics%2Fahc013%2F",
+      "rank": 136
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkusano-k.hatenablog.com%2Fentry%2F2022%2F08%2F17%2F015848",
+      "rank": 165
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fdn154.hatenadiary.com%2Fentry%2F2022%2F09%2F16%2F210734",
+      "rank": 169
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Ffujikawa.hatenablog.com%2Fentry%2F2022%2F08%2F18%2F051533",
+      "rank": 200
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fhirakuma99.hatenablog.com%2Fentry%2F2022%2F08%2F20%2F163950",
+      "rank": 218
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2022%2F08%2F16%2F210130%2520",
+      "rank": 357
+    }
+  ]
+}

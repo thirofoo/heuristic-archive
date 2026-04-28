@@ -1,0 +1,90 @@
+{
+  "id": "AHC048",
+  "title": "MC Digital Programming Contest 2025 (AtCoder Heuristic Contest 048)",
+  "date": "2025-06-09",
+  "startDate": "2025-05-30T19:00:00+09:00",
+  "endDate": "2025-06-09T19:00:00+09:00",
+  "durationMinutes": 14400,
+  "durationText": "10日",
+  "rank": 48,
+  "score": null,
+  "performance": 2346,
+  "tags": [
+    "長期"
+  ],
+  "visualizer": null,
+  "problemUrl": "https://atcoder.jp/contests/ahc048/tasks/ahc048_a",
+  "description": "絵の具の色は、シアン (C)、マゼンタ (M)、イエロー (Y) からなる三次元ベクトル (C, M, Y) で表される。 ここで、0 \\leq C, M, Y \\leq 1 である。 色 p_1 = (C_1, M_1, Y_1) の絵の具を v_1 グラム、色 p_2 = (C_2, M_2, Y_2) の絵の具を v_2 グラム混ぜると、色 \\frac{v_1 \\cdot p_1 + v_2 \\cdot p_2}{v_1 + v_2} の絵の具が v_1 + v_2 グラム得られる。",
+  "editorials": [
+    {
+      "title": "詳細順位表",
+      "url": "https://img.atcoder.jp/ahc_standings/index.html?contest=ahc048",
+      "rank": null
+    },
+    {
+      "title": "AHCラジオ",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Flive%2Fh8k7f1Dbvao",
+      "rank": null
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.terry-u16.net%2Fentry%2Fahc048",
+      "rank": 5
+    },
+    {
+      "title": "AHC048参加記（プレテスト24位）",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fnanoseeing.hatenablog.com%2Fentry%2F2025%2F06%2F10%2F235533",
+      "rank": 26
+    },
+    {
+      "title": "AHC048参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Futac.hateblo.jp%2Fentry%2F2025%2F06%2F09%2F231417",
+      "rank": 42
+    },
+    {
+      "title": "AHC048参加記。順位の割に何もしてないです。",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.wantedly.com%2Fcompanies%2Flearningbox%2Fpost_articles%2F983226",
+      "rank": 52
+    },
+    {
+      "title": "AHC048参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fvvani07.hatenadiary.org%2Fentry%2F2025%2F06%2F10%2F204037",
+      "rank": 78
+    },
+    {
+      "title": "AHC048 解法",
+      "url": "https://atcoder.jp/contests/ahc048/editorial/13295",
+      "rank": 92
+    },
+    {
+      "title": "MC Digital プロコン2025（AHC048）参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2025%2F06%2F09%2F202655",
+      "rank": 106
+    },
+    {
+      "title": "AHC048参加記（プレテスト147位）",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fnote.com%2Fshira_111%2Fn%2Fn9cefa5c9a158",
+      "rank": 133
+    },
+    {
+      "title": "AHC048参加記兼メモ",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fmanybear.hatenablog.com%2Fentry%2F2025%2F06%2F09%2F200738",
+      "rank": 163
+    },
+    {
+      "title": "AHC048参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fnote.com%2Fglass_256%2Fn%2Fn38be87e6b1d3",
+      "rank": 170
+    },
+    {
+      "title": "AHC048 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.notion.so%2FAHC048-210e9303edfe80bfb5fedd7ac30fc3ae",
+      "rank": 185
+    },
+    {
+      "title": "参加記 (プレテスト211位)",
+      "url": "https://atcoder.jp/contests/ahc048/editorial/13266",
+      "rank": 262
+    }
+  ]
+}

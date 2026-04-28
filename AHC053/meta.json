@@ -1,0 +1,70 @@
+{
+  "id": "AHC053",
+  "title": "12th Asprova Programming Contest (AtCoder Heuristic Contest 053)",
+  "date": "2025-09-13",
+  "startDate": "2025-09-13T19:00:00+09:00",
+  "endDate": "2025-09-13T23:00:00+09:00",
+  "durationMinutes": 240,
+  "durationText": "4時間",
+  "rank": 126,
+  "score": null,
+  "performance": 1986,
+  "tags": [
+    "短期"
+  ],
+  "visualizer": null,
+  "problemUrl": "https://atcoder.jp/contests/ahc053/tasks/ahc053_a",
+  "description": "N 枚の何も書かれていないカードと、L 以上 U 以下の整数値を一様ランダムかつ独立に M 個生成する乱数生成器がある。",
+  "editorials": [
+    {
+      "title": "AHCラジオ",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Flive%2FDiIGEzx8wgo",
+      "rank": null
+    },
+    {
+      "title": "AHC053解説スライド(kozima)",
+      "url": "https://img.atcoder.jp/ahc053/bfe4019f6f59063cba6ed9e04052ab4b.pdf",
+      "rank": null
+    },
+    {
+      "title": "満点解法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fyosupo.hatenablog.com%2Fentry%2F2025%2F09%2F15%2F213945",
+      "rank": 1
+    },
+    {
+      "title": "参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Fbinap%2Fitems%2F5ee61c1b87b78f9cb96c",
+      "rank": 5
+    },
+    {
+      "title": "riverwalk3 Solution",
+      "url": "https://atcoder.jp/contests/ahc053/editorial/13861",
+      "rank": 6
+    },
+    {
+      "title": "貪欲法による本番 8 位解法",
+      "url": "https://atcoder.jp/contests/ahc053/editorial/13877",
+      "rank": 8
+    },
+    {
+      "title": "AHC053解法紹介",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fyuudot.hatenablog.com%2Fentry%2F2025%2F09%2F16%2F181100",
+      "rank": 45
+    },
+    {
+      "title": "AHC 053",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fgianhancock.com%2Fposts%2Fatcoder-random-sum-game%2F",
+      "rank": 153
+    },
+    {
+      "title": "AHC053 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Ftamref%2Farticles%2F8d3563901b6f79",
+      "rank": 358
+    },
+    {
+      "title": "AHC053参加時と復習の記録",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2025%2F09%2F17%2F072423",
+      "rank": 647
+    }
+  ]
+}

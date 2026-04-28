@@ -27,11 +27,77 @@ CONTEST_DATA = {
         "rank": None,
         "performance": None,
     },
+    "AHC007": {
+        "title": "THIRD PROGRAMMING CONTEST 2021 (AtCoder Heuristic Contest 007)",
+        "date": "2021-12-12",
+        "rank": 613,
+        "performance": 126,
+    },
     "AHC008": {
         "title": "MC Digital Programming Contest 2022 (AtCoder Heuristic Contest 008)",
         "date": "2022-02-26",
         "rank": 159,
         "performance": 1680,
+    },
+    "AHC009": {
+        "title": "Monoxer Programming Contest 2022 (AtCoder Heuristic Contest 009)",
+        "date": "2022-03-26",
+        "rank": 420,
+        "performance": 1178,
+    },
+    "AHC010": {
+        "title": "ALGO ARTIS Programming Contest 2022 (AtCoder Heuristic Contest 010)",
+        "date": "2022-04-24",
+        "rank": 264,
+        "performance": 1396,
+    },
+    "AHC011": {
+        "title": "AtCoder Heuristic Contest 011",
+        "date": "2022-06-05",
+        "rank": 231,
+        "performance": 1554,
+    },
+    "AHC012": {
+        "title": "AtCoder Heuristic Contest 012",
+        "date": "2022-07-03",
+        "rank": 257,
+        "performance": 1471,
+    },
+    "AHC013": {
+        "title": "RECRUIT Nihonbashi Half Marathon 2022 Summer (AHC013)",
+        "date": "2022-08-16",
+        "rank": 96,
+        "performance": 1906,
+    },
+    "AHC014": {
+        "title": "estie Programming Contest 2022 (AtCoder Heuristic Contest 014)",
+        "date": "2022-10-01",
+        "rank": 91,
+        "performance": 1914,
+    },
+    "AHC015": {
+        "title": "TOYOTA MOTOR CORPORATION Programming Contest 2022 (AtCoder Heuristic Contest 015)",
+        "date": "2022-10-30",
+        "rank": 417,
+        "performance": 1196,
+    },
+    "AHC016": {
+        "title": "HACK TO THE FUTURE 2023 qual (AtCoder Heuristic Contest 016)",
+        "date": "2022-11-20",
+        "rank": 230,
+        "performance": 1652,
+    },
+    "AHC017": {
+        "title": "THIRD PROGRAMMING CONTEST 2022 (AtCoder Heuristic Contest 017)",
+        "date": "2023-02-05",
+        "rank": 139,
+        "performance": 1868,
+    },
+    "AHC018": {
+        "title": "RECRUIT Nihonbashi Half Marathon 2023 Winter (AtCoder Heuristic Contest 018)",
+        "date": "2023-02-26",
+        "rank": 137,
+        "performance": 1912,
     },
     "AHC019": {
         "title": "MC Digital Programming Contest 2023 (AtCoder Heuristic Contest 019)",
@@ -178,17 +244,41 @@ CONTEST_DATA = {
         "rank": None,
         "performance": None,
     },
+    "AHC043": {
+        "title": "RECRUIT Nihonbashi Half Marathon 2025 Winter (AtCoder Heuristic Contest 043)",
+        "date": "2025-02-24",
+        "rank": 135,
+        "performance": 1951,
+    },
     "AHC045": {
         "title": "THIRD Programming Contest 2025 (AtCoder Heuristic Contest 045)",
         "date": "2025-04-07",
         "rank": 106,
         "performance": 2033,
     },
+    "AHC047": {
+        "title": "Toyota Programming Contest 2025#2 (AtCoder Heuristic Contest 047)",
+        "date": "2025-05-18",
+        "rank": 258,
+        "performance": 1684,
+    },
+    "AHC048": {
+        "title": "MC Digital Programming Contest 2025 (AtCoder Heuristic Contest 048)",
+        "date": "2025-06-09",
+        "rank": 48,
+        "performance": 2346,
+    },
     "AHC049": {
         "title": "Toyota Programming Contest 2025#3 (AtCoder Heuristic Contest 049)",
         "date": "2025-06-21",
         "rank": 415,
         "performance": 1376,
+    },
+    "AHC050": {
+        "title": "AtCoder Heuristic Contest 050",
+        "date": "2025-07-06",
+        "rank": 46,
+        "performance": 2374,
     },
     "AHC051": {
         "title": "THIRD Programming Contest 2025 Summer (AtCoder Heuristic Contest 051)",
@@ -201,6 +291,12 @@ CONTEST_DATA = {
         "date": "2025-08-23",
         "rank": 776,
         "performance": None,
+    },
+    "AHC053": {
+        "title": "12th Asprova Programming Contest (AtCoder Heuristic Contest 053)",
+        "date": "2025-09-13",
+        "rank": 126,
+        "performance": 1986,
     },
     "AHC054": {
         "title": "ALGO ARTIS Programming Contest 2025 Summer (AtCoder Heuristic Contest 054)",
@@ -533,6 +629,20 @@ def order_meta(meta: dict) -> dict:
     return ordered
 
 
+def should_materialize_dir(dir_name: str, data: dict, existing_dirs: set[str]) -> bool:
+    return dir_name in existing_dirs or data.get("rank") is not None
+
+
+def ensure_placeholder_src(dir_path: str) -> None:
+    src_path = os.path.join(dir_path, "src")
+    gitkeep_path = os.path.join(src_path, ".gitkeep")
+    if os.path.exists(src_path):
+        return
+    os.makedirs(src_path, exist_ok=True)
+    with open(gitkeep_path, "w", encoding="utf-8"):
+        pass
+
+
 def fetch_schedule(contest_url: str) -> dict:
     request = urllib.request.Request(
         contest_url,
@@ -665,15 +775,21 @@ def main():
     args = parser.parse_args()
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
+    existing_dirs = {
+        dir_name
+        for dir_name in os.listdir(script_dir)
+        if os.path.isdir(os.path.join(script_dir, dir_name)) and not dir_name.startswith(".")
+    }
 
-    for dir_name in sorted(os.listdir(script_dir)):
+    for dir_name, data in sorted(CONTEST_DATA.items()):
         dir_path = os.path.join(script_dir, dir_name)
-        if not os.path.isdir(dir_path) or dir_name.startswith("."):
-            continue
-        if dir_name not in CONTEST_DATA:
+        if not should_materialize_dir(dir_name, data, existing_dirs):
             continue
 
-        data = CONTEST_DATA[dir_name]
+        os.makedirs(dir_path, exist_ok=True)
+        if data.get("rank") is not None:
+            ensure_placeholder_src(dir_path)
+
         meta = generate_meta(dir_name, data)
         meta_path = os.path.join(dir_path, "meta.json")
 

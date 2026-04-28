@@ -1,0 +1,135 @@
+{
+  "id": "AHC018",
+  "title": "RECRUIT Nihonbashi Half Marathon 2023 Winter (AtCoder Heuristic Contest 018)",
+  "date": "2023-02-26",
+  "startDate": "2023-02-18T12:00:00+09:00",
+  "endDate": "2023-02-26T19:00:00+09:00",
+  "durationMinutes": 11940,
+  "durationText": "8日7時間",
+  "rank": 137,
+  "score": null,
+  "performance": 1912,
+  "tags": [
+    "長期"
+  ],
+  "visualizer": null,
+  "problemUrl": "https://atcoder.jp/contests/ahc018/tasks/ahc018_a",
+  "description": "N 行 N 列のグリッドで表される土地があります。 グリッドのうち W 箇所に水源があり、 K 箇所に家があります。 土地の上から i 行目（ 0 \\leq i \\lt N ）、左から j 列目（ 0 \\leq j \\lt N ）のセルを (i, j) と表すことにします。 各セル (i, j) の岩盤には、10 以上 5000 以下の整数で表される 頑丈さ S_{i,j} が予め設定されていますが、これらの値は入力では与えられません。",
+  "editorials": [
+    {
+      "title": "解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DKoAjmMkDLgw",
+      "rank": null
+    },
+    {
+      "title": "1位解法(Psyho氏の解法)解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Fthun-c%2Fitems%2F11af0980cc938dc28d3b",
+      "rank": 139
+    },
+    {
+      "title": "Lorem Ipsum",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fgithub.com%2FFakePsyho%2Fcpcontests%2Fblob%2Fmaster%2Fatcoder%2Fahc018%2Fapproach.md",
+      "rank": 1
+    },
+    {
+      "title": "モンテカルロ法を用いた解法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Fgmeriaog%2Farticles%2F880af6fb3728b5",
+      "rank": 3
+    },
+    {
+      "title": "6th place solution",
+      "url": "https://atcoder.jp/contests/ahc018/editorial/5883",
+      "rank": 6
+    },
+    {
+      "title": "ガウス過程回帰による解法（ガウス過程回帰の解説を中心に）",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fdocs.google.com%2Fpresentation%2Fd%2F1JEcyHLw8XrDqL4FHUGYIVQC63KSZ2eaHRjO0E2y1WeU%2Fedit",
+      "rank": 7
+    },
+    {
+      "title": "グリッド上で最小全域木",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkiri8128.hatenablog.com%2Fentry%2F2023%2F02%2F26%2F192733",
+      "rank": 13
+    },
+    {
+      "title": "暫定10位解法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Ftoast-uz%2Fitems%2Fa71bcfbe721aba18c8fb",
+      "rank": 16
+    },
+    {
+      "title": "【Postmortem】AHC018",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fmontplusa.hatenablog.com%2Fentry%2F2023%2F03%2F04%2F004000",
+      "rank": 23
+    },
+    {
+      "title": "ガウス過程回帰を用いた解法（おまけにCNN解法もあります）",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.terry-u16.net%2Fentry%2Fahc018",
+      "rank": 36
+    },
+    {
+      "title": "AHC018参加記（統計、集計分析多め解法）",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fstarpentagon.net%2Fanalytics%2Fahc018%2F",
+      "rank": 37
+    },
+    {
+      "title": "AHC018参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Ftus_yuuki%2Fitems%2F34af146f2980680b7843",
+      "rank": 64
+    },
+    {
+      "title": "ほぼダイクストラ法でなんとかする方法、と感想（動画）",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fyoutube.com%2Flive%2F3KPmfDVTxRQ%3Ffeature%3Dshare",
+      "rank": 89
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/contests/ahc018/editorial/5934",
+      "rank": 105
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkusano-k.hatenablog.com%2Fentry%2F2023%2F03%2F02%2F025046",
+      "rank": 117
+    },
+    {
+      "title": "AHC018 参加記 (グリッドサンプリング+ダイクストラ解法)",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fa01sa01to.com%2Farticles%2F2023%2F02%2Fahc018%2F",
+      "rank": 135
+    },
+    {
+      "title": "グリッドサンプリング、MST、shやpythonの周辺テク",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fperogram.hateblo.jp%2Fentry%2F2023%2F02%2F28%2F231315",
+      "rank": 173
+    },
+    {
+      "title": "【最終提出編】AHC018参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fajinoko33.hatenablog.com%2Fentry%2F2023%2F02%2F28%2F174959",
+      "rank": 188
+    },
+    {
+      "title": "AHC018参加記録",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fhudeha.hatenablog.com%2Fentry%2F2023%2F02%2F27%2F220506",
+      "rank": 192
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fgobi-tk.hatenablog.com%2Fentry%2F2023%2F03%2F07%2F232019",
+      "rank": 229
+    },
+    {
+      "title": "AHC018 366位振り返り(ダイクストラ法など)",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2F13thmiko%2Fitems%2F76a6a084fb8715499390",
+      "rank": 366
+    },
+    {
+      "title": "RECRUIT日本橋ハーフマラソン2023冬AHC018)参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2023%2F02%2F26%2F190051",
+      "rank": 437
+    },
+    {
+      "title": "頑丈さがわかっているときに厳密解を求める方法",
+      "url": "https://atcoder.jp/contests/ahc018/editorial/5899",
+      "rank": 469
+    }
+  ]
+}

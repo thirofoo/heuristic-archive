@@ -1,0 +1,140 @@
+{
+  "id": "AHC043",
+  "title": "RECRUIT Nihonbashi Half Marathon 2025 Winter (AtCoder Heuristic Contest 043)",
+  "date": "2025-02-24",
+  "startDate": "2025-02-14T19:00:00+09:00",
+  "endDate": "2025-02-24T19:00:00+09:00",
+  "durationMinutes": 14400,
+  "durationText": "10日",
+  "rank": 135,
+  "score": null,
+  "performance": 1951,
+  "tags": [
+    "長期"
+  ],
+  "visualizer": null,
+  "problemUrl": "https://atcoder.jp/contests/ahc043/tasks/ahc043_a",
+  "description": "R国は N 行 N 列のグリッド状に分けられた区画からなる。上から i 行目 (0 \\le i < N)、左から j 列目 (0 \\le j < N) の区画を (i,j) とする。各区画は更地、線路、駅のいずれかである: 更地 他の区画と接続しない。 コストを払うことで、駅または線路を建設することができる。 線路 上下左右の更地でない区画のうち、最大2つの区画と接続する。線路は接続先に応じて6種類あり、以下の図のように番号付けられる。 コストを払うことで、駅に置き換えることができる。 駅 上下左右の最大4つの更地でない区画と接続する。",
+  "editorials": [
+    {
+      "title": "AHCラジオ",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Flive%2F7oJehEY5cJE",
+      "rank": null
+    },
+    {
+      "title": "詳細順位表",
+      "url": "https://img.atcoder.jp/ahc_standings/index.html?contest=ahc043",
+      "rank": null
+    },
+    {
+      "title": "AHCラジオで使用したスライド",
+      "url": "https://img.atcoder.jp/ahc043/AHC043.pdf",
+      "rank": null
+    },
+    {
+      "title": "AHC043 参加記 & 1位解法解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fblog.oimo.io%2F2025%2F03%2F02%2Fahc043%2F",
+      "rank": 1
+    },
+    {
+      "title": "Solution of Railway Station",
+      "url": "https://atcoder.jp/contests/ahc043/editorial/12302",
+      "rank": 2
+    },
+    {
+      "title": "延長戦一位解法の解説",
+      "url": "https://atcoder.jp/contests/ahc043/editorial/12355",
+      "rank": 4
+    },
+    {
+      "title": "【Postmortem】AHC043",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fmontplusa.hatenablog.com%2Fentry%2F2025%2F02%2F27%2F231300",
+      "rank": 6
+    },
+    {
+      "title": "AHC043参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fang107.hatenablog.jp%2Fentry%2F2025%2F02%2F28%2F190322",
+      "rank": 19
+    },
+    {
+      "title": "AHC043参加記 ビームサーチの幅調整方法について",
+      "url": "https://atcoder.jp/contests/ahc043/editorial/12356",
+      "rank": 24
+    },
+    {
+      "title": "AHC043参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Futac.hateblo.jp%2Fentry%2F2025%2F02%2F24%2F221558",
+      "rank": 61
+    },
+    {
+      "title": "AHC043参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fvvani07.hatenadiary.org%2Fentry%2F2025%2F02%2F26%2F010226",
+      "rank": 65
+    },
+    {
+      "title": "AHC043参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fnote.com%2Ftakahashi_daichi%2Fn%2Fn16fb06530b0e",
+      "rank": 85
+    },
+    {
+      "title": "AHC043参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fgobi-tk.hatenablog.com%2Fentry%2F2025%2F02%2F28%2F005914",
+      "rank": 109
+    },
+    {
+      "title": "AHC043 解法解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Ferbowl%2Farticles%2Fde489ab305a2db",
+      "rank": 119
+    },
+    {
+      "title": "AHC043参加記(初ビームサーチ)",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkirbysweet.hatenablog.jp%2Fentry%2F2025%2F02%2F26%2F195018",
+      "rank": 190
+    },
+    {
+      "title": "AHC043解法解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fyuudot.hatenablog.com%2Fentry%2F2025%2F02%2F25%2F113421%3F_gl%3D1%2A19rkc7o%2A_gcl_au%2AMzUzNDE3NzcxLjE3NDA0NDQ4Nzk.",
+      "rank": 205
+    },
+    {
+      "title": "AHC043参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkanki2rui.hatenablog.jp%2Fentry%2F2025%2F03%2F07%2FAHC043%25E5%258F%2582%25E5%258A%25A0%25E8%25A8%2598_212%25E4%25BD%258D",
+      "rank": 212
+    },
+    {
+      "title": "AHC043参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fordinary-mole-e75.notion.site%2FAHC043-19eb59d7cb95801786fbeefe82f9f74c",
+      "rank": 217
+    },
+    {
+      "title": "AHC043参加記：事前計算と貪欲法で頑張って戦う",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Ftori_rakko%2Farticles%2F1aaa99f26b53c5",
+      "rank": 258
+    },
+    {
+      "title": "AHC043参加記録",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fcrackerlol.com%2F2025%2F02%2F24%2Fahc043kyopuro%2F",
+      "rank": 299
+    },
+    {
+      "title": "AHC043に参加しました",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Feycjur%2Fitems%2F67bc6b3887a56aa9a5cf",
+      "rank": 307
+    },
+    {
+      "title": "AHC043 解法解説",
+      "url": "https://atcoder.jp/contests/ahc043/editorial/12346",
+      "rank": 340
+    },
+    {
+      "title": "AHC043参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkfrom40.hatenablog.com%2Fentry%2F2025%2F02%2F24%2F231356",
+      "rank": 369
+    },
+    {
+      "title": "RECRUIT 日本橋ハーフマラソン 2025冬参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2025%2F02%2F24%2F190210",
+      "rank": 388
+    }
+  ]
+}
