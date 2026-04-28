@@ -8,5 +8,52 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc039/tasks/ahc039_a",
-  "description": "二次元平面上に N 匹のサバと N 匹のイワシがいる。 以下の条件を満たす多角形を構築し、その内側に含まれるサバの総数から内側に含まれるイワシの総数を引いた値を最大化せよ。 なお、多角形の辺上に存在する点は全て多角形の内側に含まれるものとみなす。"
+  "description": "二次元平面上に N 匹のサバと N 匹のイワシがいる。 以下の条件を満たす多角形を構築し、その内側に含まれるサバの総数から内側に含まれるイワシの総数を引いた値を最大化せよ。 なお、多角形の辺上に存在する点は全て多角形の内側に含まれるものとみなす。",
+  "editorials": [
+    {
+      "title": "AHCラジオ",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Flive%2FZRsYD8yBWwE",
+      "rank": null
+    },
+    {
+      "title": "1位解法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.terry-u16.net%2Fentry%2Fahc039",
+      "rank": 1
+    },
+    {
+      "title": "AHC039参戦記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.wantedly.com%2Fcompanies%2Flearningbox%2Fpost_articles%2F938531",
+      "rank": 39
+    },
+    {
+      "title": "THIRD プログラミングコンテスト2024参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2024%2F11%2F11%2F222634",
+      "rank": 81
+    },
+    {
+      "title": "THIRDプログラミングコンテスト2024(AHC039)参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fyuudot.hatenablog.com%2Fentry%2F2024%2F11%2F14%2F141814",
+      "rank": 83
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Ftoshiconner201.hatenablog.com%2Fentry%2F2024%2F11%2F14%2F231520%3F_gl%3D1%2Afgjqz9%2A_gcl_au%2AMTgwNzAzMjg2LjE3MzE1OTMyMzk.",
+      "rank": 91
+    },
+    {
+      "title": "AHC039 に参加しました(154位)",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Fmmrz%2Farticles%2Fahc039-third-2024",
+      "rank": 154
+    },
+    {
+      "title": "AHC039参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Ftori_rakko%2Farticles%2F909e73734a9404",
+      "rank": 221
+    },
+    {
+      "title": "A-Purse Seine Fishing",
+      "url": "https://atcoder.jp/contests/ahc039/editorial/11352",
+      "rank": 579
+    }
+  ]
 }

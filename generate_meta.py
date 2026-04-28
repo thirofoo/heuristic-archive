@@ -9,6 +9,7 @@ import re
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 CONTEST_DATA = {
@@ -306,6 +307,11 @@ def build_problem_url(dir_name: str, data: dict) -> str:
     return f"https://atcoder.jp/contests/{slug}/tasks/{slug}_a"
 
 
+def build_editorial_url(dir_name: str, data: dict) -> str:
+    slug = data.get("contest_slug", dir_name.lower())
+    return f"https://atcoder.jp/contests/{slug}/editorial"
+
+
 class AtCoderStatementParser(HTMLParser):
     """Extract Japanese section paragraphs from an AtCoder task page."""
 
@@ -358,11 +364,111 @@ class AtCoderStatementParser(HTMLParser):
             self.current_parts.append(data)
 
 
+class AtCoderEditorialParser(HTMLParser):
+    """Extract editorial links from an AtCoder editorial index page."""
+
+    def __init__(self, base_url: str):
+        super().__init__(convert_charrefs=True)
+        self.base_url = base_url
+        self.seen_section = False
+        self.in_footer = False
+        self.in_li = False
+        self.in_anchor = False
+        self.current_href = None
+        self.current_prefix_parts = []
+        self.current_anchor_parts = []
+        self.current_anchors = []
+        self.editorials = []
+        self.seen_urls = set()
+
+    def handle_starttag(self, tag, attrs):
+        attrs_dict = dict(attrs)
+        classes = attrs_dict.get("class", "").split()
+        if tag == "footer" or "footer" in classes:
+            self.in_footer = True
+            return
+
+        if self.in_footer:
+            return
+
+        if tag == "h3":
+            self.seen_section = True
+            return
+
+        if self.seen_section and tag == "li":
+            self.in_li = True
+            self.current_prefix_parts = []
+            self.current_anchors = []
+            return
+
+        if self.in_li and tag == "a":
+            self.in_anchor = True
+            self.current_href = attrs_dict.get("href")
+            self.current_anchor_parts = []
+
+    def handle_endtag(self, tag):
+        if tag == "footer":
+            self.in_footer = False
+            return
+
+        if self.in_footer:
+            return
+
+        if self.in_li and self.in_anchor and tag == "a":
+            title = normalize_text("".join(self.current_anchor_parts))
+            if title and self.current_href:
+                url = urllib.parse.urljoin(self.base_url, self.current_href)
+                self.current_anchors.append({"title": title, "url": url})
+            self.in_anchor = False
+            self.current_href = None
+            self.current_anchor_parts = []
+            return
+
+        if self.in_li and tag == "li":
+            rank = parse_editorial_rank("".join(self.current_prefix_parts))
+            for anchor in self.current_anchors:
+                if "/users/" in anchor["url"]:
+                    continue
+                if anchor["title"] == "Image":
+                    continue
+                if anchor["url"] in self.seen_urls:
+                    continue
+                self.editorials.append(
+                    {
+                        "title": anchor["title"],
+                        "url": anchor["url"],
+                        "rank": rank,
+                    }
+                )
+                self.seen_urls.add(anchor["url"])
+                break
+            self.in_li = False
+            self.current_prefix_parts = []
+            self.current_anchors = []
+
+    def handle_data(self, data):
+        if self.in_li and self.in_anchor:
+            self.current_anchor_parts.append(data)
+        elif self.in_li and not self.current_anchors:
+            self.current_prefix_parts.append(data)
+
+
 def normalize_text(text: str) -> str:
     text = re.sub(r"\s+", " ", text)
     text = text.replace(" ,", ",").replace(" .", ".")
     text = text.replace("( ", "(").replace(" )", ")")
     return text.strip()
+
+
+def parse_editorial_rank(text: str) -> int | None:
+    text = normalize_text(text)
+    match = re.search(r"\b(\d+)(?:st|nd|rd|th)\s+place\b", text)
+    if match:
+        return int(match.group(1))
+    match = re.search(r"(\d+)\s*位", text)
+    if match:
+        return int(match.group(1))
+    return None
 
 
 def fetch_description(problem_url: str) -> str:
@@ -383,6 +489,19 @@ def fetch_description(problem_url: str) -> str:
     return ""
 
 
+def fetch_editorials(editorial_url: str) -> list[dict[str, str]]:
+    request = urllib.request.Request(
+        editorial_url,
+        headers={"User-Agent": "Heuristic-Monorepo meta generator"},
+    )
+    with urllib.request.urlopen(request, timeout=20) as response:
+        html = response.read().decode("utf-8", errors="replace")
+
+    parser = AtCoderEditorialParser(editorial_url)
+    parser.feed(html)
+    return parser.editorials
+
+
 def generate_meta(dir_name: str, data: dict, fetch_descriptions: bool = False) -> dict:
     problem_url = build_problem_url(dir_name, data)
     meta = {
@@ -396,6 +515,7 @@ def generate_meta(dir_name: str, data: dict, fetch_descriptions: bool = False) -
         "visualizer": None,
         "problemUrl": problem_url,
         "description": "",
+        "editorials": [],
     }
     if fetch_descriptions:
         meta["description"] = fetch_description(problem_url)
@@ -410,6 +530,11 @@ def main():
         help="Fetch task descriptions from AtCoder problem pages.",
     )
     parser.add_argument(
+        "--fetch-editorials",
+        action="store_true",
+        help="Fetch editorial links from AtCoder editorial pages.",
+    )
+    parser.add_argument(
         "--update-existing",
         action="store_true",
         help="Update existing meta.json files instead of only creating missing files.",
@@ -420,10 +545,15 @@ def main():
         help="Overwrite existing non-empty descriptions when fetching descriptions.",
     )
     parser.add_argument(
+        "--force-editorials",
+        action="store_true",
+        help="Overwrite existing non-empty editorial links when fetching editorials.",
+    )
+    parser.add_argument(
         "--sleep",
         type=float,
         default=0.5,
-        help="Seconds to wait between AtCoder requests when fetching descriptions.",
+        help="Seconds to wait between AtCoder requests.",
     )
     args = parser.parse_args()
 
@@ -473,6 +603,20 @@ def main():
                         changed = True
                     time.sleep(args.sleep)
 
+            if args.fetch_editorials and (
+                args.force_editorials or not meta.get("editorials")
+            ):
+                editorial_url = build_editorial_url(dir_name, data)
+                try:
+                    editorials = fetch_editorials(editorial_url)
+                except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                    print(f"[ERROR] {dir_name}: failed to fetch editorials: {exc}", file=sys.stderr)
+                else:
+                    if editorials != meta.get("editorials"):
+                        meta["editorials"] = editorials
+                        changed = True
+                    time.sleep(args.sleep)
+
             if not changed:
                 print(f"[SKIP] {dir_name}/meta.json is up to date")
                 continue
@@ -489,6 +633,15 @@ def main():
                 meta["description"] = fetch_description(meta["problemUrl"])
             except (urllib.error.URLError, TimeoutError, OSError) as exc:
                 print(f"[ERROR] {dir_name}: failed to fetch description: {exc}", file=sys.stderr)
+            else:
+                time.sleep(args.sleep)
+
+        if args.fetch_editorials:
+            editorial_url = build_editorial_url(dir_name, data)
+            try:
+                meta["editorials"] = fetch_editorials(editorial_url)
+            except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                print(f"[ERROR] {dir_name}: failed to fetch editorials: {exc}", file=sys.stderr)
             else:
                 time.sleep(args.sleep)
 

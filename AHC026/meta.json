@@ -8,5 +8,67 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc026/tasks/ahc026_a",
-  "description": "1,\\cdots,n の番号がちょうど一つずつ書かれた n 個のダンボール箱があり、m 個の山に分けて積まれている。 番号 v(1\\leq v\\leq n) の書かれた箱を「箱 v」、左から i(1\\leq i\\leq m) 番目の山を「山 i」と呼ぶことにする。 山の個数 m は n を割り切り、各山 i には n/m 個の箱が垂直に積まれており、箱の番号は下から順に b_{i,1},b_{i,2},\\cdots,b_{i,n/m} である。"
+  "description": "1,\\cdots,n の番号がちょうど一つずつ書かれた n 個のダンボール箱があり、m 個の山に分けて積まれている。 番号 v(1\\leq v\\leq n) の書かれた箱を「箱 v」、左から i(1\\leq i\\leq m) 番目の山を「山 i」と呼ぶことにする。 山の個数 m は n を割り切り、各山 i には n/m 個の箱が垂直に積まれており、箱の番号は下から順に b_{i,1},b_{i,2},\\cdots,b_{i,n/m} である。",
+  "editorials": [
+    {
+      "title": "解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3Dwcw2YB15fYo",
+      "rank": null
+    },
+    {
+      "title": "延長戦1位解法（2024/11 時点）",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.docswell.com%2Fs%2Fhitonanode%2FK22QM4-2024-11-29",
+      "rank": 1
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/contests/ahc026/editorial/7598",
+      "rank": 37
+    },
+    {
+      "title": "AHC参加記 (ソート貪欲)",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Fthrough%2Farticles%2Fd2d4d9633309ed",
+      "rank": 41
+    },
+    {
+      "title": "AHC026参加記（67位）",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fshu8cream.hatenablog.com%2Fentry%2F2023%2F11%2F23%2F190432",
+      "rank": 67
+    },
+    {
+      "title": "AHC026参戦記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.wantedly.com%2Fcompanies%2Flearningbox%2Fpost_articles%2F869949",
+      "rank": 119
+    },
+    {
+      "title": "貪欲解+各山ソート方針(延長戦)",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Futac.hateblo.jp%2Fentry%2F2023%2F11%2F06%2F220023",
+      "rank": 161
+    },
+    {
+      "title": "延長戦解法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fspeakerdeck.com%2Fbowwowforeach%2Ftoyotazi-dong-che-puroguramingukontesuto2023-number-6-atcoder-heuristic-contest-026-zhi-gao-noarugorizumujie-shuo",
+      "rank": 249
+    },
+    {
+      "title": "トヨタ自動車プロコン2023#6（AHC026）参加めも",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2023%2F11%2F05%2F191203",
+      "rank": 257
+    },
+    {
+      "title": "AHC026参加記(乱択ベース)",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fragnawow.hatenablog.com%2Fentry%2F2023%2F11%2F06%2F104925%3F_gl%3D1%2A9iqk89%2A_gcl_au%2ANzcwODY2OTcyLjE2OTc4NzkwMTA.",
+      "rank": 341
+    },
+    {
+      "title": "参加記録",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fnote.com%2F10isiatama%2Fn%2Fn6bc97bed07d4",
+      "rank": 545
+    },
+    {
+      "title": "AHC026 Stack of Boxes 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fsimanman.hatenablog.com%2Fentry%2F2023%2F11%2F08%2F183631",
+      "rank": 740
+    }
+  ]
 }

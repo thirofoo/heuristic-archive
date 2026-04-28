@@ -8,5 +8,52 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc055/tasks/ahc055_a",
-  "description": "N 個の宝箱があり、 i 番目の宝箱を宝箱 i と呼ぶ (0 \\le i \\lt N) 。宝箱 i の初期の硬さは H_i である。また、宝箱 i の中には武器 i が入っている。"
+  "description": "N 個の宝箱があり、 i 番目の宝箱を宝箱 i と呼ぶ (0 \\le i \\lt N) 。宝箱 i の初期の硬さは H_i である。また、宝箱 i の中には武器 i が入っている。",
+  "editorials": [
+    {
+      "title": "AHCラジオ",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fyoutube.com%2Flive%2FcJugLprYNFs",
+      "rank": null
+    },
+    {
+      "title": "AHC055解説スライド(tomerun)",
+      "url": "https://img.atcoder.jp/ahc055/bfe4019f6f59063cba6ed9e04052ab4b.pdf",
+      "rank": null
+    },
+    {
+      "title": "Solution by miiitomi",
+      "url": "https://atcoder.jp/contests/ahc055/editorial/14266",
+      "rank": 14
+    },
+    {
+      "title": "AHC055参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fnote.com%2Fnurupo0723%2Fn%2Fn9dff4dd66b7b",
+      "rank": 31
+    },
+    {
+      "title": "AHC055参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Ftombo-ac.hatenablog.com%2Fentry%2F2025%2F10%2F20%2F015545",
+      "rank": 40
+    },
+    {
+      "title": "AHC055参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fnote.com%2Ftetra4_cp%2Fn%2Fnfd62b3b2d983",
+      "rank": 53
+    },
+    {
+      "title": "AHC055参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Farad%2Farticles%2Fatcoder-heuristic-contest-055",
+      "rank": 76
+    },
+    {
+      "title": "Google AI Studioが教えてくれた解放",
+      "url": "https://atcoder.jp/contests/ahc055/editorial/14256",
+      "rank": 181
+    },
+    {
+      "title": "AHC055参加記と復習記録",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2025%2F10%2F27%2F222106",
+      "rank": 201
+    }
+  ]
 }

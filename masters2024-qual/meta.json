@@ -8,5 +8,22 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/masters-qual/tasks/masters_qual_a",
-  "description": "N\\times N マスの盤面がある。 一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先のマスの座標を (i,j) とする。 N\\times N マスの外周は壁で囲われており、マス間にも壁がある場合がある。 辺を共有する2マスは、間に壁がない時に「隣接マス」であると定義する。(13:15に追記)"
+  "description": "N\\times N マスの盤面がある。 一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先のマスの座標を (i,j) とする。 N\\times N マスの外周は壁で囲われており、マス間にも壁がある場合がある。 辺を共有する2マスは、間に壁がない時に「隣接マス」であると定義する。(13:15に追記)",
+  "editorials": [
+    {
+      "title": "ビジュアライザ",
+      "url": "https://img.atcoder.jp/masters-qual/ak2uQT08.html",
+      "rank": null
+    },
+    {
+      "title": "Visualizer",
+      "url": "https://img.atcoder.jp/masters-qual/ak2uQT08.html?lang=en",
+      "rank": null
+    },
+    {
+      "title": "(Re: PSF) 第一回マスターズ選手権予選・参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fmedium.com%2Fkarakuri%2F%25E7%25AC%25AC%25E4%25B8%2580%25E5%259B%259E%25E3%2583%259E%25E3%2582%25B9%25E3%2582%25BF%25E3%2583%25BC%25E3%2582%25BA%25E4%25BA%2588%25E9%2581%25B8-%25E5%258F%2582%25E5%258A%25A0%25E8%25A8%2598-8f605012aa4a",
+      "rank": null
+    }
+  ]
 }

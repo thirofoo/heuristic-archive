@@ -8,5 +8,72 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc056/tasks/ahc056_a",
-  "description": "N\\times N マスの盤面がある。 左上のマスの座標を (0, 0) とし、下方向に i、右方向に j 進んだ位置の座標を (i, j) とする。 N\\times N マスの外周は壁で囲まれており、また、隣接するマスの間にも壁が存在する場合がある。"
+  "description": "N\\times N マスの盤面がある。 左上のマスの座標を (0, 0) とし、下方向に i、右方向に j 進んだ位置の座標を (i, j) とする。 N\\times N マスの外周は壁で囲まれており、また、隣接するマスの間にも壁が存在する場合がある。",
+  "editorials": [
+    {
+      "title": "詳細順位表",
+      "url": "https://img.atcoder.jp/ahc_standings/index.html?contest=ahc056",
+      "rank": null
+    },
+    {
+      "title": "解説放送",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Flive%2FsbfH3GBd3fM",
+      "rank": null
+    },
+    {
+      "title": "AHC056 参加記 & 1位解法解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fblog.oimo.io%2F2025%2F11%2F22%2Fahc056%2F",
+      "rank": 1
+    },
+    {
+      "title": "11位解法・参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fnote.com%2Ftetra4_cp%2Fn%2Fn6be697ae0f1d",
+      "rank": 11
+    },
+    {
+      "title": "AHC056参加記・13位解法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Ftanaka-a%2Fitems%2Fbd3f67216f534e904216",
+      "rank": 13
+    },
+    {
+      "title": "AHC056解法記事",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fprussianblue.hatenadiary.jp%2Fentry%2F2025%2F11%2F20%2F002256",
+      "rank": 15
+    },
+    {
+      "title": "AHC056参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Futac.hateblo.jp%2Fentry%2F2025%2F11%2F18%2F011105",
+      "rank": 22
+    },
+    {
+      "title": "やったことなど",
+      "url": "https://atcoder.jp/contests/ahc056/editorial/14603",
+      "rank": 47
+    },
+    {
+      "title": "AHC056 解法（Perf. 2252）",
+      "url": "https://atcoder.jp/contests/ahc056/editorial/14619",
+      "rank": 65
+    },
+    {
+      "title": "AHC参加記(114位)",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Flyricalmaestrojp.hatenablog.com%2Fentry%2F2025%2F11%2F18%2F215434",
+      "rank": 114
+    },
+    {
+      "title": "AHC056参加記 (perf.1928)",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fnote.com%2Fkuroiro_1024%2Fn%2Fnbd694ede9abc%3Fapp_launch%3Dfalse",
+      "rank": 153
+    },
+    {
+      "title": "AHC参加記(暫定267位)",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fsuppei.hatenablog.com%2Fentry%2F2025%2F11%2F17%2F190006",
+      "rank": 266
+    },
+    {
+      "title": "HACK TO THE FUTURE 2026 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2025%2F11%2F24%2F193724",
+      "rank": 322
+    }
+  ]
 }

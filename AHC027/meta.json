@@ -8,5 +8,57 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc027/tasks/ahc027_a",
-  "description": "N\\times N マスの盤面がある。 一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先のマスの座標を (i,j) とする。 N\\times N マスの外周は壁で囲われており、上下左右に隣接するマス間にも壁がある場合がある。"
+  "description": "N\\times N マスの盤面がある。 一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先のマスの座標を (i,j) とする。 N\\times N マスの外周は壁で囲われており、上下左右に隣接するマス間にも壁がある場合がある。",
+  "editorials": [
+    {
+      "title": "解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DS7dJl3zpctc",
+      "rank": null
+    },
+    {
+      "title": "詳細順位表",
+      "url": "https://img.atcoder.jp/ahc_standings/index.html?contest=ahc027",
+      "rank": null
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Feijirou-kyopro.hatenablog.com%2Fentry%2F2023%2F12%2F15%2F111632%3F_gl%3D1%2A11lfrfl%2A_gcl_au%2AMTI0NzEyMDU5Ny4xNjk5MDcwMjc2",
+      "rank": 2
+    },
+    {
+      "title": "AHC027 Recurring Cleaning Route",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fsimanman.hatenablog.com%2Fentry%2F2023%2F12%2F10%2F190435",
+      "rank": 5
+    },
+    {
+      "title": "6位解法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.terry-u16.net%2Fentry%2Fhttf2024",
+      "rank": 6
+    },
+    {
+      "title": "【Postmortem】HTTF2024 (AHC027)",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fmontplusa.hatenablog.com%2Fentry%2F2023%2F12%2F11%2F195400",
+      "rank": 14
+    },
+    {
+      "title": "暫定26位解法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fdocs.google.com%2Fpresentation%2Fd%2F198Bw_-aXuBQGWV9x0bGTfCC964WAWrG5x9H1iPCHvJA%2Fedit%23slide%3Did.p",
+      "rank": 25
+    },
+    {
+      "title": "HTTF 2024 (AHC027) 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Ftsutaj.hatenablog.com%2Fentry%2F2023%2F12%2F11%2F121336",
+      "rank": 71
+    },
+    {
+      "title": "HACK TO THE FUTURE 2024 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2023%2F12%2F10%2F204502",
+      "rank": 271
+    },
+    {
+      "title": "AHC027 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fnote.com%2Futkuroneko%2Fn%2Fn8ada3f0d3463",
+      "rank": 592
+    }
+  ]
 }

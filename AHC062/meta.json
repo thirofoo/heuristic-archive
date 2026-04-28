@@ -8,5 +8,37 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc062/tasks/ahc062_a",
-  "description": "N \\times N の区画に区切られた王国がある。左上の区画を (0,0) とし、下方向に i 区画、右方向に j 区画進んだ区画を (i,j) とする。 区画 (i,j) には A_{i,j} 人の国民が住んでいる。"
+  "description": "N \\times N の区画に区切られた王国がある。左上の区画を (0,0) とし、下方向に i 区画、右方向に j 区画進んだ区画を (i,j) とする。 区画 (i,j) には A_{i,j} 人の国民が住んでいる。",
+  "editorials": [
+    {
+      "title": "Editorial",
+      "url": "https://img.atcoder.jp/ahc062/editorial.pdf",
+      "rank": null
+    },
+    {
+      "title": "AHCラジオ",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Flive%2FuANI9RbCkqo",
+      "rank": null
+    },
+    {
+      "title": "AHC062参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fdokukuma.hatenablog.com%2Fentry%2F2026%2F04%2F02%2F123616",
+      "rank": 9
+    },
+    {
+      "title": "AHCで過去最高パフォが出せたので解法の振り返り (123位)",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Fyoto1980yen%2Farticles%2Ff4867e91ead7f1",
+      "rank": 123
+    },
+    {
+      "title": "ただ往復する貪欲法（125位）",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fshoyama.jp%2F%3Fp%3D999",
+      "rank": 125
+    },
+    {
+      "title": "AHC062参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2026%2F03%2F15%2F221001",
+      "rank": 154
+    }
+  ]
 }

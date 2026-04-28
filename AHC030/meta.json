@@ -8,5 +8,77 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc030/tasks/ahc030_a",
-  "description": "N\\times N マスの島がある。 一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先のマスの座標を (i,j) とする。 占い師の高橋君によると、この島の地下には M 個の油田が存在しているらしい。"
+  "description": "N\\times N マスの島がある。 一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先のマスの座標を (i,j) とする。 占い師の高橋君によると、この島の地下には M 個の油田が存在しているらしい。",
+  "editorials": [
+    {
+      "title": "詳細順位表",
+      "url": "https://img.atcoder.jp/ahc_standings/index.html?contest=ahc030",
+      "rank": null
+    },
+    {
+      "title": "解説スライド",
+      "url": "https://img.atcoder.jp/ahc030/ahc030.pdf",
+      "rank": null
+    },
+    {
+      "title": "解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DYvCYsiu-TQs",
+      "rank": null
+    },
+    {
+      "title": "1位解法およびエントロピーについての解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.terry-u16.net%2Fentry%2Fahc030",
+      "rank": 1
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Feijirou-kyopro.hatenablog.com%2Fentry%2F2024%2F02%2F22%2F152604%2520",
+      "rank": 3
+    },
+    {
+      "title": "没解法について",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Fhari64%2Fitems%2Fa7793a7071b4015ef92c",
+      "rank": 8
+    },
+    {
+      "title": "期待獲得情報量最大化 & 状態圧縮",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkiri8128.hatenablog.com%2Fentry%2F2024%2F02%2F19%2F211740%3F_gl%3D1%2A2q6wec%2A_gcl_au%2ANjUxMTAxMzg5LjE3MDUyNDA2MTU.",
+      "rank": 51
+    },
+    {
+      "title": "AHC030 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fsankantsu.hatenablog.com%2Fentry%2F2024%2F02%2F22%2F185034",
+      "rank": 143
+    },
+    {
+      "title": "ほぼ1マス掘りのみの解法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Futac.hateblo.jp%2Fentry%2F2024%2F02%2F19%2F232118",
+      "rank": 149
+    },
+    {
+      "title": "AHC030 参加メモ",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Frareshana%2Fitems%2F4e87dbb3926f74e77b85",
+      "rank": 310
+    },
+    {
+      "title": "とりまやってみるAHC 〜Algo灰色による初AHC参加記〜",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Ftabetai%2Farticles%2F2fa0a862ec6881",
+      "rank": 358
+    },
+    {
+      "title": "THIRDプログラミングコンテスト2023(AHC030)参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2024%2F02%2F19%2F190210",
+      "rank": 399
+    },
+    {
+      "title": "全探索から改善、市松模様、ランダム性、占い&油田の形無し",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fnote.com%2Fogurapan%2Fn%2Fnbed5e92b8444%3Fsub_rt%3Dshare_pb",
+      "rank": 423
+    },
+    {
+      "title": "AHC典型解法シリーズ第3弾",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Fthun-c%2Fitems%2F688442aad6a0410545cc",
+      "rank": null
+    }
+  ]
 }

@@ -8,5 +8,52 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc033/tasks/ahc033_a",
-  "description": "N\\times N マスのコンテナターミナルがある。 一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先のマスの座標を (i,j) とする。 0 から N^2-1 の番号が振られた N^2 個のコンテナが運び込まれてくるので、N 台のクレーンを操作することで、指定された順番で搬出してほしい。"
+  "description": "N\\times N マスのコンテナターミナルがある。 一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先のマスの座標を (i,j) とする。 0 から N^2-1 の番号が振られた N^2 個のコンテナが運び込まれてくるので、N 台のクレーンを操作することで、指定された順番で搬出してほしい。",
+  "editorials": [
+    {
+      "title": "AHCラジオ（解説放送）",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DDUWfVeIRjCU",
+      "rank": null
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fbowwowforeach.hatenablog.com%2Fentry%2F2024%2F05%2F30%2F210002",
+      "rank": 1
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Feijirou-kyopro.hatenablog.com%2Fentry%2F2024%2F05%2F30%2F110801",
+      "rank": 3
+    },
+    {
+      "title": "AHC033参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Futac.hateblo.jp%2Fentry%2F2024%2F05%2F28%2F193532",
+      "rank": 29
+    },
+    {
+      "title": "シンプルな貪欲で上位になる方法の解説（動画）",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fyoutube.com%2Flive%2F6y-NPNVkyHA%3Ffeature%3Dshare",
+      "rank": 42
+    },
+    {
+      "title": "AHC033 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fsankantsu.hatenablog.com%2Fentry%2F2024%2F05%2F29%2F022511",
+      "rank": 71
+    },
+    {
+      "title": "AHC033参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Frareshana%2Fitems%2F380d085971752c8d6262",
+      "rank": 209
+    },
+    {
+      "title": "トヨタ自動車プロコン2024#5(AHC033)参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2024%2F05%2F27%2F190036",
+      "rank": 222
+    },
+    {
+      "title": "AHC033参加記（動画、合成音声）",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.nicovideo.jp%2Fwatch%2Fsm43845316",
+      "rank": 262
+    }
+  ]
 }

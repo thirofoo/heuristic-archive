@@ -8,5 +8,72 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc040/tasks/ahc040_a",
-  "description": "N 個の長方形が与えられる。 i 番目の長方形の大きさは、横幅 w_i と縦幅 h_i である。 入力として、それぞれの値に計測誤差が乗った観測値 w'_i=\\mathrm{normal}(w_i, \\sigma) と h'_i=\\mathrm{normal}(h_i, \\sigma) が与えられる。 ここで、\\mathrm{normal}(\\mu, \\sigma) は次の手順で値を生成する関数である。"
+  "description": "N 個の長方形が与えられる。 i 番目の長方形の大きさは、横幅 w_i と縦幅 h_i である。 入力として、それぞれの値に計測誤差が乗った観測値 w'_i=\\mathrm{normal}(w_i, \\sigma) と h'_i=\\mathrm{normal}(h_i, \\sigma) が与えられる。 ここで、\\mathrm{normal}(\\mu, \\sigma) は次の手順で値を生成する関数である。",
+  "editorials": [
+    {
+      "title": "解説放送",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Flive%2FheT7phjNLLs",
+      "rank": null
+    },
+    {
+      "title": "詳細順位表",
+      "url": "https://img.atcoder.jp/ahc_standings/index.html?contest=ahc040",
+      "rank": null
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.terry-u16.net%2Fentry%2Fahc040",
+      "rank": 6
+    },
+    {
+      "title": "AHC040参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Futac.hateblo.jp%2Fentry%2F2024%2F12%2F09%2F221205",
+      "rank": 18
+    },
+    {
+      "title": "300行弱の軽量実装の解法とAtCoder公式配信の同時視聴",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fyoutube.com%2Flive%2FBQzXLC6dSsY%3Ffeature%3Dshare",
+      "rank": 23
+    },
+    {
+      "title": "AHC040参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fgobi-tk.hatenablog.com%2Fentry%2F2024%2F12%2F15%2F020302",
+      "rank": 88
+    },
+    {
+      "title": "解法メモ",
+      "url": "https://atcoder.jp/contests/ahc040/editorial/11761",
+      "rank": 105
+    },
+    {
+      "title": "DP",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fshinchankosen.hatenadiary.jp%2Fentry%2F2024%2F12%2F09%2F201049",
+      "rank": 120
+    },
+    {
+      "title": "インタラクティブ問題のデバッグについて",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Fplasma_e%2Farticles%2F93f24eb5354d84",
+      "rank": 202
+    },
+    {
+      "title": "HTTF2025(AHC040)参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fyuudot.hatenablog.com%2Fentry%2F2024%2F12%2F18%2F115714",
+      "rank": 217
+    },
+    {
+      "title": "AHC040参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Ftori_rakko%2Farticles%2F0affbd5a5d5ef7",
+      "rank": 275
+    },
+    {
+      "title": "HACK TO THE FUTURE 2025 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2024%2F12%2F09%2F191102",
+      "rank": 392
+    },
+    {
+      "title": "段数を√Nにする解法の劣化版",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Fhidehic0%2Fitems%2F6e20a6e487b715e4d34b",
+      "rank": 651
+    }
+  ]
 }

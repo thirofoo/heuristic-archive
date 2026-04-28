@@ -8,5 +8,37 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc029/tasks/ahc029_a",
-  "description": "あなたは会社を経営するゲームをプレイしている。 会社が進めている複数のプロジェクトに対して、毎ターンごとに手札から方針カードを一つ選び消費し、そのカードに従ってプロジェクトを進め、手札の方針カードを補充する、ということを繰り返すターン制のゲームである。 全 T ターンが終了した時点で所持金を最大化することがこのゲームの目的である。"
+  "description": "あなたは会社を経営するゲームをプレイしている。 会社が進めている複数のプロジェクトに対して、毎ターンごとに手札から方針カードを一つ選び消費し、そのカードに従ってプロジェクトを進め、手札の方針カードを補充する、ということを繰り返すターン制のゲームである。 全 T ターンが終了した時点で所持金を最大化することがこのゲームの目的である。",
+  "editorials": [
+    {
+      "title": "詳細順位表",
+      "url": "https://img.atcoder.jp/ahc_standings/index.html?contest=ahc029",
+      "rank": null
+    },
+    {
+      "title": "AHCラジオ",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Flive%2FlIz8EarV0ek%3Ffeature%3Dshared",
+      "rank": null
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Feijirou-kyopro.hatenablog.com%2Fentry%2F2023%2F12%2F28%2F234128%3F_gl%3D1%2Auxr60a%2A_gcl_au%2AMTI0NzEyMDU5Ny4xNjk5MDcwMjc2",
+      "rank": 1
+    },
+    {
+      "title": "AHC029参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Futac.hateblo.jp%2Fentry%2F2023%2F12%2F27%2F145343",
+      "rank": 42
+    },
+    {
+      "title": "RECRUIT 日本橋ハーフマラソン 2024冬 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2023%2F12%2F26%2F210009",
+      "rank": 103
+    },
+    {
+      "title": "AHC029 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Frareshana%2Fitems%2F43c75abdef38c9d20972",
+      "rank": 349
+    }
+  ]
 }

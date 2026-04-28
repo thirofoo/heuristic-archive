@@ -8,5 +8,72 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc025/tasks/ahc025_a",
-  "description": "N 個のアイテムがある。 各アイテム i の重さ w_i は未知であり、 2つのアイテム集合の重さの総和を比較することの出来る天秤を用いて、以下の操作を繰り返し行う。"
+  "description": "N 個のアイテムがある。 各アイテム i の重さ w_i は未知であり、 2つのアイテム集合の重さの総和を比較することの出来る天秤を用いて、以下の操作を繰り返し行う。",
+  "editorials": [
+    {
+      "title": "解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DCrzS-Tgnloc",
+      "rank": null
+    },
+    {
+      "title": "詳細順位表",
+      "url": "https://img.atcoder.jp/ahc_standings/index.html?contest=ahc025",
+      "rank": null
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Feijirou-kyopro.hatenablog.com%2Fentry%2F2023%2F10%2F29%2F185258%3F_gl%3D1%2A1gpyaez%2A_gcl_au%2AMjI1NTY1NDAuMTY5MTIzNjU4OA..",
+      "rank": 1
+    },
+    {
+      "title": "【Postmortem】AHC025",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fmontplusa.hatenablog.com%2Fentry%2F2023%2F10%2F24%2F213200",
+      "rank": 3
+    },
+    {
+      "title": "4位解法の解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fnote.com%2Fymatsux%2Fn%2Fn09938d7ab387",
+      "rank": 4
+    },
+    {
+      "title": "AHC025 Balancing by Balance 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fsimanman.hatenablog.com%2Fentry%2F2023%2F10%2F22%2F190146",
+      "rank": 9
+    },
+    {
+      "title": "AHC025 13位解法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Ftishii2479%2Farticles%2Fdeebfac37e4f7f",
+      "rank": 13
+    },
+    {
+      "title": "AHC025 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fcp1128.hatenablog.com%2Fentry%2F2023%2F10%2F25%2F183015",
+      "rank": 34
+    },
+    {
+      "title": "AHC025参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Futac.hateblo.jp%2Fentry%2F2023%2F10%2F22%2F223858",
+      "rank": 90
+    },
+    {
+      "title": "AHC025の僕の方針",
+      "url": "https://atcoder.jp/contests/ahc025/editorial/7515",
+      "rank": 116
+    },
+    {
+      "title": "AHC025 参加記(Python)",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fteyoblog.hatenablog.com%2Fentry%2F2023%2F10%2F22%2F192613",
+      "rank": 191
+    },
+    {
+      "title": "AHC025 ソートしない参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Futm529f%2Farticles%2F5bdb138fd2e405",
+      "rank": 246
+    },
+    {
+      "title": "AtCoder Heuristic Contest 025参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2023%2F10%2F22%2F195315",
+      "rank": 388
+    }
+  ]
 }

@@ -8,5 +8,67 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc052/tasks/ahc052_a",
-  "description": "N\\times N マスのオフィスがある。 左上のマスの座標を (0, 0) とし、下方向に i、右方向に j 進んだ位置の座標を (i, j) とする。 N\\times N マスの外周は壁で囲まれており、隣接するマス間にも壁が存在する場合がある。"
+  "description": "N\\times N マスのオフィスがある。 左上のマスの座標を (0, 0) とし、下方向に i、右方向に j 進んだ位置の座標を (i, j) とする。 N\\times N マスの外周は壁で囲まれており、隣接するマス間にも壁が存在する場合がある。",
+  "editorials": [
+    {
+      "title": "AHCラジオ",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Flive%2F8NNjlan6AX0",
+      "rank": null
+    },
+    {
+      "title": "1st",
+      "url": "https://atcoder.jp/contests/ahc052/editorial/13734",
+      "rank": 1
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/contests/ahc052/editorial/13771",
+      "rank": 2
+    },
+    {
+      "title": "AHC052参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Fhotpepsi%2Fitems%2F689942f364a4ee6c56c2",
+      "rank": 5
+    },
+    {
+      "title": "AHC052 ９位解法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fjinapetto.hatenablog.com%2Fentry%2F2025%2F09%2F03%2F233718",
+      "rank": 9
+    },
+    {
+      "title": "AHC052参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkeroru10.hatenablog.com%2Fentry%2F2025%2F08%2F26%2F223054",
+      "rank": 11
+    },
+    {
+      "title": "AHC052 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fvvani07.hatenadiary.org%2Fentry%2F2025%2F08%2F26%2F202405",
+      "rank": 48
+    },
+    {
+      "title": "AHC052 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fbird01.hatenablog.com%2Fentry%2F2025%2F10%2F11%2F112419%3F_gl%3D1%2Ailrzqd%2A_gcl_au%2AMTUyMDgzMjg0My4xNzU2NjI4MjMz",
+      "rank": 69
+    },
+    {
+      "title": "AHC052参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fnote.com%2Ftetra4_cp%2Fn%2Fn444e3d089289",
+      "rank": 88
+    },
+    {
+      "title": "AHC052参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fnote.com%2Fgomaazarasi%2Fn%2Fnab181c7a202d",
+      "rank": 109
+    },
+    {
+      "title": "AHC052参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fnote.com%2Ftnktsyk_kyopro%2Fn%2Fn4f9c2f80f454",
+      "rank": 138
+    },
+    {
+      "title": "AHC052 の参加時と復習の記録",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2025%2F08%2F31%2F165246",
+      "rank": 231
+    }
+  ]
 }

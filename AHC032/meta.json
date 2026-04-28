@@ -8,5 +8,27 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc032/tasks/ahc032_a",
-  "description": "二次元のマス目における一番左上のマスの座標を (0, 0) とし、そこから下方向に i マス、右方向に j マス進んだ先のマスの座標を (i, j) とする。"
+  "description": "二次元のマス目における一番左上のマスの座標を (0, 0) とし、そこから下方向に i マス、右方向に j マス進んだ先のマスの座標を (i, j) とする。",
+  "editorials": [
+    {
+      "title": "Editorial",
+      "url": "https://img.atcoder.jp/ahc032/editorial.pdf",
+      "rank": null
+    },
+    {
+      "title": "2位解法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.terry-u16.net%2Fentry%2Fahc032",
+      "rank": 2
+    },
+    {
+      "title": "AHC032 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fsankantsu.hatenablog.com%2Fentry%2F2024%2F04%2F08%2F005841",
+      "rank": 87
+    },
+    {
+      "title": "AHC032 に参加した感想",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fyoutu.be%2FeNLp4DUE1EA",
+      "rank": 227
+    }
+  ]
 }

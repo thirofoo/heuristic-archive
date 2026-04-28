@@ -8,5 +8,67 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc019/tasks/ahc019_a",
-  "description": "AtCoder社はブロックを組み合わせて指定されたシルエットの立体を作る知育玩具を開発している。 この玩具は 1\\times 1\\times 1 の立方体を面同士で接合したポリキューブ状のブロックが複数と2次元の白黒シルエット画像2枚の組がセットになっている。 ブロックを組み合わせて一つの立体を作り、作った立体を正面から見た時のシルエットと、右側から見た時のシルエットが、シルエット画像に完全一致していたらゲームクリアである。"
+  "description": "AtCoder社はブロックを組み合わせて指定されたシルエットの立体を作る知育玩具を開発している。 この玩具は 1\\times 1\\times 1 の立方体を面同士で接合したポリキューブ状のブロックが複数と2次元の白黒シルエット画像2枚の組がセットになっている。 ブロックを組み合わせて一つの立体を作り、作った立体を正面から見た時のシルエットと、右側から見た時のシルエットが、シルエット画像に完全一致していたらゲームクリアである。",
+  "editorials": [
+    {
+      "title": "解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DogMTrPdCq7k",
+      "rank": null
+    },
+    {
+      "title": "Beam search in 3D",
+      "url": "https://atcoder.jp/contests/ahc019/editorial/6154",
+      "rank": 1
+    },
+    {
+      "title": "MC Digital プログラミングコンテスト2023 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fsimanman.hatenablog.com%2Fentry%2F2023%2F04%2F03%2F014938",
+      "rank": 4
+    },
+    {
+      "title": "AHC019 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fxyz600.hatenablog.com%2Fentry%2F2023%2F04%2F09%2F132729",
+      "rank": 21
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkusano-k.hatenablog.com%2Fentry%2F2023%2F04%2F03%2F014924",
+      "rank": 24
+    },
+    {
+      "title": "MC Digital プログラミングコンテスト2023 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Fthrough%2Farticles%2Fe86b70db80502d",
+      "rank": 37
+    },
+    {
+      "title": "単純実装で75位になる方法、と感想（動画）",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fyoutu.be%2FQgVcQLLStCw",
+      "rank": 75
+    },
+    {
+      "title": "乱択 + 部分破壊",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fgobi-tk.hatenablog.com%2Fentry%2F2023%2F04%2F08%2F002800",
+      "rank": 84
+    },
+    {
+      "title": "AHC019参加記(乱択)",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Fueta7%2Fitems%2Fd0a4f108c7072f29e9e3%3Futm_campaign%3Dpost_article%26utm_medium%3Dtwitter%26utm_source%3Dtwitter_share",
+      "rank": 93
+    },
+    {
+      "title": "メモ書き",
+      "url": "https://atcoder.jp/contests/ahc019/editorial/6142",
+      "rank": 150
+    },
+    {
+      "title": "MC Digital プロコン2023(AHC019)参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Fkoi51%2Fitems%2F097d15f3922f9fa5813d",
+      "rank": 210
+    },
+    {
+      "title": "MC Digital プロコン2023（AHC019）参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2023%2F04%2F02%2F190056",
+      "rank": 274
+    }
+  ]
 }

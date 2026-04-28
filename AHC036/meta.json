@@ -8,5 +8,57 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc036/tasks/ahc036_a",
-  "description": "Y国には N 個の都市と M 本の道路があり、i 番目の道路は都市 u_i と都市 v_i を双方向に結んでいる。どの道路も交差はなく、都市と道路からなるグラフは平面グラフである。"
+  "description": "Y国には N 個の都市と M 本の道路があり、i 番目の道路は都市 u_i と都市 v_i を双方向に結んでいる。どの道路も交差はなく、都市と道路からなるグラフは平面グラフである。",
+  "editorials": [
+    {
+      "title": "詳細順位表",
+      "url": "https://img.atcoder.jp/ahc_standings/index.html?contest=ahc036",
+      "rank": null
+    },
+    {
+      "title": "AHCラジオ（簡単な解説）",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Flive%2FQWBtEa7DFZY%3Fsi%3D5Y1QctUA5v0RwYuW",
+      "rank": null
+    },
+    {
+      "title": "AHCラジオで使用したスライド",
+      "url": "https://img.atcoder.jp/ahc036/Slides_used_in_AHC_radio_0.pdf",
+      "rank": null
+    },
+    {
+      "title": "AHC036 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fsoumat.hatenablog.com%2Fentry%2F2024%2F09%2F07%2F152734",
+      "rank": 1
+    },
+    {
+      "title": "AHC 036 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkiri8128.hatenablog.com%2Fentry%2F2024%2F09%2F02%2F195000",
+      "rank": 6
+    },
+    {
+      "title": "AHC036参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Futac.hateblo.jp%2Fentry%2F2024%2F09%2F03%2F232633",
+      "rank": 27
+    },
+    {
+      "title": "AHC036 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fscat-neko.hatenablog.com%2Fentry%2F2024%2F09%2F11%2F010230",
+      "rank": 30
+    },
+    {
+      "title": "AHC036 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fvvani07.hatenadiary.org%2Fentry%2F2024%2F10%2F07%2F212149",
+      "rank": 101
+    },
+    {
+      "title": "AHC036 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkirbysweet.hatenablog.jp%2Fentry%2F2024%2F09%2F13%2F165715",
+      "rank": 253
+    },
+    {
+      "title": "AHC036参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2024%2F09%2F02%2F190404",
+      "rank": 296
+    }
+  ]
 }

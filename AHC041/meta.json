@@ -8,5 +8,52 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc041/tasks/ahc041_a",
-  "description": "N 頂点 M 辺の連結な無向平面グラフ G が与えられる。頂点には 0 から N-1 の番号が、辺には 0 から M-1 の番号がそれぞれ付けられている。頂点 v の座標は (x_v, y_v) であり、 辺 i は頂点 u_i と v_i を結んでいる。各頂点には正の整数をとる 美しさ が定められており、頂点 v の 美しさ は A_v である。"
+  "description": "N 頂点 M 辺の連結な無向平面グラフ G が与えられる。頂点には 0 から N-1 の番号が、辺には 0 から M-1 の番号がそれぞれ付けられている。頂点 v の座標は (x_v, y_v) であり、 辺 i は頂点 u_i と v_i を結んでいる。各頂点には正の整数をとる 美しさ が定められており、頂点 v の 美しさ は A_v である。",
+  "editorials": [
+    {
+      "title": "解説放送",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Flive%2FWcrjJPNSwCg",
+      "rank": null
+    },
+    {
+      "title": "解説放送で使用したスライド",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fspeakerdeck.com%2Fterryu16%2Fahc041jie-shuo",
+      "rank": null
+    },
+    {
+      "title": "本番 1 位解法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Frsm9.hatenablog.com%2Fentry%2F2025%2F01%2F22%2F213923",
+      "rank": 1
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fsizu.me%2Fniuez%2Fposts%2Fsnzdtkd7a6r2",
+      "rank": 7
+    },
+    {
+      "title": "AHC041参加メモ",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2025%2F01%2F20%2F194438",
+      "rank": 55
+    },
+    {
+      "title": "葉から開始するdfs解法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Futac.hateblo.jp%2Fentry%2F2025%2F01%2F20%2F214549",
+      "rank": 60
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkcpc.hatenablog.com%2Fentry%2F2025%2F01%2F19%2F200411",
+      "rank": 62
+    },
+    {
+      "title": "AHC041参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Ftori_rakko%2Farticles%2Fc8c92914dce754",
+      "rank": 211
+    },
+    {
+      "title": "AHC典型解法シリーズ第4弾",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Fthun-c%2Fitems%2F98f22c8fcdb1fd827b00",
+      "rank": null
+    }
+  ]
 }

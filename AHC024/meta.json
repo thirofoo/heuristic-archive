@@ -8,5 +8,27 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc024/tasks/ahc024_a",
-  "description": "n\\times n マスのグリッド上に表現された高橋市の地図が与えられる。 一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス移動した先のマスの座標を (i,j) とする。 高橋市は m 個の区からなり、c (1\\leq c\\leq m) 番の色で塗られたマスは c 番の区に対応する。 n\\times n マスの外は市の外部であり、0 番の色で塗られているものとする。"
+  "description": "n\\times n マスのグリッド上に表現された高橋市の地図が与えられる。 一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス移動した先のマスの座標を (i,j) とする。 高橋市は m 個の区からなり、c (1\\leq c\\leq m) 番の色で塗られたマスは c 番の区に対応する。 n\\times n マスの外は市の外部であり、0 番の色で塗られているものとする。",
+  "editorials": [
+    {
+      "title": "解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DLHH_rpC6hJo",
+      "rank": null
+    },
+    {
+      "title": "山登り法による9位解法の解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fnote.com%2Fymatsux%2Fn%2Fnd33bbf9deff7",
+      "rank": 9
+    },
+    {
+      "title": "19位解法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fmilkcoffee.hatenablog.jp%2Fentry%2F2023%2F09%2F25%2F222541",
+      "rank": 19
+    },
+    {
+      "title": "User Editorial",
+      "url": "https://atcoder.jp/contests/ahc024/editorial/7289",
+      "rank": 664
+    }
+  ]
 }

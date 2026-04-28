@@ -8,5 +8,57 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc020/tasks/ahc020_a",
-  "description": "N 頂点 M 辺の重み付き平面無向グラフ G が与えられる。頂点 i の座標は (x_i, y_i) であり、辺 j は頂点 u_j と v_j を結ぶ重み w_j の辺である。頂点 u_j と頂点 v_j 間のユークリッド距離を四捨五入したものを D_j=\\mathrm{round}\\left(\\sqrt{(x_{u_j}-x_{v_j})^2+(y_{u_j}-y_{v_j})^2}\\right) とすると、重み w_j は 100D_j\\le w_j\\le 2500D_j を満たす。また住民の座標が K 個与えられ、住民 k の座標は (a_k, b_k) である。"
+  "description": "N 頂点 M 辺の重み付き平面無向グラフ G が与えられる。頂点 i の座標は (x_i, y_i) であり、辺 j は頂点 u_j と v_j を結ぶ重み w_j の辺である。頂点 u_j と頂点 v_j 間のユークリッド距離を四捨五入したものを D_j=\\mathrm{round}\\left(\\sqrt{(x_{u_j}-x_{v_j})^2+(y_{u_j}-y_{v_j})^2}\\right) とすると、重み w_j は 100D_j\\le w_j\\le 2500D_j を満たす。また住民の座標が K 個与えられ、住民 k の座標は (a_k, b_k) である。",
+  "editorials": [
+    {
+      "title": "解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Flive%2F14zgeWelvv4%3Ffeature%3Dshare",
+      "rank": null
+    },
+    {
+      "title": "AHC ぼくの解法 雑",
+      "url": "https://atcoder.jp/contests/ahc020/editorial/6584",
+      "rank": 2
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/contests/ahc020/editorial/6578",
+      "rank": 6
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/contests/ahc020/editorial/6576",
+      "rank": 9
+    },
+    {
+      "title": "ALGO ARTIS プログラミングコンテスト2023 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fsimanman.hatenablog.com%2Fentry%2F2023%2F06%2F11%2F232949",
+      "rank": 13
+    },
+    {
+      "title": "Lorem Ipsum",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fgithub.com%2FFakePsyho%2Fcpcontests%2Fblob%2Fmaster%2Fatcoder%2Fahc020%2Fapproach.md",
+      "rank": 21
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/contests/ahc020/editorial/6575",
+      "rank": 47
+    },
+    {
+      "title": "AHC020 参加記 (k-平均法クラスタリングでいろいろする)",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fa01sa01to.com%2Farticles%2F2023%2F06%2Fahc020%2F",
+      "rank": 302
+    },
+    {
+      "title": "AHC020の振り返り（本番452位→ちょい変36位の解法）",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fyoutube.com%2Flive%2FSOCej09hL2U%3Ffeature%3Dshare",
+      "rank": 452
+    },
+    {
+      "title": "ALGO ARTIS プロコン2023（AHC020）の復習",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2023%2F06%2F30%2F231314",
+      "rank": 802
+    }
+  ]
 }

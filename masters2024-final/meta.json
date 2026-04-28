@@ -8,5 +8,17 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/masters2024-final/tasks/masters2024_final_a",
-  "description": "高橋くんは二次元平面上で飛行ドローンを操作し、好きな順番で N 箇所の目的地を訪れたいと考えている。 東西方向に x 軸を、南北方向に y 軸を取る。 飛行区域は 2\\cdot 10^5\\times 2\\cdot 10^5 の正方形で x=-10^5,x=+10^5,y=-10^5,y=+10^5 の4つの壁で囲まれている。 更に、これらの外周の壁以外にも内側に壁がある場合がある。"
+  "description": "高橋くんは二次元平面上で飛行ドローンを操作し、好きな順番で N 箇所の目的地を訪れたいと考えている。 東西方向に x 軸を、南北方向に y 軸を取る。 飛行区域は 2\\cdot 10^5\\times 2\\cdot 10^5 の正方形で x=-10^5,x=+10^5,y=-10^5,y=+10^5 の4つの壁で囲まれている。 更に、これらの外周の壁以外にも内側に壁がある場合がある。",
+  "editorials": [
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Feijirou-kyopro.hatenablog.com%2Fentry%2F2024%2F05%2F06%2F185111%3F_gl%3D1%2A3t0jcv%2A_gcl_au%2AMTk1MjYxOTY5MC4xNzExMTg2Mjc2",
+      "rank": null
+    },
+    {
+      "title": "AtCoder第一回マスターズ選手権 決勝B問題を丁寧に解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Ftoast-uz%2Fitems%2Fe17873fadcc8866ae453",
+      "rank": null
+    }
+  ]
 }

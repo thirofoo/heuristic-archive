@@ -8,5 +8,62 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc061/tasks/ahc061_a",
-  "description": "N\\times N のマス目で表される土地がある。一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス移動した先のマスの座標を (i,j) とする。"
+  "description": "N\\times N のマス目で表される土地がある。一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス移動した先のマスの座標を (i,j) とする。",
+  "editorials": [
+    {
+      "title": "AHCラジオ",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fyoutu.be%2FWruChw5_H5o",
+      "rank": null
+    },
+    {
+      "title": "詳細順位表",
+      "url": "https://img.atcoder.jp/ahc_standings/index.html?contest=ahc061",
+      "rank": null
+    },
+    {
+      "title": "AHCラジオで使用したスライド",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fspeakerdeck.com%2Fshun_pi%2Fahc061jie-shuo",
+      "rank": null
+    },
+    {
+      "title": "強化学習用リポジトリ",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fgithub.com%2Fchettub%2FAHC061-RL",
+      "rank": 1
+    },
+    {
+      "title": "AI Summary",
+      "url": "https://atcoder.jp/contests/ahc061/editorial/16461",
+      "rank": 3
+    },
+    {
+      "title": "bit演算を使った高速化",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.terry-u16.net%2Fentry%2Fahc061-bit-operations",
+      "rank": 5
+    },
+    {
+      "title": "AHC061 解法紹介",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Ftitan-23.hatenablog.com%2Fentry%2F2026%2F02%2F25%2F061131",
+      "rank": 11
+    },
+    {
+      "title": "ahc061に参加！",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzubassyaaaaaaaaaaaaan.hatenablog.com%2Fentry%2F2026%2F02%2F23%2F201428",
+      "rank": 43
+    },
+    {
+      "title": "AHC061 解法（Perf. 2325）",
+      "url": "https://atcoder.jp/contests/ahc061/editorial/16465",
+      "rank": 53
+    },
+    {
+      "title": "THIRD プログラミングコンテスト 2026 （AHC061）参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2026%2F02%2F23%2F190431",
+      "rank": 141
+    },
+    {
+      "title": "AHC061参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fmanybear.hatenablog.com%2Fentry%2F2026%2F02%2F23%2F193114",
+      "rank": 496
+    }
+  ]
 }

@@ -8,5 +8,22 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc058/tasks/ahc058_a",
-  "description": "N 種類のIDと L 種類のLevelからなる N \\times L 種類の機械が存在し、Levelが i、IDが j の機械を機械 j^i と呼ぶ（0 \\leq i < L,\\ 0 \\leq j < N）。"
+  "description": "N 種類のIDと L 種類のLevelからなる N \\times L 種類の機械が存在し、Levelが i、IDが j の機械を機械 j^i と呼ぶ（0 \\leq i < L,\\ 0 \\leq j < N）。",
+  "editorials": [
+    {
+      "title": "Editorial",
+      "url": "https://img.atcoder.jp/ahc058/editorial.pdf",
+      "rank": null
+    },
+    {
+      "title": "解説放送",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Flive%2F3Cl18fS3elk",
+      "rank": null
+    },
+    {
+      "title": "評価値貪欲",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fscat-neko.hatenablog.com%2Fentry%2F2025%2F12%2F15%2F222417",
+      "rank": 37
+    }
+  ]
 }

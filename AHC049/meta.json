@@ -8,5 +8,17 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc049/tasks/ahc049_a",
-  "description": "N \\times N マスのオフィスがある。左上のマスの座標を (0, 0) とし、下方向に i、右方向に j 進んだ位置の座標を (i, j) とする。マス (0, 0) にはオフィスの出入り口がある。"
+  "description": "N \\times N マスのオフィスがある。左上のマスの座標を (0, 0) とし、下方向に i、右方向に j 進んだ位置の座標を (i, j) とする。マス (0, 0) にはオフィスの出入り口がある。",
+  "editorials": [
+    {
+      "title": "焼きなまし法 + 延長戦",
+      "url": "https://atcoder.jp/contests/ahc049/editorial/13384",
+      "rank": 22
+    },
+    {
+      "title": "AHC049参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fmec2.hatenablog.com%2Fentry%2F2025%2F06%2F22%2F170541",
+      "rank": 47
+    }
+  ]
 }

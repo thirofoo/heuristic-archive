@@ -8,5 +8,72 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc022/tasks/ahc022_a",
-  "description": "L \\times L のグリッドが存在し、グリッドの上から i 行目（ 0 \\leq i \\lt L ）、左から j 列目（ 0 \\leq j \\lt L ）のセルを (i, j) で表す。 グリッドの上下、左右はトーラス型に繋がっている。 すなわち、 (0, j) と (L - 1, j) は上下に隣接し、 (i, 0) と (i, L - 1) は左右に隣接する。 セルのうち N 個は 出口セル と呼ばれ、それらの座標を (Y_0, X_0), (Y_1, X_1), \\ldots, (Y_{N-1}, X_{N-1}) とする。 ある 0,1,\\ldots,N-1 の順列 A=(A_0,A_1,\\ldots,A_{N-1}) が存在する。 これは i 番目の ワームホール に入ると、 A_i 番目の 出口セル に出ることを表す。 A の値は隠されており、それを推定することが問題の目的である。"
+  "description": "L \\times L のグリッドが存在し、グリッドの上から i 行目（ 0 \\leq i \\lt L ）、左から j 列目（ 0 \\leq j \\lt L ）のセルを (i, j) で表す。 グリッドの上下、左右はトーラス型に繋がっている。 すなわち、 (0, j) と (L - 1, j) は上下に隣接し、 (i, 0) と (i, L - 1) は左右に隣接する。 セルのうち N 個は 出口セル と呼ばれ、それらの座標を (Y_0, X_0), (Y_1, X_1), \\ldots, (Y_{N-1}, X_{N-1}) とする。 ある 0,1,\\ldots,N-1 の順列 A=(A_0,A_1,\\ldots,A_{N-1}) が存在する。 これは i 番目の ワームホール に入ると、 A_i 番目の 出口セル に出ることを表す。 A の値は隠されており、それを推定することが問題の目的である。",
+  "editorials": [
+    {
+      "title": "解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DlOPnnHCFc30",
+      "rank": null
+    },
+    {
+      "title": "詳細順位表",
+      "url": "https://img.atcoder.jp/ahc_standings/index.html?contest=ahc022",
+      "rank": null
+    },
+    {
+      "title": "AHC022 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fyuusanlondon.hatenablog.com%2Fentry%2F2023%2F08%2F23%2F085128",
+      "rank": 10
+    },
+    {
+      "title": "12位解法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Fgmeriaog%2Farticles%2Fe2604311166c50",
+      "rank": 12
+    },
+    {
+      "title": "推定部分について",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fbowwowforeach.hatenablog.com%2Fentry%2F2023%2F08%2F24%2F205427%3F_gl%3D1%2A1rve9o5%2A_gcl_au%2AMTE5MTM3NjYzLjE2OTEzMjM4ODU",
+      "rank": 15
+    },
+    {
+      "title": "暫定30位解法",
+      "url": "https://atcoder.jp/contests/ahc022/editorial/7019",
+      "rank": 30
+    },
+    {
+      "title": "47位解法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fnote.com%2Fphspls%2Fn%2Fn85a360491bf8",
+      "rank": 47
+    },
+    {
+      "title": "48位解法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fshmug.hatenablog.com%2Fentry%2F2023%2F08%2F21%2F121516",
+      "rank": 48
+    },
+    {
+      "title": "暫定64位解法",
+      "url": "https://atcoder.jp/contests/ahc022/editorial/7016",
+      "rank": 58
+    },
+    {
+      "title": "入口と出口が対応する確率を計算する（動画）",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Flive%2Fw_TQ-zkjTnU%3Ffeature%3Dshare",
+      "rank": 90
+    },
+    {
+      "title": "AHC022 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fa01sa01to.com%2Farticles%2F2023%2F08%2Fahc022%2F",
+      "rank": 131
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fgobi-tk.hatenablog.com%2Fentry%2F2023%2F08%2F25%2F223950",
+      "rank": 146
+    },
+    {
+      "title": "RECRUIT日本橋ハーフマラソン2023夏 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2023%2F08%2F20%2F190031",
+      "rank": 203
+    }
+  ]
 }

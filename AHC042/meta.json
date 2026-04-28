@@ -8,5 +8,62 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc042/tasks/ahc042_a",
-  "description": "N \\times N のマス目からなる盤面がある。 一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先のマスの座標を (i,j) とする。 マス (i,0),(i,1),\\cdots,(i,N-1) を 行 i、マス (0,j),(1,j),\\cdots,(N-1,j) を 列 j と呼ぶ。 初期状態では、盤面上に 鬼 と 福 の駒がそれぞれ 2N 個ずつ、全て異なるマスに存在している。"
+  "description": "N \\times N のマス目からなる盤面がある。 一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先のマスの座標を (i,j) とする。 マス (i,0),(i,1),\\cdots,(i,N-1) を 行 i、マス (0,j),(1,j),\\cdots,(N-1,j) を 列 j と呼ぶ。 初期状態では、盤面上に 鬼 と 福 の駒がそれぞれ 2N 個ずつ、全て異なるマスに存在している。",
+  "editorials": [
+    {
+      "title": "AHCラジオ",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Flive%2FgGN1Jq2A86Y",
+      "rank": null
+    },
+    {
+      "title": "AHC042参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Ftakumi152.hatenablog.jp%2Fentry%2F2025%2F02%2F03%2F014142",
+      "rank": 5
+    },
+    {
+      "title": "AHC042解法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Ftopcoder-tomerun.hatenablog.jp%2Fentry%2F2025%2F02%2F04%2F001531",
+      "rank": 7
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.terry-u16.net%2Fentry%2Fahc042",
+      "rank": 16
+    },
+    {
+      "title": "AHC042参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Futac.hateblo.jp%2Fentry%2F2025%2F02%2F03%2F220944",
+      "rank": 18
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkcpc.hatenablog.com%2Fentry%2F2025%2F02%2F05%2F223052",
+      "rank": 45
+    },
+    {
+      "title": "AHC042参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Fmmrz%2Farticles%2Fahc042-66th-solution-mmrz",
+      "rank": 66
+    },
+    {
+      "title": "AHC042参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fmec2.hatenablog.com%2Fentry%2F2025%2F02%2F03%2F230938",
+      "rank": 148
+    },
+    {
+      "title": "AHC042参加メモ",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2025%2F02%2F03%2F091637",
+      "rank": 314
+    },
+    {
+      "title": "本番の解法+本番後の解法メモ",
+      "url": "https://atcoder.jp/contests/ahc042/editorial/12153",
+      "rank": 389
+    },
+    {
+      "title": "AHC042参加記録",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.takacpu55.xyz%2Fentry%2F2025%2F02%2F03%2F012008",
+      "rank": 543
+    }
+  ]
 }

@@ -8,5 +8,42 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc063/tasks/ahc063_a",
-  "description": "N \\times N マスの盤面がある。 左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先のマスの座標を (i,j) とする。"
+  "description": "N \\times N マスの盤面がある。 左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先のマスの座標を (i,j) とする。",
+  "editorials": [
+    {
+      "title": "AHCラジオ",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Flive%2FrIdZHqLlN20%3Fsi%3DN4PMalqYJ4hygBSp",
+      "rank": null
+    },
+    {
+      "title": "詳細順位表",
+      "url": "https://img.atcoder.jp/ahc_standings/index.html?contest=ahc063",
+      "rank": null
+    },
+    {
+      "title": "AHC063 参加記 (最終4位解法)",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Fthrough%2Farticles%2Fd95a7007ea77ce",
+      "rank": 4
+    },
+    {
+      "title": "AHC063 解法（Perf. 2331）",
+      "url": "https://atcoder.jp/contests/ahc063/editorial/19021",
+      "rank": 46
+    },
+    {
+      "title": "ゆっくり実況",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fyoutu.be%2FK6NoNHXiI9s",
+      "rank": 114
+    },
+    {
+      "title": "AHC063参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Ftakitamo-swelog.blogspot.com%2F2026%2F04%2Fahc063.html",
+      "rank": 153
+    },
+    {
+      "title": "AHC063参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2026%2F04%2F13%2F190657",
+      "rank": 242
+    }
+  ]
 }

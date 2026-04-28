@@ -8,5 +8,67 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc031/tasks/ahc031_a",
-  "description": "縦横の長さが共に W のグリッドとして表現されるイベントホールがある。 一番左上の格子点の座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先の格子点の座標を (i,j) とする。 一番右下の格子点の座標は (W, W) である。"
+  "description": "縦横の長さが共に W のグリッドとして表現されるイベントホールがある。 一番左上の格子点の座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先の格子点の座標を (i,j) とする。 一番右下の格子点の座標は (W, W) である。",
+  "editorials": [
+    {
+      "title": "詳細順位表",
+      "url": "https://img.atcoder.jp/ahc_standings/index.html?contest=ahc031",
+      "rank": null
+    },
+    {
+      "title": "AHCラジオ",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Flive%2Fhxic3DVMPTg%3Fsi%3DewrfUDfZKVnuotCQ",
+      "rank": null
+    },
+    {
+      "title": "AHC031 参加記 & 1位解法解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fblog.oimo.io%2F2024%2F04%2F07%2Fahc031%2F",
+      "rank": 1
+    },
+    {
+      "title": "AHC031参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fbowwowforeach.hatenablog.com%2Fentry%2F2024%2F04%2F03%2F185726%3F_gl%3D1%2A1sxopgq%2A_gcl_au%2AOTg2MTM5NTM3LjE3MTE5Njg5NzE.",
+      "rank": 4
+    },
+    {
+      "title": "AHC031 7位解法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Ftishii2479%2Farticles%2F7e9f891fb93e46",
+      "rank": 7
+    },
+    {
+      "title": "AHC031参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fang107.hatenablog.jp%2Fentry%2F2024%2F04%2F02%2F152917",
+      "rank": 15
+    },
+    {
+      "title": "AHC031参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fta1sa.hatenablog.com%2Fentry%2F2024%2F04%2F03%2F194311",
+      "rank": 35
+    },
+    {
+      "title": "AHC031参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Fotohx%2Farticles%2F5119efd40e86bc",
+      "rank": 50
+    },
+    {
+      "title": "AHC031参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Futac.hateblo.jp%2Fentry%2F2024%2F04%2F01%2F203151",
+      "rank": 72
+    },
+    {
+      "title": "AHC031 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fsankantsu.hatenablog.com%2Fentry%2F2024%2F04%2F04%2F011820",
+      "rank": 94
+    },
+    {
+      "title": "MC Digital プロコン2024（AHC031）参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2024%2F04%2F01%2F190115",
+      "rank": 137
+    },
+    {
+      "title": "AHC031に参加した",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fyajamon.hatenablog.com%2Fentry%2F2024%2F04%2F01%2F213712",
+      "rank": 261
+    }
+  ]
 }

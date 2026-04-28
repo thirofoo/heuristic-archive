@@ -8,5 +8,97 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc054/tasks/ahc054_a",
-  "description": "N \\times N マスの森がある。 左上のマスの座標を (0, 0) とし、下方向に i、右方向に j マス進んだ位置の座標を (i, j) とする。 各マスは「空きマス」もしくは「木」のいずれかである。N \\times N マスの範囲外は木で囲まれている。"
+  "description": "N \\times N マスの森がある。 左上のマスの座標を (0, 0) とし、下方向に i、右方向に j マス進んだ位置の座標を (i, j) とする。 各マスは「空きマス」もしくは「木」のいずれかである。N \\times N マスの範囲外は木で囲まれている。",
+  "editorials": [
+    {
+      "title": "詳細順位表",
+      "url": "https://img.atcoder.jp/ahc_standings/index.html?contest=ahc054",
+      "rank": null
+    },
+    {
+      "title": "解説放送",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Flive%2FGYHbIZsT8iY",
+      "rank": null
+    },
+    {
+      "title": "AHC054 参加記 & 1位解法解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fblog.oimo.io%2F2025%2F10%2F05%2Fahc054%2F",
+      "rank": 1
+    },
+    {
+      "title": "AHC054 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Falgoartis%2Farticles%2Fahc054_yunix_article",
+      "rank": 7
+    },
+    {
+      "title": "AHC054 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Fsemiexp%2Farticles%2F25305807dde94b",
+      "rank": 14
+    },
+    {
+      "title": "AHC054参加記 with Claude Code",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fprussianblue.hatenadiary.jp%2Fentry%2F2025%2F09%2F29%2F223244",
+      "rank": 32
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/contests/ahc054/editorial/14116",
+      "rank": 38
+    },
+    {
+      "title": "AHC054参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fscat-neko.hatenablog.com%2Fentry%2F2025%2F09%2F30%2F215805",
+      "rank": 39
+    },
+    {
+      "title": "AHC054参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fnote.com%2Fshira_111%2Fn%2Fn7e35c98f6e25",
+      "rank": 41
+    },
+    {
+      "title": "AHC054参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fmanybear.hatenablog.com%2Fentry%2F2025%2F09%2F29%2F191735",
+      "rank": 55
+    },
+    {
+      "title": "AHC054参加記：見せる木を工夫して見せないマスを作る",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Fplasma_e%2Farticles%2F1705ad6dda1b2e",
+      "rank": 63
+    },
+    {
+      "title": "AHC054参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fnote.com%2Ftnktsyk_kyopro%2Fn%2Fn3e49a7615dfa",
+      "rank": 101
+    },
+    {
+      "title": "AHC054 解法（Perf. 2046）",
+      "url": "https://atcoder.jp/contests/ahc054/editorial/14106",
+      "rank": 109
+    },
+    {
+      "title": "AHC054参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Futac.hateblo.jp%2Fentry%2F2025%2F09%2F29%2F205638",
+      "rank": 111
+    },
+    {
+      "title": "AHC054参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fnote.com%2Fglass_256%2Fn%2Fnb13944e6bf6d",
+      "rank": 144
+    },
+    {
+      "title": "AHC054参戦記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Fyellow_submarine%2Fitems%2F558d8c7f98f4fb5e65dc",
+      "rank": 237
+    },
+    {
+      "title": "AHC054参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2025%2F09%2F29%2F190250",
+      "rank": 257
+    },
+    {
+      "title": "護衛トレントの渦巻き配置（暫定333位）",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fshoyama.jp%2F%3Fp%3D898",
+      "rank": 332
+    }
+  ]
 }

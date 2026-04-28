@@ -8,5 +8,52 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc028/tasks/ahc028_a",
-  "description": "N\\times N マスのグリッド上に表現されたキー配列が与えられる。一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス移動した先のマスの座標を (i,j) とする。各マスには英大文字 A_{i,j} が書かれており、初期状態でマス (s_i, s_j) に指が置かれている。"
+  "description": "N\\times N マスのグリッド上に表現されたキー配列が与えられる。一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス移動した先のマスの座標を (i,j) とする。各マスには英大文字 A_{i,j} が書かれており、初期状態でマス (s_i, s_j) に指が置かれている。",
+  "editorials": [
+    {
+      "title": "解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3D5Znl6bqHyck",
+      "rank": null
+    },
+    {
+      "title": "解説放送で使用したスライド",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fspeakerdeck.com%2Fterryu16%2Fahc028jie-shuo",
+      "rank": null
+    },
+    {
+      "title": "AHC028 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Ftoriidao.hateblo.jp%2Fentry%2F2024%2F01%2F17%2F225440",
+      "rank": 11
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Fgmeriaog%2Farticles%2F1cb38bdf6d5fe5",
+      "rank": 16
+    },
+    {
+      "title": "一単語ずつ選んでいくビームサーチ",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fgobi-tk.hatenablog.com%2Fentry%2F2024%2F01%2F13%2F231839",
+      "rank": 93
+    },
+    {
+      "title": "AHC028参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Futac.hateblo.jp%2Fentry%2F2024%2F01%2F14%2F011603",
+      "rank": 97
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/contests/ahc028/editorial/9088",
+      "rank": 130
+    },
+    {
+      "title": "OR-Toolsを使ってTSPの近似解を求める(Python)",
+      "url": "https://atcoder.jp/contests/ahc028/editorial/9082",
+      "rank": 171
+    },
+    {
+      "title": "ALGO ARTIS プロコン (AHC028)参加メモ",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2024%2F01%2F14%2F141500",
+      "rank": 324
+    }
+  ]
 }

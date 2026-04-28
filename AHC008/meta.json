@@ -8,5 +8,32 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc008/tasks/ahc008_a",
-  "description": "30 \\times 30 マスからなる部屋の中に、N 匹のペットと M 人の人間が居る。 各マスは初期状態で全て通行可能であり、30 \\times 30 マスの外部は全て通行不能である。 上から x 行目(1\\leq x\\leq 30)、左から y 列目(1\\leq y\\leq 30)のマスの座標を (x, y) とする。 以下の処理を 300 ターン繰り返す。"
+  "description": "30 \\times 30 マスからなる部屋の中に、N 匹のペットと M 人の人間が居る。 各マスは初期状態で全て通行可能であり、30 \\times 30 マスの外部は全て通行不能である。 上から x 行目(1\\leq x\\leq 30)、左から y 列目(1\\leq y\\leq 30)のマスの座標を (x, y) とする。 以下の処理を 300 ターン繰り返す。",
+  "editorials": [
+    {
+      "title": "解説",
+      "url": "https://atcoder.jp/contests/ahc008/editorial/3485",
+      "rank": null
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.terry-u16.net%2Fentry%2Fahc008",
+      "rank": 3
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fsimanman.hatenablog.com%2Fentry%2F2022%2F02%2F28%2F074838",
+      "rank": 4
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fks2m.hatenablog.com%2Fentry%2F2022%2F02%2F27%2F171859",
+      "rank": 55
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2022%2F02%2F26%2F190100",
+      "rank": 269
+    }
+  ]
 }

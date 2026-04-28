@@ -8,5 +8,42 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc035/tasks/ahc035_a",
-  "description": "N\\times N マスのグリッドで表される畑がある。畑の一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス移動した先のマスの座標を (i,j) とする。"
+  "description": "N\\times N マスのグリッドで表される畑がある。畑の一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス移動した先のマスの座標を (i,j) とする。",
+  "editorials": [
+    {
+      "title": "解説放送",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DgRbq9aUCrKs",
+      "rank": null
+    },
+    {
+      "title": "解説放送で使用したスライド",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fspeakerdeck.com%2Fterryu16%2Fahc035jie-shuo",
+      "rank": null
+    },
+    {
+      "title": "参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Ftrap.jp%2Fpost%2F2294%2F",
+      "rank": 4
+    },
+    {
+      "title": "7位解法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fmath-gorilla.hatenablog.com%2Fentry%2F2024%2F07%2F28%2F161631",
+      "rank": 7
+    },
+    {
+      "title": "参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fscat-neko.hatenablog.com%2Fentry%2F2024%2F07%2F22%2F225531",
+      "rank": 15
+    },
+    {
+      "title": "AHC035参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Futac.hateblo.jp%2Fentry%2F2024%2F07%2F22%2F001626",
+      "rank": 90
+    },
+    {
+      "title": "AHC 035 (Korean)",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.readiz.com%2Fblog%2FHistory%2FEX%2FAHC-35",
+      "rank": 229
+    }
+  ]
 }

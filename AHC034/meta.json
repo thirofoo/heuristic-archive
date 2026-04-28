@@ -8,5 +8,47 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc034/tasks/ahc034_a",
-  "description": "N \\times N マスの土地がある。 一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先のマスの座標を (i,j) とする。"
+  "description": "N \\times N マスの土地がある。 一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先のマスの座標を (i,j) とする。",
+  "editorials": [
+    {
+      "title": "解説放送",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Flive%2FZAz04PoSLtY",
+      "rank": null
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fyosupo.hatenablog.com%2Fentry%2F2024%2F06%2F17%2F221003",
+      "rank": 1
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fphysics0523.hatenablog.com%2Fentry%2F2024%2F06%2F16%2F214158",
+      "rank": 2
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Fki84zvkzz4%2Fitems%2F45d422e01e720f42a2ae",
+      "rank": 12
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Fgmeriaog%2Farticles%2F60af68347933cb",
+      "rank": 17
+    },
+    {
+      "title": "ユーザ解説 (DP のみ)",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fa01sa01to.com%2Farticles%2F2024%2F06%2Fahc034%2F",
+      "rank": 36
+    },
+    {
+      "title": "AHC034 参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fsankantsu.hatenablog.com%2Fentry%2F2024%2F06%2F17%2F000743",
+      "rank": 135
+    },
+    {
+      "title": "User Editorial",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fx.com%2FFakePsyho%2Fstatus%2F1802285543104856564",
+      "rank": 3
+    }
+  ]
 }

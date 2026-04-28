@@ -8,5 +8,37 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc023/tasks/asprocon10_a",
-  "description": "サイズが H \\times W の長方形の土地があります。この土地はサイズ 1 \\times 1 の正方形の区画に分割されており、区画と区画の境界は一部が水路となっています。また、土地の外周は柵で囲まれており、外周に一箇所だけ設置されている出入口からのみ出入りできます。出入口はいずれか一つの区画の一辺に含まれており、複数の区画にまたがることはありません。"
+  "description": "サイズが H \\times W の長方形の土地があります。この土地はサイズ 1 \\times 1 の正方形の区画に分割されており、区画と区画の境界は一部が水路となっています。また、土地の外周は柵で囲まれており、外周に一箇所だけ設置されている出入口からのみ出入りできます。出入口はいずれか一つの区画の一辺に含まれており、複数の区画にまたがることはありません。",
+  "editorials": [
+    {
+      "title": "解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DHqiHL85-FLE",
+      "rank": null
+    },
+    {
+      "title": "詳細順位表",
+      "url": "https://img.atcoder.jp/ahc_standings/index.html?contest=ahc023",
+      "rank": null
+    },
+    {
+      "title": "4位解法（暫定版・手書き図多め・アニメーションリンクあり）",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.docswell.com%2Fs%2FShun___PI%2FZGXW1D-2023-09-13-212744",
+      "rank": 4
+    },
+    {
+      "title": "Simplistic approach",
+      "url": "https://atcoder.jp/contests/ahc023/editorial/7132",
+      "rank": 375
+    },
+    {
+      "title": "第10回 Asprova プロコン（AHC023）参加めも",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2023%2F09%2F10%2F200121",
+      "rank": 419
+    },
+    {
+      "title": "ABC1完erのためのAHC入門【解法と考察過程と実装付き】",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Fnekoti10chome%2Fitems%2F9df9ad0eed84638e6dc4",
+      "rank": 474
+    }
+  ]
 }

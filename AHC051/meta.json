@@ -8,5 +8,92 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc051/tasks/ahc051_a",
-  "description": "N 種類のごみを分別して処理するためのごみ処理場を建設中である。 ごみ処理場は2次元平面上の 0\\leq x\\leq 10^4、0\\leq y\\leq 10^4 からなる正方形領域として表現される。 この処理場にはさまざまな種類のごみがごみ搬入口から運び込まれる予定であり、処理装置と分別器を設置し、それらをベルトコンベアで結ぶことにより、できるだけ正確に分別を行った上で処理を行うことができるようにしたい。"
+  "description": "N 種類のごみを分別して処理するためのごみ処理場を建設中である。 ごみ処理場は2次元平面上の 0\\leq x\\leq 10^4、0\\leq y\\leq 10^4 からなる正方形領域として表現される。 この処理場にはさまざまな種類のごみがごみ搬入口から運び込まれる予定であり、処理装置と分別器を設置し、それらをベルトコンベアで結ぶことにより、できるだけ正確に分別を行った上で処理を行うことができるようにしたい。",
+  "editorials": [
+    {
+      "title": "詳細順位表",
+      "url": "https://img.atcoder.jp/ahc_standings/index.html?contest=ahc051",
+      "rank": null
+    },
+    {
+      "title": "AHCラジオ",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Flive%2FubQicRsm7p0",
+      "rank": null
+    },
+    {
+      "title": "Rubbish sorting",
+      "url": "https://atcoder.jp/contests/ahc051/editorial/13660",
+      "rank": 175
+    },
+    {
+      "title": "解法紹介スライド",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fspeakerdeck.com%2Feijirou%2Fahc051jie-fa-shao-jie",
+      "rank": 1
+    },
+    {
+      "title": "AHC051参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Ftrap.jp%2Fpost%2F2651%2F",
+      "rank": 6
+    },
+    {
+      "title": "7位解法の解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fnote.com%2Fymatsux%2Fn%2Fne82d83292354",
+      "rank": 7
+    },
+    {
+      "title": "グラフの埋め込みを頑張る方針",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.terry-u16.net%2Fentry%2Fahc051",
+      "rank": 15
+    },
+    {
+      "title": "AHC051参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Futac.hateblo.jp%2Fentry%2F2025%2F08%2F11%2F192852",
+      "rank": 24
+    },
+    {
+      "title": "AHC051参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fvvani07.hatenadiary.org%2Fentry%2F2025%2F08%2F19%2F232457",
+      "rank": 108
+    },
+    {
+      "title": "AHC051 140位解法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2FSaki1103%2Fitems%2Ff2f944145a1856825273",
+      "rank": 140
+    },
+    {
+      "title": "AHC051参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fmanybear.hatenablog.com%2Fentry%2F2025%2F08%2F11%2F190908",
+      "rank": 145
+    },
+    {
+      "title": "AHC051参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fnote.com%2Fgomaazarasi%2Fn%2Fn3a3b711b5da6%23f4a6f71e-2e53-46f5-a0a5-313c24ba81f6",
+      "rank": 148
+    },
+    {
+      "title": "AHC051参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fnote.com%2Ftetra4_cp%2Fn%2Fn8775e665cc5b",
+      "rank": 158
+    },
+    {
+      "title": "AHC051参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2025%2F08%2F11%2F190035",
+      "rank": 177
+    },
+    {
+      "title": "AHC051 解法",
+      "url": "https://atcoder.jp/contests/ahc051/editorial/13667",
+      "rank": 181
+    },
+    {
+      "title": "AHC051参加記録",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fnote.com%2F3keymikky%2Fn%2Fnc877d00a5143%3Fsub_rt%3Dshare_pb",
+      "rank": 218
+    },
+    {
+      "title": "AHC 051",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fgianhancock.com%2Fposts%2Fatcoder-probabalistic-waste-sorting%2F",
+      "rank": 516
+    }
+  ]
 }
