@@ -1,0 +1,3 @@
+    Finished `release` profile [optimized] target(s) in 0.50s
+     Running `target/release/vis ./in/0999.txt ./out/0999.txt`
+Score = 319
