@@ -2,10 +2,16 @@
   "id": "masters2025-final",
   "title": "第二回マスターズ選手権 -決勝-",
   "date": "2025-04-19",
+  "startDate": "2025-04-19T11:10:00+09:00",
+  "endDate": "2025-04-19T17:10:00+09:00",
+  "durationMinutes": 360,
+  "durationText": "6時間",
   "rank": null,
   "score": null,
   "performance": null,
-  "tags": [],
+  "tags": [
+    "短期"
+  ],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/masters2025-final/tasks/masters2025_final_a",
   "description": "10^6\\times 10^6 の二次元平面上に、点として表される X 個の燃えるごみ、Y 個の燃えないごみ、Z 個の資源ごみが散乱している。 あなたは高橋くんと青木くんに指示を出し、それぞれすべての燃えるごみ・燃えないごみを回収させたい。",

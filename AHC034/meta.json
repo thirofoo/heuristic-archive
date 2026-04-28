@@ -2,10 +2,16 @@
   "id": "AHC034",
   "title": "Toyota Programming Contest 2024#6 (AtCoder Heuristic Contest 034)",
   "date": "2024-06-16",
+  "startDate": "2024-06-16T15:00:00+09:00",
+  "endDate": "2024-06-16T19:00:00+09:00",
+  "durationMinutes": 240,
+  "durationText": "4時間",
   "rank": 156,
   "score": null,
   "performance": 1856,
-  "tags": [],
+  "tags": [
+    "短期"
+  ],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc034/tasks/ahc034_a",
   "description": "N \\times N マスの土地がある。 一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先のマスの座標を (i,j) とする。",

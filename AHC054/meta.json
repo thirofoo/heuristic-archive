@@ -2,10 +2,16 @@
   "id": "AHC054",
   "title": "ALGO ARTIS Programming Contest 2025 Summer (AtCoder Heuristic Contest 054)",
   "date": "2025-09-29",
+  "startDate": "2025-09-19T19:00:00+09:00",
+  "endDate": "2025-09-29T19:00:00+09:00",
+  "durationMinutes": 14400,
+  "durationText": "10日",
   "rank": 171,
   "score": null,
   "performance": 1868,
-  "tags": [],
+  "tags": [
+    "長期"
+  ],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc054/tasks/ahc054_a",
   "description": "N \\times N マスの森がある。 左上のマスの座標を (0, 0) とし、下方向に i、右方向に j マス進んだ位置の座標を (i, j) とする。 各マスは「空きマス」もしくは「木」のいずれかである。N \\times N マスの範囲外は木で囲まれている。",

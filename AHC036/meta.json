@@ -2,10 +2,16 @@
   "id": "AHC036",
   "title": "RECRUIT Nihonbashi Half Marathon 2024 Summer (AtCoder Heuristic Contest 036)",
   "date": "2024-09-02",
+  "startDate": "2024-08-23T19:00:00+09:00",
+  "endDate": "2024-09-02T19:00:00+09:00",
+  "durationMinutes": 14400,
+  "durationText": "10日",
   "rank": 134,
   "score": null,
   "performance": 1911,
-  "tags": [],
+  "tags": [
+    "長期"
+  ],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc036/tasks/ahc036_a",
   "description": "Y国には N 個の都市と M 本の道路があり、i 番目の道路は都市 u_i と都市 v_i を双方向に結んでいる。どの道路も交差はなく、都市と道路からなるグラフは平面グラフである。",

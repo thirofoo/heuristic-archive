@@ -2,10 +2,16 @@
   "id": "AHC061",
   "title": "THIRD Programming Contest 2026 (AtCoder Heuristic Contest 061)",
   "date": "2026-02-23",
+  "startDate": "2026-02-13T19:00:00+09:00",
+  "endDate": "2026-02-23T19:00:00+09:00",
+  "durationMinutes": 14400,
+  "durationText": "10日",
   "rank": 30,
   "score": null,
   "performance": 2500,
-  "tags": [],
+  "tags": [
+    "長期"
+  ],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc061/tasks/ahc061_a",
   "description": "N\\times N のマス目で表される土地がある。一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス移動した先のマスの座標を (i,j) とする。",

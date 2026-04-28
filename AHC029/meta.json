@@ -2,10 +2,16 @@
   "id": "AHC029",
   "title": "RECRUIT Nihonbashi Half Marathon 2024 Winter (AtCoder Heuristic Contest 029)",
   "date": "2023-12-26",
+  "startDate": "2023-12-22T12:00:00+09:00",
+  "endDate": "2023-12-26T21:00:00+09:00",
+  "durationMinutes": 6300,
+  "durationText": "4日9時間",
   "rank": 64,
   "score": null,
   "performance": 2140,
-  "tags": [],
+  "tags": [
+    "長期"
+  ],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc029/tasks/ahc029_a",
   "description": "あなたは会社を経営するゲームをプレイしている。 会社が進めている複数のプロジェクトに対して、毎ターンごとに手札から方針カードを一つ選び消費し、そのカードに従ってプロジェクトを進め、手札の方針カードを補充する、ということを繰り返すターン制のゲームである。 全 T ターンが終了した時点で所持金を最大化することがこのゲームの目的である。",

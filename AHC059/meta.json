@@ -2,10 +2,16 @@
   "id": "AHC059",
   "title": "AtCoder Heuristic Contest 059",
   "date": "2026-01-10",
+  "startDate": "2026-01-10T15:00:00+09:00",
+  "endDate": "2026-01-10T19:00:00+09:00",
+  "durationMinutes": 240,
+  "durationText": "4時間",
   "rank": 42,
   "score": null,
   "performance": 2344,
-  "tags": [],
+  "tags": [
+    "短期"
+  ],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc059/tasks/ahc059_a",
   "description": "N\\times N マスの盤面がある。 一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス移動した先のマスの座標を (i,j) とする。",

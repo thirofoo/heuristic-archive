@@ -2,10 +2,16 @@
   "id": "AHC021",
   "title": "TOYOTA Programming Contest 2023 Summer (AtCoder Heuristic Contest 021)",
   "date": "2023-06-25",
+  "startDate": "2023-06-25T15:00:00+09:00",
+  "endDate": "2023-06-25T19:00:00+09:00",
+  "durationMinutes": 240,
+  "durationText": "4時間",
   "rank": 444,
   "score": null,
   "performance": 1386,
-  "tags": [],
+  "tags": [
+    "短期"
+  ],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc021/tasks/ahc021_a",
   "description": "N(N+1)/2 個のボールが下図のように N 段のピラミッド型に並んでいる。 ピラミッドの頂上のボールの座標を (0, 0) とし、x (0\\leq x\\leq N-1) 段目の左から y (0\\leq y\\leq x) 個目のボールの座標を (x,y) とする。",

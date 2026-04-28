@@ -2,10 +2,16 @@
   "id": "AHC027",
   "title": "HACK TO THE FUTURE 2024 (AtCoder Heuristic Contest 027)",
   "date": "2023-12-10",
+  "startDate": "2023-12-01T19:00:00+09:00",
+  "endDate": "2023-12-10T19:00:00+09:00",
+  "durationMinutes": 12960,
+  "durationText": "9日",
   "rank": 331,
   "score": null,
   "performance": 1467,
-  "tags": [],
+  "tags": [
+    "長期"
+  ],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc027/tasks/ahc027_a",
   "description": "N\\times N マスの盤面がある。 一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先のマスの座標を (i,j) とする。 N\\times N マスの外周は壁で囲われており、上下左右に隣接するマス間にも壁がある場合がある。",

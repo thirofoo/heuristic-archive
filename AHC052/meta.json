@@ -2,10 +2,16 @@
   "id": "AHC052",
   "title": "AtCoder Heuristic Contest 052",
   "date": "2025-08-23",
+  "startDate": "2025-08-23T15:00:00+09:00",
+  "endDate": "2025-08-23T19:00:00+09:00",
+  "durationMinutes": 240,
+  "durationText": "4時間",
   "rank": 776,
   "score": null,
   "performance": null,
-  "tags": [],
+  "tags": [
+    "短期"
+  ],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc052/tasks/ahc052_a",
   "description": "N\\times N マスのオフィスがある。 左上のマスの座標を (0, 0) とし、下方向に i、右方向に j 進んだ位置の座標を (i, j) とする。 N\\times N マスの外周は壁で囲まれており、隣接するマス間にも壁が存在する場合がある。",

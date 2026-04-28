@@ -2,10 +2,16 @@
   "id": "AHC040",
   "title": "HACK TO THE FUTURE 2025 (AtCoder Heuristic Contest 040)",
   "date": "2024-12-09",
+  "startDate": "2024-11-29T19:00:00+09:00",
+  "endDate": "2024-12-09T19:00:00+09:00",
+  "durationMinutes": 14400,
+  "durationText": "10日",
   "rank": 137,
   "score": null,
   "performance": 1903,
-  "tags": [],
+  "tags": [
+    "長期"
+  ],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc040/tasks/ahc040_a",
   "description": "N 個の長方形が与えられる。 i 番目の長方形の大きさは、横幅 w_i と縦幅 h_i である。 入力として、それぞれの値に計測誤差が乗った観測値 w'_i=\\mathrm{normal}(w_i, \\sigma) と h'_i=\\mathrm{normal}(h_i, \\sigma) が与えられる。 ここで、\\mathrm{normal}(\\mu, \\sigma) は次の手順で値を生成する関数である。",

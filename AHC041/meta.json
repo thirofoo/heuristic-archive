@@ -2,10 +2,16 @@
   "id": "AHC041",
   "title": "ALGO ARTIS Programming Contest 2025 Winter (AtCoder Heuristic Contest 041)",
   "date": "2025-01-19",
+  "startDate": "2025-01-19T15:00:00+09:00",
+  "endDate": "2025-01-19T19:00:00+09:00",
+  "durationMinutes": 240,
+  "durationText": "4時間",
   "rank": 113,
   "score": null,
   "performance": 2046,
-  "tags": [],
+  "tags": [
+    "短期"
+  ],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc041/tasks/ahc041_a",
   "description": "N 頂点 M 辺の連結な無向平面グラフ G が与えられる。頂点には 0 から N-1 の番号が、辺には 0 から M-1 の番号がそれぞれ付けられている。頂点 v の座標は (x_v, y_v) であり、 辺 i は頂点 u_i と v_i を結んでいる。各頂点には正の整数をとる 美しさ が定められており、頂点 v の 美しさ は A_v である。",

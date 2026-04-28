@@ -2,10 +2,16 @@
   "id": "AHC031",
   "title": "MC Digital Programming Contest 2024 (AtCoder Heuristic Contest 031)",
   "date": "2024-04-01",
+  "startDate": "2024-03-22T19:00:00+09:00",
+  "endDate": "2024-04-01T19:00:00+09:00",
+  "durationMinutes": 14400,
+  "durationText": "10日",
   "rank": 350,
   "score": null,
   "performance": 1462,
-  "tags": [],
+  "tags": [
+    "長期"
+  ],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc031/tasks/ahc031_a",
   "description": "縦横の長さが共に W のグリッドとして表現されるイベントホールがある。 一番左上の格子点の座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先の格子点の座標を (i,j) とする。 一番右下の格子点の座標は (W, W) である。",

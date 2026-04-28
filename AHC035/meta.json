@@ -2,10 +2,16 @@
   "id": "AHC035",
   "title": "ALGO ARTIS Programming Contest 2024 Summer (AtCoder Heuristic Contest 035)",
   "date": "2024-07-21",
+  "startDate": "2024-07-21T15:00:00+09:00",
+  "endDate": "2024-07-21T19:00:00+09:00",
+  "durationMinutes": 240,
+  "durationText": "4時間",
   "rank": 191,
   "score": null,
   "performance": 1809,
-  "tags": [],
+  "tags": [
+    "短期"
+  ],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc035/tasks/ahc035_a",
   "description": "N\\times N マスのグリッドで表される畑がある。畑の一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス移動した先のマスの座標を (i,j) とする。",

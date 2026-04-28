@@ -2,10 +2,16 @@
   "id": "AHC039",
   "title": "THIRD Programming Contest 2024 (AtCoder Heuristic Contest 039)",
   "date": "2024-11-10",
+  "startDate": "2024-11-10T15:00:00+09:00",
+  "endDate": "2024-11-10T19:00:00+09:00",
+  "durationMinutes": 240,
+  "durationText": "4時間",
   "rank": 43,
   "score": null,
   "performance": 2251,
-  "tags": [],
+  "tags": [
+    "短期"
+  ],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc039/tasks/ahc039_a",
   "description": "二次元平面上に N 匹のサバと N 匹のイワシがいる。 以下の条件を満たす多角形を構築し、その内側に含まれるサバの総数から内側に含まれるイワシの総数を引いた値を最大化せよ。 なお、多角形の辺上に存在する点は全て多角形の内側に含まれるものとみなす。",

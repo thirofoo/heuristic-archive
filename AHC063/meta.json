@@ -2,10 +2,16 @@
   "id": "AHC063",
   "title": "AtCoder Heuristic Contest 063",
   "date": "2026-04-13",
+  "startDate": "2026-04-03T19:00:00+09:00",
+  "endDate": "2026-04-13T19:00:00+09:00",
+  "durationMinutes": 14400,
+  "durationText": "10日",
   "rank": 4,
   "score": null,
   "performance": 3023,
-  "tags": [],
+  "tags": [
+    "長期"
+  ],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc063/tasks/ahc063_a",
   "description": "N \\times N マスの盤面がある。 左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先のマスの座標を (i,j) とする。",

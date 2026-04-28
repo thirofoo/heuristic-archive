@@ -2,10 +2,16 @@
   "id": "AHC056",
   "title": "HACK TO THE FUTURE 2026 (AtCoder Heuristic Contest 056)",
   "date": "2025-11-17",
+  "startDate": "2025-11-07T19:00:00+09:00",
+  "endDate": "2025-11-17T19:00:00+09:00",
+  "durationMinutes": 14400,
+  "durationText": "10日",
   "rank": 252,
   "score": null,
   "performance": 1711,
-  "tags": [],
+  "tags": [
+    "長期"
+  ],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc056/tasks/ahc056_a",
   "description": "N\\times N マスの盤面がある。 左上のマスの座標を (0, 0) とし、下方向に i、右方向に j 進んだ位置の座標を (i, j) とする。 N\\times N マスの外周は壁で囲まれており、また、隣接するマスの間にも壁が存在する場合がある。",

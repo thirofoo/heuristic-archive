@@ -2,10 +2,16 @@
   "id": "AHC024",
   "title": "Marubeni Programming Contest 2023 (AtCoder Heuristic Contest 024)",
   "date": "2023-09-24",
+  "startDate": "2023-09-24T15:00:00+09:00",
+  "endDate": "2023-09-24T19:00:00+09:00",
+  "durationMinutes": 240,
+  "durationText": "4時間",
   "rank": 220,
   "score": null,
   "performance": 1568,
-  "tags": [],
+  "tags": [
+    "短期"
+  ],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc024/tasks/ahc024_a",
   "description": "n\\times n マスのグリッド上に表現された高橋市の地図が与えられる。 一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス移動した先のマスの座標を (i,j) とする。 高橋市は m 個の区からなり、c (1\\leq c\\leq m) 番の色で塗られたマスは c 番の区に対応する。 n\\times n マスの外は市の外部であり、0 番の色で塗られているものとする。",

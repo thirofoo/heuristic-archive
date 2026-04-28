@@ -2,6 +2,8 @@
 """Generate meta.json for all contest directories in the monorepo."""
 
 import argparse
+from datetime import datetime
+import html as html_lib
 from html.parser import HTMLParser
 import json
 import os
@@ -312,6 +314,11 @@ def build_editorial_url(dir_name: str, data: dict) -> str:
     return f"https://atcoder.jp/contests/{slug}/editorial"
 
 
+def build_contest_url(dir_name: str, data: dict) -> str:
+    slug = data.get("contest_slug", dir_name.lower())
+    return f"https://atcoder.jp/contests/{slug}"
+
+
 class AtCoderStatementParser(HTMLParser):
     """Extract Japanese section paragraphs from an AtCoder task page."""
 
@@ -471,6 +478,92 @@ def parse_editorial_rank(text: str) -> int | None:
     return None
 
 
+def format_duration(minutes: int) -> str:
+    days, remainder = divmod(minutes, 24 * 60)
+    hours, mins = divmod(remainder, 60)
+    parts = []
+    if days:
+        parts.append(f"{days}日")
+    if hours:
+        parts.append(f"{hours}時間")
+    if mins:
+        parts.append(f"{mins}分")
+    if not parts:
+        return "0分"
+    return "".join(parts)
+
+
+def term_tag(duration_minutes: int) -> str:
+    if duration_minutes <= 24 * 60:
+        return "短期"
+    return "長期"
+
+
+def with_term_tag(tags: list[str], duration_minutes: int | None) -> list[str]:
+    filtered_tags = [
+        tag for tag in tags if tag not in {"short-term", "long-term", "短期", "長期"}
+    ]
+    if duration_minutes is not None:
+        filtered_tags.append(term_tag(duration_minutes))
+    return filtered_tags
+
+
+def order_meta(meta: dict) -> dict:
+    key_order = [
+        "id",
+        "title",
+        "date",
+        "startDate",
+        "endDate",
+        "durationMinutes",
+        "durationText",
+        "rank",
+        "score",
+        "performance",
+        "tags",
+        "visualizer",
+        "problemUrl",
+        "description",
+        "editorials",
+    ]
+    ordered = {key: meta[key] for key in key_order if key in meta}
+    for key, value in meta.items():
+        if key not in ordered:
+            ordered[key] = value
+    return ordered
+
+
+def fetch_schedule(contest_url: str) -> dict:
+    request = urllib.request.Request(
+        contest_url,
+        headers={"User-Agent": "Heuristic-Monorepo meta generator"},
+    )
+    with urllib.request.urlopen(request, timeout=20) as response:
+        html = response.read().decode("utf-8", errors="replace")
+
+    text = html_lib.unescape(re.sub(r"<[^>]+>", " ", html))
+    text = normalize_text(text)
+    match = re.search(
+        r"Contest Duration:\s*"
+        r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}[+-]\d{4})"
+        r"\s*-\s*"
+        r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}[+-]\d{4})",
+        text,
+    )
+    if not match:
+        return {}
+
+    start = datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S%z")
+    end = datetime.strptime(match.group(2), "%Y-%m-%d %H:%M:%S%z")
+    duration_minutes = int((end - start).total_seconds() // 60)
+    return {
+        "startDate": start.isoformat(timespec="seconds"),
+        "endDate": end.isoformat(timespec="seconds"),
+        "durationMinutes": duration_minutes,
+        "durationText": format_duration(duration_minutes),
+    }
+
+
 def fetch_description(problem_url: str) -> str:
     request = urllib.request.Request(
         problem_url,
@@ -502,16 +595,25 @@ def fetch_editorials(editorial_url: str) -> list[dict[str, str]]:
     return parser.editorials
 
 
-def generate_meta(dir_name: str, data: dict, fetch_descriptions: bool = False) -> dict:
+def generate_meta(
+    dir_name: str,
+    data: dict,
+    fetch_descriptions: bool = False,
+    fetch_schedule_data: bool = False,
+) -> dict:
     problem_url = build_problem_url(dir_name, data)
+    schedule = {}
+    if fetch_schedule_data:
+        schedule = fetch_schedule(build_contest_url(dir_name, data))
     meta = {
         "id": dir_name,
         "title": data["title"],
         "date": data["date"],
+        **schedule,
         "rank": data["rank"],
         "score": None,
         "performance": data.get("performance"),
-        "tags": [],
+        "tags": with_term_tag([], schedule.get("durationMinutes")),
         "visualizer": None,
         "problemUrl": problem_url,
         "description": "",
@@ -519,7 +621,7 @@ def generate_meta(dir_name: str, data: dict, fetch_descriptions: bool = False) -
     }
     if fetch_descriptions:
         meta["description"] = fetch_description(problem_url)
-    return meta
+    return order_meta(meta)
 
 
 def main():
@@ -533,6 +635,11 @@ def main():
         "--fetch-editorials",
         action="store_true",
         help="Fetch editorial links from AtCoder editorial pages.",
+    )
+    parser.add_argument(
+        "--fetch-schedule",
+        action="store_true",
+        help="Fetch contest start/end times from AtCoder contest pages.",
     )
     parser.add_argument(
         "--update-existing",
@@ -617,9 +724,33 @@ def main():
                         changed = True
                     time.sleep(args.sleep)
 
+            if args.fetch_schedule:
+                contest_url = build_contest_url(dir_name, data)
+                try:
+                    schedule = fetch_schedule(contest_url)
+                except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                    print(f"[ERROR] {dir_name}: failed to fetch schedule: {exc}", file=sys.stderr)
+                else:
+                    for key, value in schedule.items():
+                        if meta.get(key) != value:
+                            meta[key] = value
+                            changed = True
+                    duration_minutes = schedule.get("durationMinutes")
+                    tags = with_term_tag(meta.get("tags", []), duration_minutes)
+                    if meta.get("tags") != tags:
+                        meta["tags"] = tags
+                        changed = True
+                    time.sleep(args.sleep)
+
             if not changed:
-                print(f"[SKIP] {dir_name}/meta.json is up to date")
-                continue
+                ordered_meta = order_meta(meta)
+                if list(ordered_meta.keys()) == list(meta.keys()):
+                    print(f"[SKIP] {dir_name}/meta.json is up to date")
+                    continue
+                meta = ordered_meta
+                changed = True
+            else:
+                meta = order_meta(meta)
 
             with open(meta_path, "w", encoding="utf-8") as f:
                 json.dump(meta, f, indent=2, ensure_ascii=False)
@@ -645,8 +776,19 @@ def main():
             else:
                 time.sleep(args.sleep)
 
+        if args.fetch_schedule:
+            contest_url = build_contest_url(dir_name, data)
+            try:
+                schedule = fetch_schedule(contest_url)
+            except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                print(f"[ERROR] {dir_name}: failed to fetch schedule: {exc}", file=sys.stderr)
+            else:
+                meta.update(schedule)
+                meta["tags"] = with_term_tag(meta.get("tags", []), schedule.get("durationMinutes"))
+                time.sleep(args.sleep)
+
         with open(meta_path, "w", encoding="utf-8") as f:
-            json.dump(meta, f, indent=2, ensure_ascii=False)
+            json.dump(order_meta(meta), f, indent=2, ensure_ascii=False)
             f.write("\n")
 
         print(f"[CREATE] {dir_name}/meta.json")

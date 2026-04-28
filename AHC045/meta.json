@@ -2,10 +2,16 @@
   "id": "AHC045",
   "title": "THIRD Programming Contest 2025 (AtCoder Heuristic Contest 045)",
   "date": "2025-04-07",
+  "startDate": "2025-03-28T19:00:00+09:00",
+  "endDate": "2025-04-07T19:00:00+09:00",
+  "durationMinutes": 14400,
+  "durationText": "10日",
   "rank": 106,
   "score": null,
   "performance": 2033,
-  "tags": [],
+  "tags": [
+    "長期"
+  ],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc045/tasks/ahc045_a",
   "description": "平面上に N 個の都市があり、 0 から N-1 までの番号が付けられている。 都市 i の座標は (x_i, y_i) としてジャッジ内部では定まっているが、入力では与えられない。 その代わりに都市 i が存在する可能性のある座標の長方形範囲 lx_i, rx_i, ly_i, ry_i が与えられ、 lx_i \\le x_i \\le rx_i および ly_i \\le y_i \\le ry_i を満たす。 都市間の距離はユークリッド距離の小数点以下を切り捨てた整数値 \\mathrm{dist}(i, j) = \\left\\lfloor \\sqrt{(x_i - x_j)^2 + (y_i - y_j)^2} \\right\\rfloor として定義される。",
