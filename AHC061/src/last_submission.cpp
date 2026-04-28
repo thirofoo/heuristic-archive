@@ -1,0 +1,1377 @@
+#include <bits/stdc++.h>
+#include "params.hpp"
+using namespace std;
+
+namespace utility {
+  struct timer {
+  chrono::steady_clock::time_point start;
+  void CodeStart() {
+    start = chrono::steady_clock::now();
+  }
+  double elapsed() const {
+    using namespace std::chrono;
+    return duration<double, milli>(steady_clock::now() - start).count();
+  }
+  } mytm;
+}
+
+struct State {
+  array<int, 100> owner;
+  array<int, 100> level;
+  array<pair<int, int>, 8> pos;
+  int t;
+  array<long long, 8> score_p;
+
+  State() : t(0) {
+    owner.fill(-1);
+    level.fill(0);
+    pos.fill({0, 0});
+    score_p.fill(0);
+  }
+};
+
+struct Solver {
+  struct MoveList {
+    int n = 0;
+    array<int, 100> a{};
+  };
+  struct EnemyGreedySummary {
+    array<int, 4> best_cell{};
+    array<int, 4> best_v{};
+    int fallback_cell = 0;
+  };
+
+  int N = 0;
+  int M = 0;
+  int T = 0;
+  int U = 0;
+  array<int, 100> V;
+  struct EnemyParam {
+    double wa = 0.0;
+    double wb = 0.0;
+    double wc = 0.0;
+    double wd = 0.0;
+    double eps = 0.0;
+  };
+  vector<EnemyParam> enemy;
+  State current;
+  bool initialized = false;
+
+  Params params = {};
+  vector<array<double, 4>> enemy_candidates;
+  vector<double> enemy_eps_candidates;
+  vector<vector<double>> enemy_logp;
+  static constexpr int kPosteriorTop = 4;
+  static constexpr double kPosteriorTemp = 0.75;
+  static constexpr double kEnemyGridLo = 0.3;
+  static constexpr double kEnemyGridHi = 1.0;
+  static constexpr int kEnemyGridDivisions = 7;
+  vector<array<int, kPosteriorTop>> enemy_post_idx;
+  vector<array<double, kPosteriorTop>> enemy_post_cdf;
+  vector<uint8_t> enemy_post_size;
+  mutable array<uint32_t, 100> visit_stamp{};
+  mutable array<uint32_t, 100> block_stamp{};
+  mutable uint32_t visit_epoch = 1;
+  mutable uint32_t block_epoch = 1;
+  array<array<int, 4>, 100> neighbors{};
+  array<uint8_t, 100> neighbor_deg{};
+
+  Solver() {
+    this->input();
+  }
+
+  void input() {
+    if(!(cin >> N >> M >> T >> U)) return;
+    for(int i = 0; i < N; i++) {
+      for(int j = 0; j < N; j++) {
+        cin >> V[i * N + j];
+      }
+    }
+    enemy.assign(M, EnemyParam());
+
+    current = State();
+    for(int p = 0; p < M; p++) {
+      int x, y;
+      cin >> x >> y;
+      int idx = x * N + y;
+      current.owner[idx] = p;
+      current.level[idx] = 1;
+      current.pos[p] = {x, y};
+    }
+    current.t = 0;
+    initialized = true;
+    params = params_for_m(M);
+    build_neighbors();
+    init_scores(current);
+    init_enemy_estimator();
+  }
+
+  bool read_turn_state(State& st, bool update_enemy_model = true) {
+    int tx, ty;
+    State prev;
+    if(update_enemy_model) prev = st;
+    array<int, 8> selected;
+    selected.fill(-1);
+    for(int p = 0; p < M; p++) {
+      if(!(cin >> tx >> ty)) return false;
+      selected[p] = idx(tx, ty);
+    }
+    for(int p = 0; p < M; p++) {
+      if(!(cin >> tx >> ty)) return false;
+      st.pos[p] = {tx, ty};
+    }
+    for(int i = 0; i < N * N; i++) {
+      if(!(cin >> st.owner[i])) return false;
+    }
+    for(int i = 0; i < N * N; i++) {
+      if(!(cin >> st.level[i])) return false;
+    }
+    if(update_enemy_model) update_enemy_params(prev, selected);
+    st.t += 1;
+    init_scores(st);
+    return true;
+  }
+
+  void init_enemy_estimator() {
+    int div = kEnemyGridDivisions;
+    if(div < 1) div = 1;
+    vector<double> grid;
+    grid.reserve(div);
+    for(int i = 0; i < div; i++) {
+      double t = ((double) i + 0.5) / (double) div;
+      grid.push_back(kEnemyGridLo + (kEnemyGridHi - kEnemyGridLo) * t);
+    }
+    enemy_candidates.clear();
+    for(double wa : grid) {
+      for(double wb : grid) {
+        for(double wc : grid) {
+          for(double wd : grid) {
+            enemy_candidates.push_back({wa, wb, wc, wd});
+          }
+        }
+      }
+    }
+    enemy_eps_candidates = {0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50};
+    int wcnt = (int) enemy_candidates.size();
+    int ecnt = (int) enemy_eps_candidates.size();
+    enemy_logp.assign(max(0, M - 1), vector<double>(wcnt * ecnt, 0.0));
+    enemy_post_idx.assign(max(0, M - 1), array<int, kPosteriorTop>{});
+    enemy_post_cdf.assign(max(0, M - 1), array<double, kPosteriorTop>{});
+    enemy_post_size.assign(max(0, M - 1), 0);
+
+    constexpr double mu_w = 0.65;
+    constexpr double mu_e = 0.30;
+    constexpr double inv_2sig2_w = 1.0 / (2.0 * 0.22 * 0.22);
+    constexpr double inv_2sig2_e = 1.0 / (2.0 * 0.13 * 0.13);
+    for(int ai = 0; ai < max(0, M - 1); ai++) {
+      vector<double>& logp = enemy_logp[ai];
+      for(int wi = 0; wi < wcnt; wi++) {
+        const auto& cand = enemy_candidates[wi];
+        double dw2 = (cand[0] - mu_w) * (cand[0] - mu_w) + (cand[1] - mu_w) * (cand[1] - mu_w)
+                     + (cand[2] - mu_w) * (cand[2] - mu_w) + (cand[3] - mu_w) * (cand[3] - mu_w);
+        for(int ei = 0; ei < ecnt; ei++) {
+          double de = enemy_eps_candidates[ei] - mu_e;
+          logp[wi * ecnt + ei] = -dw2 * inv_2sig2_w - de * de * inv_2sig2_e;
+        }
+      }
+    }
+
+    for(int p = 1; p < M; p++) {
+      int ai_idx = p - 1;
+      int best_idx = 0;
+      const vector<double>& logp = enemy_logp[ai_idx];
+      for(int i = 1; i < (int) logp.size(); i++) {
+        if(logp[i] > logp[best_idx]) best_idx = i;
+      }
+      int best_wi = best_idx / ecnt;
+      int best_ei = best_idx % ecnt;
+      const auto& best = enemy_candidates[best_wi];
+      enemy[p].wa = best[0];
+      enemy[p].wb = best[1];
+      enemy[p].wc = best[2];
+      enemy[p].wd = best[3];
+      enemy[p].eps = enemy_eps_candidates[best_ei];
+      rebuild_enemy_posterior(ai_idx);
+    }
+  }
+
+  void rebuild_enemy_posterior(int ai_idx) {
+    if(ai_idx < 0 || ai_idx >= (int) enemy_logp.size()) return;
+    const vector<double>& logp = enemy_logp[ai_idx];
+    if(logp.empty()) {
+      enemy_post_size[ai_idx] = 0;
+      return;
+    }
+
+    array<int, kPosteriorTop> best_idx{};
+    array<double, kPosteriorTop> best_log{};
+    int sz = 0;
+    for(int i = 0; i < (int) logp.size(); i++) {
+      double v = logp[i];
+      int pos = sz;
+      if(pos < kPosteriorTop) {
+        best_idx[pos] = i;
+        best_log[pos] = v;
+        sz++;
+      } else if(v > best_log[sz - 1]) {
+        pos = sz - 1;
+        best_idx[pos] = i;
+        best_log[pos] = v;
+      } else {
+        continue;
+      }
+      while(pos > 0 && best_log[pos] > best_log[pos - 1]) {
+        swap(best_log[pos], best_log[pos - 1]);
+        swap(best_idx[pos], best_idx[pos - 1]);
+        pos--;
+      }
+    }
+    if(sz <= 0) {
+      enemy_post_size[ai_idx] = 0;
+      return;
+    }
+
+    enemy_post_size[ai_idx] = (uint8_t) sz;
+    double mx = best_log[0];
+    double inv_temp = 1.0 / kPosteriorTemp;
+    double acc = 0.0;
+    for(int j = 0; j < sz; j++) {
+      enemy_post_idx[ai_idx][j] = best_idx[j];
+      double z = (best_log[j] - mx) * inv_temp;
+      if(z < -60.0) z = -60.0;
+      acc += exp(z);
+      enemy_post_cdf[ai_idx][j] = acc;
+    }
+    if(acc <= 0.0) {
+      enemy_post_size[ai_idx] = 1;
+      enemy_post_idx[ai_idx][0] = best_idx[0];
+      enemy_post_cdf[ai_idx][0] = 1.0;
+      return;
+    }
+    for(int j = 0; j < sz; j++) {
+      enemy_post_cdf[ai_idx][j] /= acc;
+    }
+  }
+
+  void update_enemy_params(const State& prev, const array<int, 8>& selected) {
+    if(enemy_candidates.empty() || enemy_eps_candidates.empty()) return;
+    int wcnt = (int) enemy_candidates.size();
+    int ecnt = (int) enemy_eps_candidates.size();
+    for(int p = 1; p < M; p++) {
+      int obs = selected[p];
+      if(obs < 0) continue;
+      MoveList moves = enumerate_moves(prev, p);
+      if(moves.n <= 0) continue;
+      EnemyGreedySummary summary = build_enemy_greedy_summary(prev, p, moves);
+      int ai_idx = p - 1;
+      vector<double>& logp = enemy_logp[ai_idx];
+      double inv_m = 1.0 / (double) moves.n;
+      int obs_cat = enemy_move_category(prev, p, obs);
+      int obs_v = (obs >= 0 && obs < N * N) ? V[obs] : -1;
+      for(int wi = 0; wi < wcnt; wi++) {
+        const auto& cand = enemy_candidates[wi];
+        double max_score = -1e100;
+        int best_count = 0;
+        int best_mask = 0;
+        for(int cat = 0; cat < 4; cat++) {
+          if(summary.best_cell[cat] < 0) continue;
+          double a = (double) summary.best_v[cat] * cand[cat];
+          if(a > max_score + 1e-12) {
+            max_score = a;
+            best_count = 1;
+            best_mask = (1 << cat);
+          } else if(fabs(a - max_score) <= 1e-12) {
+            best_count++;
+            best_mask |= (1 << cat);
+          }
+        }
+        bool obs_best = false;
+        if(best_count <= 0) {
+          best_count = 1;
+          obs_best = (obs == summary.fallback_cell);
+        } else if(obs_cat >= 0 && (best_mask & (1 << obs_cat)) && obs_v == summary.best_v[obs_cat]) {
+          obs_best = true;
+        }
+        for(int ei = 0; ei < ecnt; ei++) {
+          double eps = enemy_eps_candidates[ei];
+          double prob = eps * inv_m;
+          if(obs_best) prob += (1.0 - eps) / (double) best_count;
+          if(prob < 1e-15) prob = 1e-15;
+          logp[wi * ecnt + ei] += log(prob);
+        }
+      }
+
+      int best_idx = 0;
+      for(int i = 1; i < (int) logp.size(); i++) {
+        if(logp[i] > logp[best_idx]) best_idx = i;
+      }
+      int best_wi = best_idx / ecnt;
+      int best_ei = best_idx % ecnt;
+      const auto& best = enemy_candidates[best_wi];
+      enemy[p].wa = best[0];
+      enemy[p].wb = best[1];
+      enemy[p].wc = best[2];
+      enemy[p].wd = best[3];
+      enemy[p].eps = enemy_eps_candidates[best_ei];
+      rebuild_enemy_posterior(ai_idx);
+    }
+  }
+
+  inline int idx(int x, int y) const {
+    return x * N + y;
+  }
+
+  inline pair<int, int> xy(int cell) const {
+    return {cell / N, cell % N};
+  }
+
+  void build_neighbors() {
+    for(int x = 0; x < N; x++) {
+      for(int y = 0; y < N; y++) {
+        int v = idx(x, y);
+        uint8_t deg = 0;
+        if(y + 1 < N) neighbors[v][deg++] = idx(x, y + 1);
+        if(x + 1 < N) neighbors[v][deg++] = idx(x + 1, y);
+        if(y - 1 >= 0) neighbors[v][deg++] = idx(x, y - 1);
+        if(x - 1 >= 0) neighbors[v][deg++] = idx(x - 1, y);
+        neighbor_deg[v] = deg;
+      }
+    }
+  }
+
+  inline double enemy_eval_cell(
+      const State& st,
+      int p,
+      int cell,
+      double wa,
+      double wb,
+      double wc,
+      double wd) const {
+    int owner = st.owner[cell];
+    int level = st.level[cell];
+    if(owner == -1) return V[cell] * wa;
+    if(owner == p) return (level < U) ? (V[cell] * wb) : 0.0;
+    return (level == 1) ? (V[cell] * wc) : (V[cell] * wd);
+  }
+
+  inline int enemy_move_category(const State& st, int p, int cell) const {
+    int owner = st.owner[cell];
+    if(owner == -1) return 0;
+    if(owner == p) return (st.level[cell] < U) ? 1 : -1; // Full-owned cells are ignored for greedy categories.
+    return (st.level[cell] == 1) ? 2 : 3;
+  }
+
+  EnemyGreedySummary build_enemy_greedy_summary(const State& st, int p, const MoveList& moves) const {
+    EnemyGreedySummary summary;
+    summary.best_cell.fill(-1);
+    summary.best_v.fill(-1);
+    summary.fallback_cell = (moves.n > 0) ? moves.a[0] : idx(st.pos[p].first, st.pos[p].second);
+    for(int i = 0; i < moves.n; i++) {
+      int cell = moves.a[i];
+      int cat = enemy_move_category(st, p, cell);
+      if(cat < 0) continue;
+      int v = V[cell];
+      if(v > summary.best_v[cat] || (v == summary.best_v[cat] && (summary.best_cell[cat] < 0 || cell < summary.best_cell[cat]))) {
+        summary.best_v[cat] = v;
+        summary.best_cell[cat] = cell;
+      }
+    }
+    return summary;
+  }
+
+  int collect_enemy_best_cells_from_summary(
+      const EnemyGreedySummary& summary,
+      const EnemyParam& model,
+      array<int, 100>& best_cells) const {
+    array<double, 4> w = {model.wa, model.wb, model.wc, model.wd};
+    int best_count = 0;
+    double max_score = -1e100;
+    for(int cat = 0; cat < 4; cat++) {
+      if(summary.best_cell[cat] < 0) continue;
+      double score = (double) summary.best_v[cat] * w[cat];
+      if(best_count == 0 || score > max_score + 1e-12) {
+        max_score = score;
+        best_cells[0] = summary.best_cell[cat];
+        best_count = 1;
+      } else if(fabs(score - max_score) <= 1e-12) {
+        best_cells[best_count++] = summary.best_cell[cat];
+      }
+    }
+    if(best_count <= 0) {
+      best_cells[0] = summary.fallback_cell;
+      return 1;
+    }
+    return best_count;
+  }
+
+  void init_scores(State& st) const {
+    st.score_p.fill(0);
+    for(int i = 0; i < N * N; i++) {
+      int owner = st.owner[i];
+      int level = st.level[i];
+      if(owner != -1) st.score_p[owner] += (long long) V[i] * level;
+    }
+  }
+
+  void update_cell(State& st, int cell, int new_owner, int new_level) const {
+    int old_owner = st.owner[cell];
+    int old_level = st.level[cell];
+    if(old_owner != -1) st.score_p[old_owner] -= (long long) V[cell] * old_level;
+    if(new_owner != -1) st.score_p[new_owner] += (long long) V[cell] * new_level;
+    st.owner[cell] = new_owner;
+    st.level[cell] = new_level;
+  }
+
+  MoveList enumerate_moves(const State& st, int p) const {
+    uint32_t ve = ++visit_epoch;
+    if(ve == 0) {
+      visit_stamp.fill(0);
+      visit_epoch = 1;
+      ve = 1;
+    }
+    uint32_t be = ++block_epoch;
+    if(be == 0) {
+      block_stamp.fill(0);
+      block_epoch = 1;
+      be = 1;
+    }
+    for(int i = 0; i < M; i++) {
+      if(i == p) continue;
+      int cell = idx(st.pos[i].first, st.pos[i].second);
+      block_stamp[cell] = be;
+    }
+
+    int start = idx(st.pos[p].first, st.pos[p].second);
+    int qbuf[100];
+    int head = 0, tail = 0;
+    visit_stamp[start] = ve;
+    qbuf[tail++] = start;
+
+    MoveList moves;
+    while(head < tail) {
+      int v = qbuf[head++];
+      if(block_stamp[v] != be) moves.a[moves.n++] = v;
+      if(st.owner[v] != p) continue;
+      int deg = (int) neighbor_deg[v];
+      for(int di = 0; di < deg; di++) {
+        int ni = neighbors[v][di];
+        if(visit_stamp[ni] == ve) continue;
+        visit_stamp[ni] = ve;
+        qbuf[tail++] = ni;
+      }
+    }
+
+    if(moves.n <= 0) moves.a[moves.n++] = start;
+    return moves;
+  }
+
+  static int pick_index(double r, int n) {
+    int j = (int) (r * n);
+    if(j < 0) j = 0;
+    if(j >= n) j = n - 1;
+    return j;
+  }
+
+  template <class TargetContainer>
+  void compute_returned(const State& st, const TargetContainer& target, array<char, 8>& returned) const {
+    returned.fill(0);
+    array<uint8_t, 100> cnt;
+    array<uint16_t, 100> mask;
+    cnt.fill(0);
+    mask.fill(0);
+    int touched_buf[100];
+    int touched_size = 0;
+    for(int p = 0; p < M; p++) {
+      int cell = target[p];
+      if(cnt[cell] == 0) touched_buf[touched_size++] = cell;
+      cnt[cell]++;
+      mask[cell] |= (uint16_t) (1u << p);
+    }
+    for(int i = 0; i < touched_size; i++) {
+      int cell = touched_buf[i];
+      if(cnt[cell] <= 1) continue;
+      uint16_t m = mask[cell];
+      int cell_owner = st.owner[cell];
+      if(cell_owner != -1 && (m & (1u << cell_owner))) {
+        m &= (uint16_t) ~(1u << cell_owner);
+      }
+      while(m) {
+        int p = __builtin_ctz(m);
+        returned[p] = 1;
+        m &= (uint16_t) (m - 1);
+      }
+    }
+  }
+
+  void apply_turn_targets_inplace(State& st, const array<int, 8>& target) const {
+    array<pair<int, int>, 8> start_pos = st.pos;
+    array<pair<int, int>, 8> moved_pos = st.pos;
+    for(int p = 0; p < M; p++) {
+      int cell = target[p];
+      moved_pos[p] = xy(cell);
+    }
+
+    array<char, 8> returned;
+    compute_returned(st, target, returned);
+
+    for(int p = 0; p < M; p++) {
+      if(returned[p]) continue;
+      int cell = target[p];
+      int cell_owner = st.owner[cell];
+      int cell_level = st.level[cell];
+      if(cell_owner == -1) {
+        update_cell(st, cell, p, 1);
+      } else if(cell_owner == p) {
+        update_cell(st, cell, p, min(U, cell_level + 1));
+      } else {
+        int new_level = cell_level - 1;
+        if(new_level <= 0) {
+          update_cell(st, cell, p, 1);
+        } else {
+          update_cell(st, cell, cell_owner, new_level);
+          returned[p] = 1;
+        }
+      }
+    }
+
+    for(int p = 0; p < M; p++) {
+      int new_cell = returned[p] ? idx(start_pos[p].first, start_pos[p].second)
+                                 : idx(moved_pos[p].first, moved_pos[p].second);
+      st.pos[p] = xy(new_cell);
+    }
+    st.t += 1;
+  }
+
+  double move_heuristic(const State& st, int cell) const {
+    int owner = st.owner[cell];
+    int level = st.level[cell];
+    double v = (double) V[cell];
+    if(owner == -1) return v;
+    if(owner == 0) return (level < U) ? v : 0.0;
+    return (level == 1) ? (2.0 * v) : v;
+  }
+
+  double move_heuristic_m2_beam(const State& st, int cell) const {
+    int owner = st.owner[cell];
+    int level = st.level[cell];
+    double v = (double) V[cell];
+    if(owner == 1) {
+      constexpr int kM2StealBonusEndTurn = 30;
+      if(st.t < kM2StealBonusEndTurn) {
+        double decay = 1.0 - (double) st.t / (double) kM2StealBonusEndTurn;
+        if(decay < 0.0) decay = 0.0;
+        v += decay * (double) V[cell];
+      }
+    }
+    if(owner == -1) return v;
+    if(owner == 0) return (level < U) ? v : 0.0;
+    return (level == 1) ? (2.0 * v) : v;
+  }
+
+  void mark_enemy_top_reachable_my_cells_m2(const State& st, array<uint8_t, 100>& mark) const {
+    mark.fill(0);
+    if(M != 2) return;
+    MoveList enemy_moves = enumerate_moves(st, 1);
+    if(enemy_moves.n <= 0) return;
+    int top_v = -1;
+    for(int i = 0; i < enemy_moves.n; i++) {
+      int cell = enemy_moves.a[i];
+      if(V[cell] > top_v) top_v = V[cell];
+    }
+    if(top_v < 0) return;
+    for(int i = 0; i < enemy_moves.n; i++) {
+      int cell = enemy_moves.a[i];
+      if(V[cell] != top_v) continue;
+      if(st.owner[cell] != 0) continue;
+      mark[cell] = 1;
+    }
+  }
+
+  static bool better_scored_cell(const pair<double, int>& a, const pair<double, int>& b) {
+    if(a.first != b.first) return a.first > b.first;
+    return a.second < b.second;
+  }
+
+  void cap_moves_by_heuristic(const State& st, vector<int>& moves, int cap) const {
+    if(cap < 1) cap = 1;
+    if((int) moves.size() <= cap) return;
+    array<pair<double, int>, 100> scored;
+    int scored_size = 0;
+    for(int cell : moves) {
+      scored[scored_size++] = {move_heuristic(st, cell), cell};
+    }
+    nth_element(scored.begin(), scored.begin() + cap, scored.begin() + scored_size, better_scored_cell);
+    sort(scored.begin(), scored.begin() + cap, better_scored_cell);
+    moves.clear();
+    moves.reserve(cap);
+    for(int i = 0; i < cap; i++) moves.push_back(scored[i].second);
+  }
+
+  void cap_moves_by_heuristic_m2_beam(const State& st, vector<int>& moves, int cap) const {
+    if(cap < 1) cap = 1;
+    if((int) moves.size() <= cap) return;
+    array<uint8_t, 100> m2_enemy_top_my_cells;
+    mark_enemy_top_reachable_my_cells_m2(st, m2_enemy_top_my_cells);
+    array<pair<double, int>, 100> scored;
+    int scored_size = 0;
+    for(int cell : moves) {
+      double h = move_heuristic_m2_beam(st, cell);
+      if(m2_enemy_top_my_cells[cell]) h *= 2.0;
+      scored[scored_size++] = {h, cell};
+    }
+    nth_element(scored.begin(), scored.begin() + cap, scored.begin() + scored_size, better_scored_cell);
+    sort(scored.begin(), scored.begin() + cap, better_scored_cell);
+    moves.clear();
+    moves.reserve(cap);
+    for(int i = 0; i < cap; i++) moves.push_back(scored[i].second);
+  }
+
+  double estimation_information_score(const State& st) const {
+    if(enemy_candidates.empty() || enemy_eps_candidates.empty()) return 0.0;
+    int ecnt = (int) enemy_eps_candidates.size();
+    if(ecnt <= 0) return 0.0;
+
+    double total = 0.0;
+    for(int p = 1; p < M; p++) {
+      int ai_idx = p - 1;
+      if(ai_idx < 0 || ai_idx >= (int) enemy_post_size.size()) continue;
+      int sz = (int) enemy_post_size[ai_idx];
+      if(sz <= 0) continue;
+
+      MoveList moves = enumerate_moves(st, p);
+      int msz = moves.n;
+      if(msz <= 1) continue;
+      EnemyGreedySummary summary = build_enemy_greedy_summary(st, p, moves);
+
+      array<double, 100> q_greedy;
+      q_greedy.fill(0.0);
+
+      double prev_cdf = 0.0;
+      for(int j = 0; j < sz; j++) {
+        int flat_idx = enemy_post_idx[ai_idx][j];
+        if(flat_idx < 0) continue;
+        double cdf = enemy_post_cdf[ai_idx][j];
+        double mass = cdf - prev_cdf;
+        prev_cdf = cdf;
+        if(mass <= 1e-12) continue;
+
+        int wi = flat_idx / ecnt;
+        if(wi < 0 || wi >= (int) enemy_candidates.size()) continue;
+        const auto& cand = enemy_candidates[wi];
+        array<int, 100> best_cells;
+        EnemyParam model;
+        model.wa = cand[0];
+        model.wb = cand[1];
+        model.wc = cand[2];
+        model.wd = cand[3];
+        int best_count = collect_enemy_best_cells_from_summary(summary, model, best_cells);
+        if(best_count <= 0) continue;
+        double share = mass / (double) best_count;
+        for(int i = 0; i < best_count; i++) q_greedy[best_cells[i]] += share;
+      }
+
+      double eps = enemy[p].eps;
+      if(eps < 0.0) eps = 0.0;
+      if(eps > 0.5) eps = 0.5;
+
+      double inv_m = 1.0 / (double) msz;
+      double H = 0.0;
+      for(int i = 0; i < msz; i++) {
+        int cell = moves.a[i];
+        double prob = (1.0 - eps) * q_greedy[cell] + eps * inv_m;
+        if(prob > 1e-15) H -= prob * log(prob);
+      }
+      double Hnorm = H / log((double) msz);
+      total += Hnorm * (1.0 - eps);
+    }
+    return total;
+  }
+
+  void cap_root_moves_with_info_probe(const State& root, vector<int>& moves, int cap) const {
+    if(cap < 1) cap = 1;
+    if((int) moves.size() <= cap) return;
+
+    constexpr int kInfoProbeTurns = 24;
+    if(M <= 2 || root.t >= kInfoProbeTurns) {
+      cap_moves_by_heuristic(root, moves, cap);
+      return;
+    }
+
+    double phase = 1.0 - (double) root.t / (double) kInfoProbeTurns;
+    if(phase < 0.0) phase = 0.0;
+    if(phase > 1.0) phase = 1.0;
+    constexpr double kInfoScale = 260.0;
+
+    array<pair<double, int>, 100> scored;
+    int scored_size = 0;
+    for(int cell : moves) {
+      State st1 = root;
+      apply_predicted_turn_with_cache(st1, cell);
+      double info = estimation_information_score(st1);
+      double base = move_heuristic(root, cell);
+      scored[scored_size++] = {base + phase * kInfoScale * info, cell};
+    }
+
+    nth_element(scored.begin(), scored.begin() + cap, scored.begin() + scored_size, better_scored_cell);
+    sort(scored.begin(), scored.begin() + cap, better_scored_cell);
+    moves.clear();
+    moves.reserve(cap);
+    for(int i = 0; i < cap; i++) moves.push_back(scored[i].second);
+  }
+
+  int root_candidate_cap(int remaining_turns) const {
+    int hi = params.cap_hi;
+    int lo = params.cap_lo;
+    if(hi < 1) hi = 1;
+    if(lo < 1) lo = 1;
+    if(lo > hi) swap(lo, hi);
+    int mid_hi = (2 * hi + lo + 1) / 3;
+    int mid_lo = (hi + 2 * lo + 1) / 3;
+
+    if(remaining_turns >= 70) return hi;
+    if(remaining_turns >= 40) return mid_hi;
+    if(remaining_turns >= 20) return mid_lo;
+    return lo;
+  }
+
+  double robust_root_value(double sum, double sq_sum, int cnt, int turn) const {
+    if(cnt <= 0) return -1e100;
+    double mean = sum / cnt;
+    double var = sq_sum / cnt - mean * mean;
+    if(var < 0.0) var = 0.0;
+    double phase = (T <= 1) ? 1.0 : (double) turn / (double) (T - 1);
+    double lambda = 0.0;
+    if(lambda < 0.05) lambda = 0.05;
+    return mean - lambda * sqrt(var);
+  }
+
+  void enumerate_moves_my(const State& st, vector<int>& moves) const {
+    MoveList base_moves = enumerate_moves(st, 0);
+    moves.clear();
+    if((int) moves.capacity() < base_moves.n) moves.reserve(base_moves.n);
+    for(int i = 0; i < base_moves.n; i++) {
+      int cell = base_moves.a[i];
+      if(st.owner[cell] == 0 && st.level[cell] >= U) continue;
+      moves.push_back(cell);
+    }
+    if(moves.empty()) {
+      for(int i = 0; i < base_moves.n; i++) moves.push_back(base_moves.a[i]);
+    }
+  }
+
+  bool has_enemy_adjacent_to_my_territory_m2(const State& st) const {
+    if(M != 2) return true;
+    int cells = N * N;
+    for(int cell = 0; cell < cells; cell++) {
+      if(st.owner[cell] != 0) continue;
+      int deg = (int) neighbor_deg[cell];
+      for(int di = 0; di < deg; di++) {
+        int ni = neighbors[cell][di];
+        if(st.owner[ni] == 1) return true;
+      }
+    }
+    return false;
+  }
+
+  int choose_forced_contact_move_m2(const State& st, const vector<int>& legal_moves) const {
+    if(M != 2) return -1;
+    if(legal_moves.empty()) return -1;
+    if(has_enemy_adjacent_to_my_territory_m2(st)) return -1;
+
+    constexpr int INF = 1e9;
+    constexpr double NEG_INF = -1e100;
+    int cells = N * N;
+    array<int, 100> dist;
+    array<double, 100> best_path_value;
+    dist.fill(INF);
+    best_path_value.fill(NEG_INF);
+
+    int qbuf[100];
+    int head = 0, tail = 0;
+    for(int cell = 0; cell < cells; cell++) {
+      if(st.owner[cell] != 1) continue;
+      dist[cell] = 0;
+      best_path_value[cell] = (double) V[cell];
+      qbuf[tail++] = cell;
+    }
+    if(tail == 0) return -1;
+
+    while(head < tail) {
+      int v = qbuf[head++];
+      int deg = (int) neighbor_deg[v];
+      for(int di = 0; di < deg; di++) {
+        int ni = neighbors[v][di];
+        if(dist[ni] != INF) continue;
+        dist[ni] = dist[v] + 1;
+        qbuf[tail++] = ni;
+      }
+    }
+
+    int max_dist = 0;
+    for(int cell = 0; cell < cells; cell++) {
+      if(dist[cell] == INF) continue;
+      if(dist[cell] > max_dist) max_dist = dist[cell];
+    }
+    for(int d = 1; d <= max_dist; d++) {
+      for(int cell = 0; cell < cells; cell++) {
+        if(dist[cell] != d) continue;
+        double best_next = NEG_INF;
+        int deg = (int) neighbor_deg[cell];
+        for(int di = 0; di < deg; di++) {
+          int ni = neighbors[cell][di];
+          if(dist[ni] != d - 1) continue;
+          if(best_path_value[ni] > best_next) best_next = best_path_value[ni];
+        }
+        if(best_next > NEG_INF / 2.0) best_path_value[cell] = (double) V[cell] + best_next;
+      }
+    }
+
+    int chosen = -1;
+    int best_dist = INF;
+    double best_sum = NEG_INF;
+    int best_cell_value = -1;
+    for(int mv : legal_moves) {
+      if(mv < 0 || mv >= cells) continue;
+      int d = dist[mv];
+      if(d == INF) continue;
+      double path_sum = best_path_value[mv];
+      int cell_value = V[mv];
+      if(d < best_dist ||
+         (d == best_dist && (path_sum > best_sum + 1e-12 ||
+                             (fabs(path_sum - best_sum) <= 1e-12 &&
+                              (cell_value > best_cell_value ||
+                               (cell_value == best_cell_value && (chosen < 0 || mv < chosen))))))) {
+        chosen = mv;
+        best_dist = d;
+        best_sum = path_sum;
+        best_cell_value = cell_value;
+      }
+    }
+    return chosen;
+  }
+
+  double evaluate(const State& st) const {
+    double s0d = max(1.0, (double) st.score_p[0]);
+    double sad = 1.0;
+    for(int p = 1; p < M; p++) {
+      double sp = max(1.0, (double) st.score_p[p]);
+      if(sp > sad) sad = sp;
+    }
+    return -1e5 * log2(1.0 + sad / s0d);
+  }
+
+  inline double fast_eval_rollout(const State& st) const {
+    // Lightweight ranking objective for rollouts.
+    long long s0 = st.score_p[0];
+    long long se = 1;
+    for(int p = 1; p < M; p++) se = max(se, st.score_p[p]);
+
+    int me = idx(st.pos[0].first, st.pos[0].second);
+    double local = 0.0;
+    int deg = (int) neighbor_deg[me];
+    for(int di = 0; di < deg; di++) {
+      int ni = neighbors[me][di];
+      int o = st.owner[ni];
+      if(o == -1) {
+        local += (double) V[ni];
+      } else if(o != 0 && st.level[ni] == 1) {
+        local += 0.5 * (double) V[ni];
+      }
+    }
+    return (double) (s0 - se) + 0.05 * local;
+  }
+
+  struct XorShift32 {
+    unsigned int tx;
+    unsigned int ty;
+    unsigned int tz;
+    unsigned int tw;
+
+    explicit XorShift32(unsigned int seed = 1u) {
+      tx = 123456789u ^ seed;
+      ty = 362436069u ^ ((seed << 13) | (seed >> 19));
+      tz = 521288629u ^ (seed * 1664525u + 1013904223u);
+      tw = 88675123u ^ (seed * 1103515245u + 12345u);
+      if((tx | ty | tz | tw) == 0u) tw = 88675123u;
+    }
+
+    inline unsigned int rand_int() {
+      unsigned int tt = (tx ^ (tx << 11));
+      tx = ty;
+      ty = tz;
+      tz = tw;
+      return (tw = (tw ^ (tw >> 19)) ^ (tt ^ (tt >> 8)));
+    }
+
+    inline double rand_double() {
+      return (double) (rand_int() % 1000000000u) * (1.0 / 1000000000.0);
+    }
+  };
+
+  inline unsigned int mix32(unsigned int x) const {
+    x ^= x >> 16;
+    x *= 0x7feb352dU;
+    x ^= x >> 15;
+    x *= 0x846ca68bU;
+    x ^= x >> 16;
+    return x;
+  }
+
+  inline unsigned int rollout_seed(const State& root, uint64_t sample_id) const {
+    unsigned int h = 2166136261u;
+    auto add = [&](unsigned int v) {
+      h ^= v;
+      h *= 16777619u;
+    };
+    add((unsigned int) root.t);
+    add((unsigned int) M);
+    add((unsigned int) sample_id);
+    add((unsigned int) (sample_id >> 32));
+    for(int p = 0; p < M; p++) {
+      int cell = idx(root.pos[p].first, root.pos[p].second);
+      add((unsigned int) (cell + 1 + 1315423911u * (unsigned int) (p + 1)));
+    }
+    return mix32(h);
+  }
+
+  EnemyParam sample_enemy_param_rollout(int p, double r_model) const {
+    if(p <= 0 || p >= M) return EnemyParam();
+    int ai_idx = p - 1;
+    if(ai_idx < 0 || ai_idx >= (int) enemy_post_size.size()) return enemy[p];
+    int sz = (int) enemy_post_size[ai_idx];
+    if(sz <= 0) return enemy[p];
+
+    int pick = 0;
+    while(pick + 1 < sz && r_model > enemy_post_cdf[ai_idx][pick]) pick++;
+    int flat_idx = enemy_post_idx[ai_idx][pick];
+    int ecnt = (int) enemy_eps_candidates.size();
+    if(ecnt <= 0) return enemy[p];
+    int wi = flat_idx / ecnt;
+    int ei = flat_idx % ecnt;
+    if(wi < 0 || wi >= (int) enemy_candidates.size() || ei < 0 || ei >= ecnt) return enemy[p];
+
+    EnemyParam model;
+    model.wa = enemy_candidates[wi][0];
+    model.wb = enemy_candidates[wi][1];
+    model.wc = enemy_candidates[wi][2];
+    model.wd = enemy_candidates[wi][3];
+    model.eps = enemy_eps_candidates[ei];
+    return model;
+  }
+
+  int collect_enemy_best_cells(
+      const State& st,
+      int p,
+      const EnemyParam& model,
+      const MoveList& moves,
+      array<int, 100>& best_cells) const {
+    if(moves.n <= 0) return 0;
+    EnemyGreedySummary summary = build_enemy_greedy_summary(st, p, moves);
+    return collect_enemy_best_cells_from_summary(summary, model, best_cells);
+  }
+
+  int predict_enemy_move_greedy(const State& st, int p) const {
+    MoveList moves = enumerate_moves(st, p);
+    if(moves.n <= 1) return moves.a[0];
+
+    array<int, 100> best_cells;
+    int best_count = collect_enemy_best_cells(st, p, enemy[p], moves, best_cells);
+    if(best_count <= 0) return moves.a[0];
+
+    int best_cell = best_cells[0];
+    for(int i = 1; i < best_count; i++) best_cell = min(best_cell, best_cells[i]);
+    return best_cell;
+  }
+
+  int sample_enemy_move_rollout(const State& st, int p, const EnemyParam& model, double r_eps, double r_sel) const {
+    MoveList moves = enumerate_moves(st, p);
+    int msz = moves.n;
+    if(msz <= 1) return moves.a[0];
+
+    double eps = model.eps;
+    if(eps < 0.0) eps = 0.0;
+    if(eps > 0.5) eps = 0.5;
+    if(r_eps < eps) return moves.a[pick_index(r_sel, msz)];
+
+    array<int, 100> best_cells;
+    int best_count = collect_enemy_best_cells(st, p, model, moves, best_cells);
+    if(best_count <= 0) return moves.a[0];
+    return best_cells[pick_index(r_sel, best_count)];
+  }
+
+  void apply_predicted_turn_with_cache(State& st, int my_move, int cached_enemy_move = -1) const {
+    array<int, 8> target;
+    target.fill(0);
+    target[0] = my_move;
+    if(cached_enemy_move >= 0 && M == 2) {
+      target[1] = cached_enemy_move;
+    } else {
+      for(int p = 1; p < M; p++) target[p] = predict_enemy_move_greedy(st, p);
+    }
+    apply_turn_targets_inplace(st, target);
+  }
+
+  static void update_best_choice(double value, int move, double& best_value, int& best_move) {
+    if(value > best_value || (value == best_value && move < best_move)) {
+      best_value = value;
+      best_move = move;
+    }
+  }
+
+  struct BeamNode {
+    State st;
+    int first_move = -1;
+    double value = -1e100;
+  };
+
+  static bool better_beam_node(const BeamNode& a, const BeamNode& b) {
+    if(a.value != b.value) return a.value > b.value;
+    return a.first_move < b.first_move;
+  }
+
+  void keep_top_beam(vector<BeamNode>& nodes, int width) const {
+    if(width < 1) width = 1;
+    if((int) nodes.size() <= width) return;
+    nth_element(nodes.begin(), nodes.begin() + width, nodes.end(), better_beam_node);
+    sort(nodes.begin(), nodes.begin() + width, better_beam_node);
+    nodes.resize(width);
+  }
+
+  pair<int, int> beam_search_decision(const State& root, double turn_end) const {
+    int fallback_cell = idx(root.pos[0].first, root.pos[0].second);
+    int beam_width = params.beam_width;
+    if(beam_width < 1) beam_width = 1;
+    int max_depth = params.beam_depth;
+    if(max_depth < 1) max_depth = 1;
+    max_depth = min(max_depth, max(1, T - root.t));
+
+    vector<int> root_moves;
+    enumerate_moves_my(root, root_moves);
+    if(root_moves.empty()) return xy(fallback_cell);
+    int forced_contact_move = choose_forced_contact_move_m2(root, root_moves);
+    if(forced_contact_move >= 0) return xy(forced_contact_move);
+    int root_cap = min(beam_width, root_candidate_cap(T - root.t));
+    cap_moves_by_heuristic_m2_beam(root, root_moves, root_cap);
+    if(root_moves.empty()) return xy(fallback_cell);
+
+    int best_move = root_moves[0];
+    double best_value = -1e100;
+    int root_enemy_move = predict_enemy_move_greedy(root, 1);
+    for(int mv : root_moves) {
+      State st = root;
+      apply_predicted_turn_with_cache(st, mv, root_enemy_move);
+      double v = evaluate(st);
+      update_best_choice(v, mv, best_value, best_move);
+    }
+
+    int layer_cap = beam_width * 4;
+    if(layer_cap < beam_width) layer_cap = beam_width;
+    if(layer_cap > 12000) layer_cap = 12000;
+
+    vector<vector<BeamNode>> layers(max_depth + 1);
+    for(auto& v : layers) v.reserve(layer_cap);
+    BeamNode root_node;
+    root_node.st = root;
+    root_node.first_move = -1;
+    root_node.value = evaluate(root);
+    layers[0].push_back(std::move(root_node));
+
+    auto pop_best_batch = [&](vector<BeamNode>& layer, int k, vector<BeamNode>& out) {
+      if(layer.empty() || k <= 0) return;
+      sort(layer.begin(), layer.end(), better_beam_node);
+      if((int)layer.size() > layer_cap) layer.resize(layer_cap);
+      k = min(k, (int)layer.size());
+      out.clear();
+      out.reserve(k);
+      for(int i = 0; i < k; i++) out.push_back(std::move(layer[i]));
+      layer.erase(layer.begin(), layer.begin() + k);
+    };
+
+    vector<BeamNode> batch;
+    batch.reserve(beam_width);
+
+    while(utility::mytm.elapsed() <= turn_end) {
+      bool progressed = false;
+      for(int depth = 0; depth < max_depth; depth++) {
+        if(utility::mytm.elapsed() > turn_end) break;
+        auto& cur_layer = layers[depth];
+        auto& nxt_layer = layers[depth + 1];
+        if(cur_layer.empty()) continue;
+
+        pop_best_batch(cur_layer, beam_width, batch);
+        if(batch.empty()) continue;
+        progressed = true;
+
+        for(const BeamNode& parent : batch) {
+          if(utility::mytm.elapsed() > turn_end) break;
+          vector<int> moves;
+          enumerate_moves_my(parent.st, moves);
+          if(moves.empty()) continue;
+          int cap = min(beam_width, root_candidate_cap(T - parent.st.t));
+          cap_moves_by_heuristic_m2_beam(parent.st, moves, cap);
+          int cached_enemy_move = predict_enemy_move_greedy(parent.st, 1);
+          for(int mv : moves) {
+            if(utility::mytm.elapsed() > turn_end) break;
+            BeamNode child;
+            child.st = parent.st;
+            apply_predicted_turn_with_cache(child.st, mv, cached_enemy_move);
+            child.first_move = (parent.first_move < 0) ? mv : parent.first_move;
+            child.value = evaluate(child.st);
+            update_best_choice(child.value, child.first_move, best_value, best_move);
+            nxt_layer.push_back(std::move(child));
+          }
+        }
+
+        if((int)nxt_layer.size() > layer_cap) {
+          keep_top_beam(nxt_layer, layer_cap);
+        }
+      }
+      if(!progressed) break;
+    }
+
+    return xy(best_move);
+  }
+
+  int choose_my_rollout_move(const State& st, double r_mode, double r_sel) const {
+    MoveList base_moves = enumerate_moves(st, 0);
+    int fallback = idx(st.pos[0].first, st.pos[0].second);
+    if(base_moves.n <= 0) return fallback;
+
+    array<int, 100> cand;
+    int n = 0;
+    for(int i = 0; i < base_moves.n; i++) {
+      int cell = base_moves.a[i];
+      if(st.owner[cell] == 0 && st.level[cell] >= U) continue;
+      cand[n++] = cell;
+    }
+    if(n == 0) {
+      for(int i = 0; i < base_moves.n; i++) cand[n++] = base_moves.a[i];
+    }
+    if(n == 1) return cand[0];
+
+    double self_eps = params.self_random_eps;
+    if(self_eps < 0.0) self_eps = 0.0;
+    if(self_eps > 1.0) self_eps = 1.0;
+    if(r_mode < self_eps) {
+      int j = pick_index(r_sel, n);
+      return cand[j];
+    }
+
+    double temp = params.softmax_temp;
+    if(temp < 1e-6) temp = 1e-6;
+    double inv_temp = 1.0 / temp;
+
+    array<double, 100> h_scores;
+    double max_h = -1e100;
+    double min_h = 1e100;
+    for(int i = 0; i < n; i++) {
+      h_scores[i] = move_heuristic(st, cand[i]);
+      if(h_scores[i] > max_h) max_h = h_scores[i];
+      if(h_scores[i] < min_h) min_h = h_scores[i];
+    }
+
+    double range = max_h - min_h;
+    if(range < 1e-12) {
+      int j = pick_index(r_sel, n);
+      return cand[j];
+    }
+    double inv_range = 1.0 / range;
+
+    array<double, 100> cum_prob;
+    double acc = 0.0;
+    for(int i = 0; i < n; i++) {
+      double z = (h_scores[i] - max_h) * inv_range * inv_temp;
+      if(z < -60.0) z = -60.0;
+      acc += exp(z);
+      cum_prob[i] = acc;
+    }
+
+    double threshold = r_sel * acc;
+    for(int i = 0; i < n; i++) {
+      if(cum_prob[i] >= threshold) return cand[i];
+    }
+    return cand[n - 1];
+  }
+
+  double rollout_once(const State& root, int first_move, int horizon, uint64_t sample_id) const {
+    State st = root;
+    XorShift32 rng(rollout_seed(root, sample_id));
+    array<EnemyParam, 8> sampled_enemy;
+    for(int p = 1; p < M; p++) {
+      sampled_enemy[p] = sample_enemy_param_rollout(p, rng.rand_double());
+    }
+    for(int d = 0; d < horizon && st.t < T; d++) {
+      array<int, 8> target;
+      double my_r_mode = rng.rand_double();
+      double my_r_sel = rng.rand_double();
+      if(d == 0) {
+        target[0] = first_move;
+      } else {
+        target[0] = choose_my_rollout_move(st, my_r_mode, my_r_sel);
+      }
+      for(int p = 1; p < M; p++) {
+        double r1 = rng.rand_double();
+        double r2 = rng.rand_double();
+        target[p] = sample_enemy_move_rollout(st, p, sampled_enemy[p], r1, r2);
+      }
+      apply_turn_targets_inplace(st, target);
+    }
+    return fast_eval_rollout(st);
+  }
+
+  pair<int, int> monte_carlo_rollout_decision(const State& root, double turn_end) const {
+    vector<int> moves;
+    enumerate_moves_my(root, moves);
+    if(moves.empty()) {
+      return {root.pos[0].first, root.pos[0].second};
+    }
+
+    int remaining_turns = T - root.t;
+    int root_cap = root_candidate_cap(remaining_turns);
+    cap_root_moves_with_info_probe(root, moves, root_cap);
+
+    int K = (int) moves.size();
+    vector<double> sum(K, 0.0), sq_sum(K, 0.0);
+    vector<int> cnt(K, 0);
+
+    int horizon = params.rollout_horizon;
+    if(horizon < 1) horizon = 1;
+    horizon = min(horizon, max(1, remaining_turns));
+
+    int best_idx = 0;
+    double best_value = -1e100;
+
+    double C = params.ucb_c;
+    if(C < 0.0) C = 0.0;
+    int total_cnt = 0;
+
+    for(int i = 0; i < K; i++) {
+      if(utility::mytm.elapsed() > turn_end) break;
+      double val = rollout_once(root, moves[i], horizon, 0);
+      sum[i] += val;
+      sq_sum[i] += val * val;
+      cnt[i]++;
+      total_cnt++;
+    }
+
+    double ucb_scale = 1.0;
+    if(total_cnt >= 2) {
+      double total_sum_all = 0.0, total_sq_all = 0.0;
+      double val_min = 1e100, val_max = -1e100;
+      for(int i = 0; i < K; i++) {
+        if(cnt[i] <= 0) continue;
+        total_sum_all += sum[i];
+        total_sq_all += sq_sum[i];
+        double m = sum[i] / cnt[i];
+        if(m < val_min) val_min = m;
+        if(m > val_max) val_max = m;
+      }
+      double overall_mean = total_sum_all / total_cnt;
+      double overall_var = total_sq_all / total_cnt - overall_mean * overall_mean;
+      if(overall_var < 0.0) overall_var = 0.0;
+      ucb_scale = sqrt(overall_var);
+      if(ucb_scale < 1.0) {
+        ucb_scale = max(1.0, val_max - val_min);
+      }
+    }
+
+    while(utility::mytm.elapsed() <= turn_end) {
+      int sel = -1;
+      double best_ucb = -1e100;
+      double log_total = log((double) total_cnt);
+      for(int i = 0; i < K; i++) {
+        if(cnt[i] <= 0) {
+          sel = i;
+          break;
+        }
+        double mean_i = sum[i] / cnt[i];
+        double ucb = mean_i + C * ucb_scale * sqrt(log_total / cnt[i]);
+        if(ucb > best_ucb) {
+          best_ucb = ucb;
+          sel = i;
+        }
+      }
+      if(sel < 0) sel = 0;
+
+      double val = rollout_once(root, moves[sel], horizon, (uint64_t) cnt[sel]);
+      sum[sel] += val;
+      sq_sum[sel] += val * val;
+      cnt[sel]++;
+      total_cnt++;
+
+      if((total_cnt & 31) == 0 && total_cnt >= 4) {
+        double ts = 0.0, tsq = 0.0;
+        for(int i = 0; i < K; i++) {
+          ts += sum[i];
+          tsq += sq_sum[i];
+        }
+        double om = ts / total_cnt;
+        double ov = tsq / total_cnt - om * om;
+        if(ov < 0.0) ov = 0.0;
+        double new_scale = sqrt(ov);
+        if(new_scale >= 1.0) ucb_scale = new_scale;
+      }
+    }
+
+    for(int i = 0; i < K; i++) {
+      double rv = robust_root_value(sum[i], sq_sum[i], cnt[i], root.t);
+      if(rv > best_value || (rv == best_value && moves[i] < moves[best_idx])) {
+        best_value = rv;
+        best_idx = i;
+      }
+    }
+    int best_move = moves[best_idx];
+    return xy(best_move);
+  }
+
+  double compute_turn_end(double turn_start, int rem_turns, double ema_read_ms, double hard_deadline) const {
+    constexpr double kPostMoveMs = 2.0;
+    int rem_reads = max(0, rem_turns - 1);
+    double reserve_reads = ema_read_ms * (double) rem_reads;
+    double remaining_budget = hard_deadline - turn_start - reserve_reads;
+    if(remaining_budget < 0.0) remaining_budget = 0.0;
+
+    double alloc = (rem_turns > 0) ? (remaining_budget / (double) rem_turns) : 0.0;
+    double turn_end = turn_start + alloc - kPostMoveMs;
+    if(turn_end > hard_deadline - kPostMoveMs) turn_end = hard_deadline - kPostMoveMs;
+    if(turn_end < 0.0) turn_end = 0.0;
+    if(turn_end < turn_start) turn_end = turn_start;
+    return turn_end;
+  }
+
+  void solve() {
+    if(!initialized) return;
+    utility::mytm.CodeStart();
+    constexpr double kTimeLimitMs = 7900.0;
+    double hard_deadline = kTimeLimitMs;
+    if(hard_deadline < 0.0) hard_deadline = 0.0;
+    double ema_read_ms = 2.0;
+    for(int turn = 0; turn < T; turn++) {
+      double turn_start = utility::mytm.elapsed();
+      int rem_turns = T - turn;
+      double turn_end = compute_turn_end(turn_start, rem_turns, ema_read_ms, hard_deadline);
+
+      pair<int, int> decision = (M == 2)
+          ? beam_search_decision(current, turn_end)
+          : monte_carlo_rollout_decision(current, turn_end);
+      cout << decision.first << " " << decision.second << "\n" << flush;
+      if(turn + 1 >= T) break;
+
+      double read_start = utility::mytm.elapsed();
+      bool update_enemy_model = (read_start + 8.0 < hard_deadline);
+      if(!read_turn_state(current, update_enemy_model)) break;
+      double read_ms = utility::mytm.elapsed() - read_start;
+      ema_read_ms = 0.9 * ema_read_ms + 0.1 * read_ms;
+    }
+  }
+};
+
+int main() {
+  cin.tie(0);
+  ios_base::sync_with_stdio(false);
+
+  Solver solver;
+  solver.solve();
+
+  return 0;
+}

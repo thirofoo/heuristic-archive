@@ -1,1 +1,0 @@
-/home/hiroto/Proglam/C++/AtCoder/Contest/Heuristic/AHC038/tools/target/release/gen: /home/hiroto/Proglam/C++/AtCoder/Contest/Heuristic/AHC038/tools/src/bin/gen.rs /home/hiroto/Proglam/C++/AtCoder/Contest/Heuristic/AHC038/tools/src/lib.rs

@@ -204,9 +204,7 @@ struct Solver {
 
   static constexpr double TIME_LIMIT_MS = 2950.0;
   static constexpr double START_TEMP = 2.0e8;
-  static constexpr double END_TEMP = 1.0e7;
-  static constexpr double OR_START_TEMP = 2.0e8;
-  static constexpr double OR_END_TEMP = 1.0e7;
+  static constexpr double END_TEMP = 1.0e6;
 
   int N = 0;
   int V = 0;
@@ -228,7 +226,6 @@ struct Solver {
   Node *root = nullptr;
   vector<int> vtx_pos;   // vtx_pos[v] = position of vertex v in the path
   vector<int> cur_order; // cur_order[i] = vertex at position i
-  vector<long long> prefix_A; // prefix_A[i] = sum(A[cur_order[0..i-1]])
 
   long long current_objective = 0;
   long long best_objective = LLONG_MIN;
@@ -621,13 +618,11 @@ struct Solver {
     current_objective = 0;
     vtx_pos.assign(V, 0);
     cur_order = order;
-    prefix_A.assign(V + 1, 0);
 
     for (int p = 0; p < V; ++p) {
       const int v = order[p];
       current_objective += 1LL * p * A[v];
       vtx_pos[v] = p;
-      prefix_A[p + 1] = prefix_A[p] + A[v];
       Node *node = new Node(v, A[v]);
       node_of[v] = node;
       root = merge(root, node);
@@ -652,12 +647,6 @@ struct Solver {
     const double progress =
         min(1.0, utility::timer.elapsed_ms() / TIME_LIMIT_MS);
     return exp(log(START_TEMP) * (1.0 - progress) + log(END_TEMP) * progress);
-  }
-
-  double or_temperature() const {
-    const double progress =
-        min(1.0, utility::timer.elapsed_ms() / TIME_LIMIT_MS);
-    return exp(log(OR_START_TEMP) * (1.0 - progress) + log(OR_END_TEMP) * progress);
   }
 
   bool accept(long long delta, double temp) const {
@@ -729,7 +718,6 @@ struct Solver {
       vtx_pos[v] = k;
       vtx_pos[u] = k + 1;
       current_objective += swap_delta;
-      prefix_A[k + 1] = prefix_A[k] + A[v];
 
       // Update Treap
       swap_adjacent_treap(k);
@@ -812,7 +800,6 @@ struct Solver {
       for (int t = 0; t < (int)seg.size(); ++t) {
         cur_order[i + 1 + t] = seg[t];
         vtx_pos[seg[t]] = i + 1 + t;
-        prefix_A[i + 1 + t + 1] = prefix_A[i + 1 + t] + A[seg[t]];
       }
     }
     root = merge(left, mid_seg);
@@ -848,190 +835,21 @@ struct Solver {
     return true;
   }
 
-  // Or-opt: remove a single vertex and reinsert at a better position
-  // Tries ALL grid neighbors of the picked vertex and picks the best insertion.
-  bool try_or_opt(double temp) {
-    const int k = 1 + rand_int() % (V - 2);
-    const int v = cur_order[k];
-    const int prev = cur_order[k - 1];
-    const int next = cur_order[k + 1];
-    if (!is_adjacent(prev, next))
-      return false;
-
-    long long best_delta = LLONG_MIN;
-    int best_insert = -1;
-
-    for (int nb : neighbors[v]) {
-      const int j = vtx_pos[nb];
-      if (j == k - 1 || j == k || j == k + 1) continue;
-
-      // Try insert after j: v between path[j] and path[j+1]
-      if (j + 1 < V && is_adjacent(v, cur_order[j + 1])) {
-        long long delta;
-        if (j > k) {
-          delta = (long long)(j - k) * A[v] - (prefix_A[j + 1] - prefix_A[k + 1]);
-        } else {
-          delta = (long long)(j + 1 - k) * A[v] + (prefix_A[k] - prefix_A[j + 1]);
-        }
-        if (delta > best_delta) { best_delta = delta; best_insert = j; }
-      }
-      // Try insert before j: v between path[j-1] and path[j]
-      if (j - 1 >= 0 && is_adjacent(v, cur_order[j - 1])) {
-        int ip = j - 1;
-        if (ip == k) continue;
-        long long delta;
-        if (ip > k) {
-          delta = (long long)(ip - k) * A[v] - (prefix_A[ip + 1] - prefix_A[k + 1]);
-        } else {
-          delta = (long long)(ip + 1 - k) * A[v] + (prefix_A[k] - prefix_A[ip + 1]);
-        }
-        if (delta > best_delta) { best_delta = delta; best_insert = ip; }
-      }
-    }
-
-    if (best_insert < 0) return false;
-    if (!accept(best_delta, temp)) return false;
-
-    const int insert_pos = best_insert;
-    const long long delta = best_delta;
-
-    // --- Accept the move ---
-    // Collect old edges to remove and new edges to add
-    const int old_e_prev = find_edge_id(prev, v);     // edge (k-1, k)
-    const int old_e_next = find_edge_id(v, next);      // edge (k, k+1)
-    const int new_e_bridge = find_edge_id(prev, next);  // bridge after removal
-
-    // Update Treap: remove node at position k, insert at new position
-    Node *left_part, *mid_node, *right_part, *rest;
-    split(root, k, left_part, rest);
-    split(rest, 1, mid_node, right_part);
-    root = merge(left_part, right_part);
-
-    // Now insert mid_node at position new_pos_of_v
-    // After removal, indices >= k shift down by 1.
-    int treap_insert_pos;
-    if (insert_pos > k) {
-      // In the post-removal array, the target index is insert_pos (which shifted to insert_pos - 1 + 1 = insert_pos)
-      // Actually: new_pos_of_v = insert_pos; after removal from k < insert_pos,
-      // the element at old index insert_pos is now at insert_pos - 1.
-      // We want to insert after that element, so at position insert_pos - 1 + 1 = insert_pos... 
-      // Wait: after removal, length is V-1. Positions 0..k-1 unchanged, k..V-2 = old k+1..V-1.
-      // Old insert_pos > k, so in new array it's at insert_pos - 1.
-      // We want to insert AFTER the element at old insert_pos, which is now at insert_pos - 1.
-      // Insert at position insert_pos (right after insert_pos - 1).
-      treap_insert_pos = insert_pos;
-    } else {
-      // insert_pos < k. Positions 0..insert_pos unchanged in new array.
-      // We want to insert AFTER the element at old insert_pos.
-      // In new array, that element is still at insert_pos.
-      // Insert at position insert_pos + 1.
-      treap_insert_pos = insert_pos + 1;
-    }
-    
-    Node *ins_left, *ins_right;
-    split(root, treap_insert_pos, ins_left, ins_right);
-    root = merge(merge(ins_left, mid_node), ins_right);
-
-    // Update cur_order and vtx_pos
-    if (insert_pos > k) {
-      // Shift elements k+1..insert_pos left by 1
-      for (int t = k; t < insert_pos; ++t) {
-        cur_order[t] = cur_order[t + 1];
-        vtx_pos[cur_order[t]] = t;
-      }
-      cur_order[insert_pos] = v;
-      vtx_pos[v] = insert_pos;
-    } else {
-      // Shift elements insert_pos+1..k-1 right by 1
-      for (int t = k; t > insert_pos + 1; --t) {
-        cur_order[t] = cur_order[t - 1];
-        vtx_pos[cur_order[t]] = t;
-      }
-      cur_order[insert_pos + 1] = v;
-      vtx_pos[v] = insert_pos + 1;
-    }
-
-    current_objective += delta;
-
-    // Update edge_used:
-    // Old edges removed: (prev, v) and (v, next)
-    // New bridge: (prev, next) 
-    // Old edge at insertion point removed, new edges at insertion added
-    int ins_left_v, ins_right_v;
-    if (insert_pos > k) {
-      // v is now at position insert_pos
-      ins_left_v = cur_order[insert_pos - 1]; // should be == nb or neighbor
-      ins_right_v = (insert_pos + 1 < V) ? cur_order[insert_pos + 1] : -1;
-    } else {
-      // v is now at position insert_pos + 1
-      int vp = insert_pos + 1;
-      ins_left_v = cur_order[vp - 1];
-      ins_right_v = (vp + 1 < V) ? cur_order[vp + 1] : -1;
-    }
-
-    const int new_e_left = find_edge_id(ins_left_v, v);
-    const int new_e_right = (ins_right_v >= 0) ? find_edge_id(v, ins_right_v) : -1;
-    // Old edge at insertion point: (ins_left_v, ins_right_v) if they were adjacent
-    const int old_e_insert = (ins_right_v >= 0) ? find_edge_id(ins_left_v, ins_right_v) : -1;
-
-    // Collect all changed edges (deduplicate)
-    int changed[6] = {old_e_prev, old_e_next, old_e_insert, new_e_bridge, new_e_left, new_e_right};
-    bool should_use[6] = {false, false, false, true, true, true};
-    // new_e_right is -1 if v is at end
-    if (new_e_right < 0) should_use[5] = false;
-    if (old_e_insert < 0) should_use[2] = false;
-
-    for (int ii = 0; ii < 6; ++ii) {
-      if (changed[ii] < 0) continue;
-      bool dup = false;
-      for (int jj = 0; jj < ii; ++jj) {
-        if (changed[jj] == changed[ii]) { dup = true; break; }
-      }
-      if (dup) continue;
-      // Determine if this edge should be used
-      bool use = false;
-      for (int jj = 0; jj < 6; ++jj) {
-        if (changed[jj] == changed[ii] && should_use[jj]) { use = true; break; }
-      }
-      if (edge_used[changed[ii]] != use) {
-        edge_used[changed[ii]] = use;
-        refresh_incident(changed[ii]);
-      }
-    }
-
-    if (current_objective > best_objective) {
-      best_objective = current_objective;
-      best_order = cur_order;
-    }
-    return true;
-  }
-
   void solve() {
     build_board_graph();
     build_moves();
     build_initial_state(build_initial_order());
 
     double temp = temperature();
-    double or_temp = or_temperature();
-    while (utility::timer.elapsed_ms() < TIME_LIMIT_MS) {
+    while (utility::timer.elapsed_ms() < TIME_LIMIT_MS &&
+           !active_moves.empty()) {
       ++iterations;
-      if ((iterations & 255) == 0) {
+      if ((iterations & 255) == 0)
         temp = temperature();
-        or_temp = or_temperature();
-      }
-
-      // Mix or-opt with 2x2 moves: ~50% or-opt, ~50% 2x2
-      if ((rand_int() & 1) == 0) {
-        try_or_opt(or_temp);
-      } else {
-        if (!active_moves.empty()) {
-          const int mid = active_moves[rand_int() % active_moves.size()];
-          apply_move(mid, temp);
-        }
-      }
+      const int mid = active_moves[rand_int() % active_moves.size()];
+      apply_move(mid, temp);
     }
   }
-
 
   void output() const {
     for (int v : best_order) {

@@ -5,7 +5,7 @@ using namespace atcoder;
 
 #define rep(i, n) for (int i = 0; i < (n); i++)
 
-constexpr int TIME_LIMIT = 18000;
+constexpr int TIME_LIMIT = 1800;
 constexpr int GRID = 200;
 constexpr int FIELD_SIZE = 10000;
 
@@ -25,10 +25,6 @@ inline unsigned int rand_int() {
 	unsigned int tt = (tx ^ (tx << 11));
 	tx = ty; ty = tz; tz = tw;
 	return (tw = (tw ^ (tw >> 19)) ^ (tt ^ (tt >> 8)));
-}
-
-inline double rand_double() {
-	return (double) (rand_int() % (int) 1e9) / 1e9;
 }
 
 using P = pair<int, int>;
@@ -51,9 +47,8 @@ struct Point {
 
 struct Rect {
 	int x1, x2, y1, y2;
-	Point ul, dl, ur, dr, expect;
+	Point ul, dl, ur, dr;
 	vector<T> existProb;
-	bool expect_update;
 
 	Rect(int _x1, int _x2, int _y1, int _y2)
 		: x1(_x1), x2(_x2), y1(_y1), y2(_y2),
@@ -61,33 +56,37 @@ struct Rect {
 		double areaSum = 0.0;
 		int nGridX = FIELD_SIZE / GRID;
 		int nGridY = FIELD_SIZE / GRID;
-		rep(i, nGridX) rep(j, nGridY) {
-			int cell_x1 = max(i * GRID, x1), cell_y1 = max(j * GRID, y1);
-			int cell_x2 = min((i + 1) * GRID, x2), cell_y2 = min((j + 1) * GRID, y2);
-			if (cell_x1 >= cell_x2 || cell_y1 >= cell_y2) continue;
-			double area = (cell_x2 - cell_x1) * (cell_y2 - cell_y1);
-			existProb.emplace_back((cell_x1 + cell_x2) / 2, (cell_y1 + cell_y2) / 2, area);
-			areaSum += area;
+		rep(i, nGridX) {
+			rep(j, nGridY) {
+				int cell_x1 = max(i * GRID, x1);
+				int cell_x2 = min((i + 1) * GRID, x2);
+				int cell_y1 = max(j * GRID, y1);
+				int cell_y2 = min((j + 1) * GRID, y2);
+				if (cell_x1 >= cell_x2 || cell_y1 >= cell_y2) continue;
+				double area = (cell_x2 - cell_x1) * (cell_y2 - cell_y1);
+				existProb.emplace_back((cell_x1 + cell_x2) / 2, (cell_y1 + cell_y2) / 2, area);
+				areaSum += area;
+			}
 		}
-		for (auto &[cx, cy, prob] : existProb) prob /= areaSum;
-		expect_update = false;
+		for (auto &elem : existProb) {
+			auto &[cx, cy, prob] = elem;
+			prob /= areaSum;
+		}
 		assert(fabs(areaSum - (x2 - x1) * (y2 - y1)) < 1e-9);
-		return;
 	}
 
-	inline Point getExpectation() {
-		if (existProb.empty()) return Point((x1 + x2) / 2, (y1 + y2) / 2);
-		if (expect_update) return expect;
+	inline Point getExpectation() const {
+		if (existProb.empty())
+			return Point((x1 + x2) / 2, (y1 + y2) / 2);
 		double tx = 0.0, ty = 0.0;
 		for (const auto& [cx, cy, prob] : existProb) {
 			tx += (double) cx * prob;
 			ty += (double) cy * prob;
 		}
-		this->expect_update = true;
-		return (expect = Point(llround(tx), llround(ty)), expect);
+		return Point(llround(tx), llround(ty));
 	}
 
-	inline double getVariance() {
+	inline double getVariance() const {
 		if (existProb.size() <= 1) return 0.0;
 		Point expPt = getExpectation();
 		double variance = 0.0;
@@ -98,20 +97,93 @@ struct Rect {
 		}
 		return variance;
 	}
+
+	vector<T> newProb;
+	void updateProb(Rect &r2, Rect &r3) {
+		newProb.clear();
+		double totalNewProb = 0.0;
+		for (const auto &[x1, y1, prob1] : existProb) {
+			double condProb = 0.0;
+			for (const auto &[x2, y2, prob2] : r2.existProb)
+				for (const auto &[x3, y3, prob3] : r3.existProb) {
+					long long d1 = (long long)(x1 - x2) * (x1 - x2) + (long long)(y1 - y2) * (y1 - y2);
+					long long d2 = (long long)(x1 - x3) * (x1 - x3) + (long long)(y1 - y3) * (y1 - y3);
+					if (d1 <= d2)
+						condProb += prob2 * prob3;
+				}
+			double updated = prob1 * condProb;
+			if (updated > 1e-12) {
+				newProb.emplace_back(x1, y1, updated);
+				totalNewProb += updated;
+			}
+		}
+		if (totalNewProb >= 1e-12) {
+			existProb.clear();
+			for (const auto &[x, y, prob] : newProb)
+				existProb.emplace_back(x, y, prob / totalNewProb);
+		}
+
+		// r2 phase
+		newProb.clear();
+		totalNewProb = 0.0;
+		for (const auto &[x2, y2, prob2] : r2.existProb) {
+			double condProb = 0.0;
+			for (const auto &[x1, y1, prob1] : existProb)
+				for (const auto &[x3, y3, prob3] : r3.existProb) {
+					long long d1 = (long long)(x1 - x2) * (x1 - x2) + (long long)(y1 - y2) * (y1 - y2);
+					long long d2 = (long long)(x1 - x3) * (x1 - x3) + (long long)(y1 - y3) * (y1 - y3);
+					if (d1 <= d2)
+						condProb += prob1 * prob3;
+				}
+			double updated = prob2 * condProb;
+			if (updated > 1e-12) {
+				newProb.emplace_back(x2, y2, updated);
+				totalNewProb += updated;
+			}
+		}
+		if (totalNewProb >= 1e-12) {
+			r2.existProb.clear();
+			for (const auto &[x, y, prob] : newProb)
+				r2.existProb.emplace_back(x, y, prob / totalNewProb);
+		}
+
+		// r3 phase
+		newProb.clear();
+		totalNewProb = 0.0;
+		for (const auto &[x3, y3, prob3] : r3.existProb) {
+			double condProb = 0.0;
+			for (const auto &[x1, y1, prob1] : existProb)
+				for (const auto &[x2, y2, prob2] : r2.existProb) {
+					long long d1 = (long long)(x1 - x2) * (x1 - x2) + (long long)(y1 - y2) * (y1 - y2);
+					long long d2 = (long long)(x1 - x3) * (x1 - x3) + (long long)(y1 - y3) * (y1 - y3);
+					if (d1 <= d2)
+						condProb += prob1 * prob2;
+				}
+			double updated = prob3 * condProb;
+			if (updated > 1e-12) {
+				newProb.emplace_back(x3, y3, updated);
+				totalNewProb += updated;
+			}
+		}
+		if (totalNewProb >= 1e-12) {
+			r3.existProb.clear();
+			for (const auto &[x, y, prob] : newProb)
+				r3.existProb.emplace_back(x, y, prob / totalNewProb);
+		}
+		return;
+	}
 };
 
+vector<Rect> rects;
+
 struct Solver {
-	vector<Rect> rects;
 	vector<vector<int>> ansGroup;
 	int divinationCount = 0;
-	int step;
 
 	Solver() {
 		utility::timer.startTimer();
-		this->input();
+		input();
 		ansGroup.assign(M, vector<int>{});
-		step = L;
-		return;
 	}
 
 	void input() {
@@ -124,24 +196,9 @@ struct Solver {
 			cin >> x1 >> x2 >> y1 >> y2;
 			rects.emplace_back(x1, x2, y1, y2);
 		}
-		return;
 	}
 
-	vector<pair<vector<int>, vector<P>>> answers;
-	void output() {
-		cout << "!" << "\n";
-		for (auto &p : answers) {
-			auto [group, mstEdges] = p;
-			for (int id : group)
-				cout << id << " ";
-			cout << "\n" << flush;
-			for (auto &[u, v] : mstEdges)
-				cout << u << " " << v << "\n" << flush;
-		}
-		cerr << "Code End Time: " << utility::timer.elapsed() << "ms\n";
-	}
-
-	inline vector<P> queryDivination(const vector<int> &group) {
+	vector<P> queryDivination(const vector<int> &group) {
 		assert(group.size() > 1 && group.size() <= (size_t)L);
 		assert(divinationCount < Q);
 		cout << "? " << group.size() << " ";
@@ -157,16 +214,20 @@ struct Solver {
 		return res;
 	}
 
-	vector<int> used_core_cnt;
-	inline vector<int> selectGroup() {
-		if (used_core_cnt.size() < N) used_core_cnt.assign(N, 0);
-		vector<pair<int, int>> varianceScores;
-		rep(j, N) varianceScores.emplace_back(rects[j].getVariance() / (used_core_cnt[j] + 1), j);
-		sort(varianceScores.rbegin(), varianceScores.rend()); // 逆順 (分散が高いものを占う)
-		// cerr << "Max variance: " << varianceScores[0].first << '\n';
+	vector<bool> used_core;
+	vector<int> selectGroup() {
+		if (used_core.size() < N) used_core.assign(N, false);
+		vector<pair<double, int>> varianceScores;
+		rep(j, N) {
+			double sigma = sqrt(rects[j].getVariance());
+			if (used_core[j]) continue;
+			varianceScores.emplace_back(sigma, j);
+		}
+		sort(varianceScores.rbegin(), varianceScores.rend());
+		// cerr << "Max variance: " << varianceScores[0].first << endl;
 
 		int core = (varianceScores.empty() ? rand_int() % N : varianceScores[0].second);
-		used_core_cnt[core]++;
+		used_core[core] = true;
 		vector<int> group = { core };
 		Point expCore = rects[core].getExpectation();
 		vector<pair<long long, int>> neighbors;
@@ -185,7 +246,7 @@ struct Solver {
 		return group;
 	}
 
-	inline void processMSTEdges(const vector<P> &mstEdges, const vector<int>& group) {
+	void processMSTEdges(const vector<P> &mstEdges, const vector<int>& group) {
 		set<int> nodes;
 		for (const auto &[u, v] : mstEdges) {
 			nodes.insert(u); nodes.insert(v);
@@ -217,18 +278,18 @@ struct Solver {
 			for (int cu : groupU) {
 				int orig = idx[cu];
 				if (orig == origU || orig == origV) continue;
-				updateProb(rects[origV], rects[origU], rects[orig]);
+				rects[origV].updateProb(rects[origU], rects[orig]);
 			}
 			for (int cv : groupV) {
 				int orig = idx[cv];
 				if (orig == origU || orig == origV) continue;
-				updateProb(rects[origU], rects[origV], rects[orig]);
+				rects[origU].updateProb(rects[origV], rects[orig]);
 			}
 		}
 	}
 
 	const int HILBERT_ORDER = 14;
-	inline uint64_t get_hilbert_order(int x, int y) {
+	uint64_t get_hilbert_order(int x, int y) {
 		const int n = 1 << HILBERT_ORDER;
 		uint64_t d = 0;
 		x = max(0, min(n - 1, x * n / FIELD_SIZE));
@@ -248,7 +309,7 @@ struct Solver {
 		return d;
 	}
 
-	pair<vector<vector<int>>, long long> buildGroups(bool useHilbertOrder = true) {
+	pair<vector<vector<int>>, long long> buildGroups() {
 		vector<Point> expectations(N);
 		vector<double> variances(N);
 		rep(i, N) {
@@ -256,12 +317,17 @@ struct Solver {
 			variances[i] = rects[i].getVariance();
 		}
 		vector<Point> centroids(M);
-		if (useHilbertOrder) {
+		if (N > 0) {
 			vector<int> hilbert_order(N);
 			iota(hilbert_order.begin(), hilbert_order.end(), 0);
 			sort(hilbert_order.begin(), hilbert_order.end(), [&](int a, int b) {
 				return get_hilbert_order(expectations[a].x, expectations[a].y) < get_hilbert_order(expectations[b].x, expectations[b].y);
 			});
+			rep(i, 20) {
+				int idx1 = rand_int() % N;
+				int idx2 = rand_int() % N;
+				swap(hilbert_order[idx1], hilbert_order[idx2]);
+			}
 			vector<int> prefix_sum(M + 1, 0);
 			rep(i, M) prefix_sum[i + 1] = prefix_sum[i] + G[i];
 			rep(j, M) {
@@ -282,74 +348,17 @@ struct Solver {
 				centroids[j].y = llround((double)sum_y / count);
 			}
 		} else {
-			vector<double> min_dist_sq(N, numeric_limits<double>::max());
-			if (N > 0) {
-				int first_centroid_idx = rand_int() % N;
-				centroids[0] = expectations[first_centroid_idx];
-				for (int i = 0; i < N; ++i) {
-					long long dx = expectations[i].x - centroids[0].x;
-					long long dy = expectations[i].y - centroids[0].y;
-					min_dist_sq[i] = (double)dx * dx + dy * dy;
-				}
-				min_dist_sq[first_centroid_idx] = 0;
-				for (int j = 1; j < M; ++j) {
-					double dist_sq_sum = 0.0;
-					for (int i = 0; i < N; ++i) {
-						if (min_dist_sq[i] > 0) {
-							dist_sq_sum += min_dist_sq[i];
-						}
-					}
-					dist_sq_sum += 1e-9 * (N - j);
-					if (dist_sq_sum < 1e-9) {
-						for (int k = j; k < M; ++k)
-							centroids[k] = Point(rand_int() % FIELD_SIZE, rand_int() % FIELD_SIZE);
-						break;
-					}
-					uniform_real_distribution<double> dist(0.0, dist_sq_sum);
-					double r = rand_double() * dist_sq_sum;
-					double current_sum = 0.0;
-					int next_centroid_idx = -1;
-					for (int i = 0; i < N; ++i) {
-						if (min_dist_sq[i] == 0)
-							continue;
-						current_sum += min_dist_sq[i] + 1e-9;
-						if (r <= current_sum) {
-							next_centroid_idx = i;
-							break;
-						}
-					}
-					if (next_centroid_idx == -1) {
-						for (int i = N - 1; i >= 0; --i)
-							if (min_dist_sq[i] > 0) {
-								next_centroid_idx = i;
-								break;
-							}
-					}
-					if (next_centroid_idx != -1) {
-						centroids[j] = expectations[next_centroid_idx];
-						for (int i = 0; i < N; ++i) {
-							long long dx = expectations[i].x - centroids[j].x;
-							long long dy = expectations[i].y - centroids[j].y;
-							min_dist_sq[i] = min(min_dist_sq[i], (double)dx * dx + dy * dy);
-						}
-						min_dist_sq[next_centroid_idx] = 0;
-					} else {
-						for (int k = j; k < M; ++k)
-							centroids[k] = Point(rand_int() % FIELD_SIZE, rand_int() % FIELD_SIZE);
-						break;
-					}
-				}
-			}
+			rep(j, M) centroids[j] = Point(FIELD_SIZE / 2, FIELD_SIZE / 2);
 		}
 
 		const int FIXED_ITERATIONS = 10;
-		const double alpha = 1e-2;
-		const int K_NEIGHBORS = 15;
+		const double alpha = 1e-3;
+		const int K_NEIGHBORS = 10;
 		vector<vector<int>> groupsAssign(M);
-		long long final_mcf_cost = 1e18, prev_cost = -1;
+		long long final_mcf_cost = -1, prev_cost = -1;
 
 		rep(iter, FIXED_ITERATIONS) {
-			if (utility::timer.elapsed() > TIME_LIMIT - 200) {
+			if (utility::timer.elapsed() > TIME_LIMIT - (iter == 0 ? 0 : 200)) {
 				if (iter == 0 && N > 0 && groupsAssign.empty())
 					groupsAssign = buildGroupsSnakeOrder();
 				break;
@@ -358,6 +367,7 @@ struct Solver {
 			int s = N + M, t = N + M + 1;
 			rep(i, N) mcf.add_edge(s, i, 1, 0);
 			rep(j, M) if (G[j] > 0) mcf.add_edge(N + j, t, G[j], 0);
+
 			rep(i, N) {
 				vector<pair<long long, int>> dist_to_centroids;
 				rep(j, M) {
@@ -365,9 +375,9 @@ struct Solver {
 					long long dx = expectations[i].x - centroids[j].x;
 					long long dy = expectations[i].y - centroids[j].y;
 					long long dist_sq_cost = dx * dx + dy * dy;
-					double variance_penalty = alpha * sqrt(variances[i]) * G[j] * G[j];
+					double variance_penalty = alpha * variances[i] * G[j];
 					long long cost = dist_sq_cost + max(0LL, (long long)round(variance_penalty));
-					dist_to_centroids.emplace_back(cost, j);
+					dist_to_centroids.push_back({cost, j});
 				}
 				sort(dist_to_centroids.begin(), dist_to_centroids.end());
 				for (int rank = 0; rank < min((int)dist_to_centroids.size(), K_NEIGHBORS); rank++) {
@@ -378,8 +388,7 @@ struct Solver {
 			}
 			auto result = mcf.flow(s, t, N);
 			if (result.first < N) {
-				if (iter == 0)
-					groupsAssign = buildGroupsSnakeOrder();
+				if (iter == 0) groupsAssign = buildGroupsSnakeOrder();
 				break;
 			}
 			final_mcf_cost = result.second;
@@ -390,24 +399,20 @@ struct Solver {
 			vector<vector<int>> current_groups_iter(M);
 			for (auto &edge : mcf.edges())
 				if (edge.from >= 0 && edge.from < N && edge.to >= N && edge.to < N + M && edge.flow == 1)
-					current_groups_iter[edge.to - N].emplace_back(edge.from);
+					current_groups_iter[edge.to - N].push_back(edge.from);
 			bool size_ok = true;
 			rep(j, M) {
-				if (current_groups_iter[j].size() != (size_t)G[j]) {
+				if (current_groups_iter[j].size() != (size_t)G[j])
 					size_ok = false;
-					break;
-				}
 			}
 			if (!size_ok) {
-				if (iter == 0)
-					groupsAssign = buildGroupsSnakeOrder();
+				if (iter == 0) groupsAssign = buildGroupsSnakeOrder();
 				break;
 			}
 			groupsAssign = current_groups_iter;
 			vector<Point> next_centroids(M);
 			rep(j, M) {
-				if (groupsAssign[j].empty())
-					next_centroids[j] = centroids[j];
+				if (groupsAssign[j].empty()) next_centroids[j] = centroids[j];
 				else {
 					long long sx = 0, sy = 0;
 					for (auto pid : groupsAssign[j]) {
@@ -420,6 +425,7 @@ struct Solver {
 			}
 			centroids = next_centroids;
 		}
+
 		if (groupsAssign.empty() || (N > 0 && groupsAssign.empty()))
 			groupsAssign = buildGroupsSnakeOrder();
 
@@ -430,12 +436,10 @@ struct Solver {
 				});
 		}
 		rep(j, M) {
-			if (groupsAssign[j].size() != (size_t)G[j]) {
-				cerr << "Critical Error: Final group size mismatch..." << '\n';
-				groupsAssign = buildGroupsSnakeOrder();
-			}
+			if (groupsAssign[j].size() != (size_t)G[j])
+				cerr << "Critical Error: Final group size mismatch..." << endl;
 		}
-		return make_pair(groupsAssign, final_mcf_cost);
+		return {groupsAssign, final_mcf_cost};
 	}
 
 	vector<vector<int>> buildGroupsSnakeOrder() {
@@ -443,14 +447,14 @@ struct Solver {
 		rep(i, N) expectations[i] = rects[i].getExpectation();
 		vector<int> perm(N);
 		iota(perm.begin(), perm.end(), 0);
-		int num_cols = FIELD_SIZE / GRID;
+		int num_cols = min(10, N > 0 ? N : 1);
 		num_cols = max(1, num_cols);
 		int cellWidth = (FIELD_SIZE + num_cols - 1) / num_cols;
 		map<int, vector<int>> groupsByCol;
 		for (int id : perm) {
 			int cx = max(0, min(FIELD_SIZE - 1, expectations[id].x));
 			int col = min(cx / cellWidth, num_cols - 1);
-			groupsByCol[col].emplace_back(id);
+			groupsByCol[col].push_back(id);
 		}
 		vector<int> snakeOrder;
 		snakeOrder.reserve(N);
@@ -463,7 +467,7 @@ struct Solver {
 			if (col_idx % 2 == 1)
 				reverse(vec.begin(), vec.end());
 			for (int id : vec)
-				snakeOrder.emplace_back(id);
+				snakeOrder.push_back(id);
 		}
 		vector<vector<int>> groups(M);
 		vector<int> prefix(M + 1, 0);
@@ -475,13 +479,13 @@ struct Solver {
 			int end = min(start + sz, (int)snakeOrder.size());
 			groups[i].reserve(end - start);
 			for (int k = start; k < end; k++)
-				groups[i].emplace_back(snakeOrder[k]);
+				groups[i].push_back(snakeOrder[k]);
 		}
 		int total_assigned = 0;
 		for (auto &g : groups)
 			total_assigned += g.size();
 		if (total_assigned != N)
-			cerr << "Warning: Snake Order total assigned points (" << total_assigned << ") != N (" << N << ")" << '\n';
+			cerr << "Warning: Snake Order total assigned points (" << total_assigned << ") != N (" << N << ")" << endl;
 		return groups;
 	}
 
@@ -491,6 +495,7 @@ struct Solver {
 		if (n == 2) {
 			totalEdges.emplace_back(group[0], group[1]);
 		} else if (n > 2) {
+			const int step = L - 1;
 			for (int start = 0; start < n - 1; start += step) {
 				vector<int> subGroup;
 				if (n - start >= L)
@@ -510,12 +515,13 @@ struct Solver {
 		}
 		dsu uf(N);
 		rep(i, group.size()) rep(j, group.size()) {
-			int u = i / step, v = j / step;
+			int u = i / (L - 1), v = j / (L - 1);
 			if (u == v) continue;
 			auto [ax, ay] = rects[group[i]].getExpectation();
 			auto [bx, by] = rects[group[j]].getExpectation();
 			long long da = sqrt((long long)(ax - bx) * (ax - bx) + (long long)(ay - by) * (ay - by));
 			da += sqrt(rects[group[j]].getVariance());
+			if (da >= W) continue;
 			totalEdges.emplace_back(group[i], group[j]);
 		}
 		sort(totalEdges.begin(), totalEdges.end(), [&](const P &a, const P &b) {
@@ -562,91 +568,10 @@ struct Solver {
 			if (mst_edges.size() == (size_t)n - 1) break;
 			if (!uf.same(u, v)) {
 				uf.merge(u, v);
-				mst_edges.emplace_back(u, v);
+				mst_edges.push_back({u, v});
 			}
 		}
 		return mst_edges;
-	}
-
-	vector<T> newProb;
-	double prob_threshold = 1e-6; // 高速化のために低確率の確率の事象は無視
-	double total_prob_threshold = 1e-9;
-	inline void updateProb(Rect &r1, Rect &r2, Rect &r3) {
-		newProb.clear();
-		double totalNewProb = 0.0;
-		for (const auto &[x1, y1, prob1] : r1.existProb) {
-			double condProb = 0.0;
-			for (const auto &[x2, y2, prob2] : r2.existProb) {
-				for (const auto &[x3, y3, prob3] : r3.existProb) {
-					long long d1 = (long long)(x1 - x2) * (x1 - x2) + (long long)(y1 - y2) * (y1 - y2);
-					long long d2 = (long long)(x1 - x3) * (x1 - x3) + (long long)(y1 - y3) * (y1 - y3);
-					if (d1 <= d2) condProb += prob2 * prob3;
-				}
-			}
-			double updated = prob1 * condProb;
-			if (updated > prob_threshold) {
-				newProb.emplace_back(x1, y1, updated);
-				totalNewProb += updated;
-			}
-		}
-		if (totalNewProb >= total_prob_threshold) {
-			r1.existProb.clear();
-			for (const auto &[x, y, prob] : newProb)
-				r1.existProb.emplace_back(x, y, prob / totalNewProb);
-		}
-
-		// r2 phase
-		newProb.clear();
-		totalNewProb = 0.0;
-		for (const auto &[x2, y2, prob2] : r2.existProb) {
-			double condProb = 0.0;
-			for (const auto &[x1, y1, prob1] : r1.existProb) {
-				for (const auto &[x3, y3, prob3] : r3.existProb) {
-					long long d1 = (long long)(x1 - x2) * (x1 - x2) + (long long)(y1 - y2) * (y1 - y2);
-					long long d2 = (long long)(x1 - x3) * (x1 - x3) + (long long)(y1 - y3) * (y1 - y3);
-					if (d1 <= d2) condProb += prob1 * prob3;
-				}
-			}
-			double updated = prob2 * condProb;
-			if (updated > prob_threshold) {
-				newProb.emplace_back(x2, y2, updated);
-				totalNewProb += updated;
-			}
-		}
-		if (totalNewProb >= total_prob_threshold) {
-			r2.existProb.clear();
-			for (const auto &[x, y, prob] : newProb)
-				r2.existProb.emplace_back(x, y, prob / totalNewProb);
-		}
-
-		// r3 phase
-		newProb.clear();
-		totalNewProb = 0.0;
-		for (const auto &[x3, y3, prob3] : r3.existProb) {
-			double condProb = 0.0;
-			for (const auto &[x1, y1, prob1] : r1.existProb) {
-				for (const auto &[x2, y2, prob2] : r2.existProb) {
-					long long d1 = (long long)(x1 - x2) * (x1 - x2) + (long long)(y1 - y2) * (y1 - y2);
-					long long d2 = (long long)(x1 - x3) * (x1 - x3) + (long long)(y1 - y3) * (y1 - y3);
-					if (d1 <= d2) condProb += prob1 * prob2;
-				}
-			}
-			double updated = prob3 * condProb;
-			if (updated > prob_threshold) {
-				newProb.emplace_back(x3, y3, updated);
-				totalNewProb += updated;
-			}
-		}
-		if (totalNewProb >= total_prob_threshold) {
-			r3.existProb.clear();
-			for (const auto &[x, y, prob] : newProb)
-				r3.existProb.emplace_back(x, y, prob / totalNewProb);
-		}
-
-		r1.expect_update = false;
-		r2.expect_update = false;
-		r3.expect_update = false;
-		return;
 	}
 
 	void solve() {
@@ -655,18 +580,18 @@ struct Solver {
 			if (G[i] > 2 && G[i] <= L)
 				maxDivinations--;
 			else if (G[i] > L) {
-				maxDivinations -= (int)((double)(G[i] - 1) / step);
-				int rest = G[i] - (int)((double)(G[i] - 1) / step) * step;
-				if (rest >= 3) maxDivinations--;
+				maxDivinations -= (int)((double)(G[i] - 1) / (L - 1));
+				int rest = G[i] - (int)((double)(G[i] - 1) / (L - 1)) * (L - 1);
+				if (rest >= 3)
+					maxDivinations--;
 			}
 		}
 		maxDivinations = max(0, maxDivinations);
-		cerr << "maxDivinations: " << maxDivinations << '\n';
+		cerr << "maxDivinations: " << maxDivinations << endl;
 
 		rep(i, maxDivinations) {
-			if (i % 10 == 9 || i == maxDivinations - 1)
-				cerr << "Divination " << i + 1 << "/" << maxDivinations << '\n';
-			if (utility::timer.elapsed() > TIME_LIMIT - 400)
+			cerr << "Divination " << i + 1 << "/" << maxDivinations << endl;
+			if (utility::timer.elapsed() > TIME_LIMIT - 200)
 				break;
 			auto group = selectGroup();
 			auto mstEdges = queryDivination(group);
@@ -674,22 +599,38 @@ struct Solver {
 			processMSTEdges(mstEdges, group);
 		}
 
-		auto [groups, mcf_cost] = buildGroups(true);
-		cerr << "Initial groups with cost: " << mcf_cost << '\n';
-		while(utility::timer.elapsed() < TIME_LIMIT - 200) {
-			auto [cand_groups, cand_mcf_cost] = buildGroups(false);
-			if (cand_mcf_cost < mcf_cost) {
-				mcf_cost = cand_mcf_cost;
-				groups = cand_groups;
-				cerr << "Found better groups with cost: " << mcf_cost << '\n';
+		auto [bestGroup, bestCost] = buildGroups();
+		int iterations = 0;
+		while (utility::timer.elapsed() < TIME_LIMIT - 200 && iterations < 5) {
+			auto [candGroup, candCost] = buildGroups();
+			if (candCost < bestCost) {
+				bestGroup = candGroup;
+				bestCost = candCost;
+				cerr << "Found better group with cost: " << bestCost << endl;
 			}
+			iterations++;
+			cerr << '\n';
 		}
-		ansGroup = groups;
+		swap(ansGroup, bestGroup);
+		return;
+	}
+
+	void output() {
+		vector<pair<vector<int>, vector<P>>> answers;
 		for (auto &group : ansGroup) {
 			auto mstEdges = buildMSTWithDivination(group);
 			answers.emplace_back(group, mstEdges);
 		}
-		return;
+		cout << "!" << "\n";
+		for (auto &p : answers) {
+			auto [group, mstEdges] = p;
+			for (int id : group)
+				cout << id << " ";
+			cout << "\n" << flush;
+			for (auto &[u, v] : mstEdges)
+				cout << u << " " << v << "\n" << flush;
+		}
+		cerr << "Code End Time: " << utility::timer.elapsed() << "ms\n";
 	}
 };
 

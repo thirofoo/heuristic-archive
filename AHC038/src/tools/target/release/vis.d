@@ -1,1 +1,0 @@
-/home/hiroto/Proglam/C++/AtCoder/Contest/Heuristic/AHC038/tools/target/release/vis: /home/hiroto/Proglam/C++/AtCoder/Contest/Heuristic/AHC038/tools/src/bin/vis.rs /home/hiroto/Proglam/C++/AtCoder/Contest/Heuristic/AHC038/tools/src/lib.rs

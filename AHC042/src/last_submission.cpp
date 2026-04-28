@@ -20,7 +20,7 @@ inline unsigned int rand_int() {
   return (tw = (tw ^ (tw >> 19)) ^ (tt ^ (tt >> 8)));
 }
 
-#define TIME_LIMIT 2800
+#define TIME_LIMIT 28000
 
 //-----------------以下から実装部分-----------------//
 

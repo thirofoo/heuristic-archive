@@ -1,8 +1,0 @@
-/tools/*
-_in
-_out
-_err
-a.out
-local_visualizer
-venv
-sample.cpp

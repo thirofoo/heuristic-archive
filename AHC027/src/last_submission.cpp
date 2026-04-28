@@ -1,6 +1,7 @@
 #include <bits/stdc++.h>
 using namespace std;
 #define rep(i, n) for(int i = 0; i < n; i++)
+#define reps(i, s, n) for (int i = s; i < n; i++)
 
 namespace utility {
     struct timer {
@@ -17,13 +18,36 @@ namespace utility {
     } mytm;
 }
 
+inline unsigned int rand_int() {
+    static unsigned int tx = 123456789, ty=362436069, tz=521288629, tw=88675123;
+    unsigned int tt = (tx^(tx<<11));
+    tx = ty; ty = tz; tz = tw;
+    return ( tw=(tw^(tw>>19))^(tt^(tt>>8)) );
+}
+
+inline double rand_double() {
+    return (double)(rand_int()%(int)1e9)/1e9;
+}
+
+//温度関数
+#define TIME_LIMIT 2950
+inline double temp(double start) {
+    double start_temp = 1000, end_temp = 10;
+    return start_temp + (end_temp-start_temp)*((utility::mytm.elapsed()-start)/TIME_LIMIT);
+}
+
+//焼きなましの採用確率
+inline double prob(long long best,long long now,int start) {
+    return exp((double)(best-now) / temp(start));
+}
+
 //-----------------以下から実装部分-----------------//
 
 using P = pair<int,int>;
 using T = tuple<int,int,int,int,int>;
 
 #define HIGH 80    // d を高いと判定する閾値
-#define HIGH_T 400 // 高いところを巡回する周期
+#define HIGH_T 200 // 高いところを巡回する周期
 #define DIR_NUM 4
 
 // 上下左右の順番
@@ -56,7 +80,7 @@ struct Solver{
 
     Solver(){
         this->input();
-        purpose = HIGH_T;
+        purpose = HIGH_T/2;
         rect.assign(n+2,vector<int>(n+2,0));
         vis.assign(n+2,vector<bool>(n+2,true));
         clean_turn.assign(n+2,vector<int>(n+2,0));
@@ -198,7 +222,7 @@ struct Solver{
 
             if( purpose <= ans.size() ) {
                 cerr << "Yeah!\n";
-                droppingByHigh(tx,ty);
+                droppingByHigh(tx,ty,HIGH);
                 purpose = ans.size() + HIGH_T;
             }
 
@@ -256,7 +280,7 @@ struct Solver{
         }
     }
 
-    inline void droppingByHigh(int x, int y) {
+    inline void droppingByHigh(int x, int y, int border) {
         // d >= 100 のマスに定期的に訪れる関数
         int pre_size = ans.size(), high_cnt = 0;
         high_vis.assign(high.size(),false);
@@ -287,6 +311,7 @@ struct Solver{
             int mini_dis = 1e9, sx = -1, sy = -1;
             rep(i,high.size()) {
                 auto&& [tx,ty] = high[i];
+                if( d[tx][ty] < border ) continue;
                 if( !high_vis[i] && every_dis[x][y][tx][ty] < mini_dis ) {
                     mini_dis = every_dis[x][y][tx][ty];
                     sx = tx, sy = ty;

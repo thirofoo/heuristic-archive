@@ -8,7 +8,7 @@ constexpr int MAXC = 8;
 constexpr int DR[4] = {-1, 1, 0, 0};
 constexpr int DC[4] = {0, 0, -1, 1};
 constexpr char DCHAR[4] = {'U', 'D', 'L', 'R'};
-constexpr int DIR_ORDER_COUNT = 3;
+constexpr int DIR_ORDER_COUNT = 2;
 alignas(64) constexpr int8_t DIR_ORDERS[DIR_ORDER_COUNT][4] = {
     {0, 1, 2, 3}, {3, 2, 1, 0},
 };
@@ -67,10 +67,9 @@ constexpr array<int, 17> NEAR_P_ALLOW_BY_N = {
     -1, -1, -1, -1, -1, -1, -1, -1,
     0, 4, 4, 4, 4, 4, 4, 4, 4,
 };
-constexpr int CUT_RECOVERY_SKIP_MAX = 2;
 constexpr array<int, 17> PCUT_APPLY_NODE_LIMIT_BY_N = {
     -1, -1, -1, -1, -1, -1, -1, -1,
-    0, 160, 160, 160, 160, 160, 160, 80, 80,
+    0, 40, 40, 40, 40, 40, 40, 40, 40,
 };
 constexpr array<int, 17> PCUT_CANDIDATE_TOP_K_BY_N = {
     -1, -1, -1, -1, -1, -1, -1, -1,
@@ -1305,61 +1304,44 @@ int selectTopBeamIndices(const vector<BeamKey>& keys, int beamWidth, int* order)
 }
 
 // O(1) per direction: no SnakeState copy, no apply, just bitwise check
-int pickWanderStepForState(const SnakeState& st, int targetColor) {
+int pickWanderStepForState(const SnakeState& st) {
     if (st.bodyLen == 0) return -1;
-
     uint8_t head = st.bodyFront();
     uint8_t neck = (st.bodyLen >= 2) ? st.bodyAt(1) : 255;
     uint8_t tail = st.bodyBack();
     uint8_t tailPrev = (st.bodyLen >= 2) ? st.bodyAt(st.bodyLen - 2) : 255;
-
-    int8_t targetFoodMoves[4];
-    int targetFoodCnt = 0;
-    int8_t otherMoves[4];
-    int otherCnt = 0;
-
+    int8_t candidates[4];
+    int candN = 0;
     const int8_t* dirOrder = chooseDirOrder();
-
     for (int di = 0; di < 4; ++di) {
         int d = dirOrder[di];
         uint16_t next = gNextPos[head][d];
         if (next == INVALID_NEXT_POS) continue;
         uint8_t npos = (uint8_t)next;
         if (npos == neck) continue;
-
+        // Skip if moving here would cause bite:
+        // A bite happens when npos is occupied by body AND it's not just the tail
+        // (the tail will leave if we don't eat, and no food means no eat)
         bool hasFood = st.hasFoodAtIdx(gBlkByPos[npos], gMaskByPos[npos]);
-        bool isTargetFood = st.isFoodColor(gBlkByPos[npos], gMaskByPos[npos], targetColor);
-
-        // 噛みちぎりになる手は除外
         if (!hasFood) {
+            // Normal move (no eat):
+            // - old tail is safe
+            // - old tailPrev is also safe because it becomes the new tail
+            // - but if old tail overlaps some earlier body, entering that tail cell is
+            //   unsafe unless the overlap is exactly tailPrev==tail.
             if (st.bodyOccupiedPos(npos)) {
                 bool safeTail = (npos == tail) && (st.overlapPos != npos || tailPrev == tail);
                 bool safeTailPrev = (npos == tailPrev);
                 if (!safeTail && !safeTailPrev) continue;
             }
         } else {
-            // 食べる場合は tail が進まないので、body 上は不可
+            // Would eat: tail stays. Bite if npos is in body at all
             if (st.bodyOccupiedPos(npos)) continue;
         }
-
-        if (hasFood && isTargetFood) {
-            targetFoodMoves[targetFoodCnt++] = (int8_t)d;
-        } else {
-            otherMoves[otherCnt++] = (int8_t)d;
-        }
+        candidates[candN++] = (int8_t)d;
     }
-
-    // 次の目標色を食べられるなら、それを最優先
-    if (targetFoodCnt > 0) {
-        return targetFoodMoves[randRange(0, targetFoodCnt - 1)];
-    }
-
-    // なければ他の安全手からランダム
-    if (otherCnt > 0) {
-        return otherMoves[randRange(0, otherCnt - 1)];
-    }
-
-    return -1;
+    if (candN == 0) return -1;
+    return candidates[randRange(0, candN - 1)];
 }
 
 template<typename InsertFn>
@@ -1458,11 +1440,9 @@ void transitionCutRecoverCandidates(
                 nxt.pathTail = gPool.add(cut.seq[si], nxt.pathTail);
                 nxt.pathLen++;
                 bitten = true;
-                int skip = (CUT_RECOVERY_SKIP_MAX > 0) ? randRange(0, CUT_RECOVERY_SKIP_MAX) : 0;
-                int recovTarget = max((int)nxt.st.bodyLen, pb - skip);
-                int hintAfterBite = min(pb - skip, (int)nxt.st.colorLen);
+                int hintAfterBite = min((int)pb, (int)nxt.st.colorLen);
                 FixedPath recovery = buildRecoveryPathByOldBody(
-                    savedBodyBuf, savedBodyHead, savedBodyLen, nxt.st, recovTarget
+                    savedBodyBuf, savedBodyHead, savedBodyLen, nxt.st, pb
                 );
                 if (!appendPath(nxt, recovery)) ok = false;
                 if (ok) {
@@ -1527,11 +1507,9 @@ void transitionPrefixBrokenCutRecover(
 
             if (ret.bite) {
                 // Bite happened (intended final or mid-path) — do recovery and emit
-                int skip = (CUT_RECOVERY_SKIP_MAX > 0) ? randRange(0, CUT_RECOVERY_SKIP_MAX) : 0;
-                int recovTarget = max((int)nxt.st.bodyLen, pb - skip);
-                int hintAfterBite = min(pb - skip, (int)nxt.st.colorLen);
+                int hintAfterBite = min((int)pb, (int)nxt.st.colorLen);
                 FixedPath recovery = buildRecoveryPathByOldBody(
-                    savedBodyBuf, savedBodyHead, savedBodyLen, nxt.st, recovTarget
+                    savedBodyBuf, savedBodyHead, savedBodyLen, nxt.st, pb
                 );
                 if (!appendPath(nxt, recovery)) { ok = false; break; }
                 finalizeBeamNodeAfterTransition(cur, nxt, hintAfterBite);
@@ -1550,31 +1528,23 @@ void transitionWander(const BeamNode& cur, DeadlineChecker& timer, int topK, Ins
     int p = cur.prefix;
     if (p >= M) return;
     if (topK <= 0) return;
-
     const int wanderLen = WANDER_LEN_BY_N[N];
     if (!gPool.hasSpace(wanderLen)) return;
-
     BeamNode out;
     initChildNode(cur, out);
-
     int moved = 0;
     int knownPrefix = cur.prefix;
-
     for (int t = 0; t < wanderLen; ++t) {
-        int targetColor = desired[knownPrefix];
-        int d = pickWanderStepForState(out.st, targetColor);
+        int d = pickWanderStepForState(out.st);
         if (d == -1) break;
-
         int16_t prevColorLen = out.st.colorLen;
         if (!appendMove(out, (int8_t)d)) break;
         ++moved;
-
         if (out.st.colorLen > prevColorLen) {
             knownPrefix = out.st.prefixLen(desired, M, knownPrefix);
             if (knownPrefix >= M) break;
         }
     }
-
     if (moved == 0) return;
     finalizeBeamNodeAfterTransition(cur, out, knownPrefix);
     insertFn(move(out));

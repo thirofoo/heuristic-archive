@@ -1,6 +1,0 @@
-{
-  "rust-analyzer.linkedProjects": [
-    "sor4chi/solver/Cargo.toml",
-    "visualizer/wasm/Cargo.toml"
-  ]
-}

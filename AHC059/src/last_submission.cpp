@@ -13,6 +13,7 @@ inline int dist(const Pos &a, const Pos &b) {
 }
 
 constexpr long long INF = (1LL << 60);
+constexpr int TEMP_LUT_SIZE = 2048;
 
 struct Timer {
     using clk = chrono::steady_clock;
@@ -850,10 +851,17 @@ int main(int argc, char **argv) {
 
     Timer timer;
     XorShift64 rng;
-    const double TIME_LIMIT = 1.998;
-    const double T0 = 2.0;
+    const double TIME_LIMIT = 1.99;
+    const double T0 = 1.5;
     const double T1 = 0.5;
+    const double INV_TIME = 1.0 / TIME_LIMIT;
+    const double LOG_DECAY = log(T1 / T0);
     const double DEPTH_WEIGHT = 0.05;
+    static double temp_lut[TEMP_LUT_SIZE];
+    for (int i = 0; i < TEMP_LUT_SIZE; ++i) {
+        double t = (double)i / (double)(TEMP_LUT_SIZE - 1);
+        temp_lut[i] = T0 * exp(LOG_DECAY * t);
+    }
     double cur_obj = cur_cost + DEPTH_WEIGHT * (double)sum_depth;
 
     long long total_iters = 0;
@@ -863,7 +871,9 @@ int main(int argc, char **argv) {
     array<long long, 4> type_valid{};
     array<long long, 4> type_accepted{};
     array<long long, 4> type_improved{};
-    while (timer.sec() < TIME_LIMIT) {
+    for (;;) {
+        double elapsed = timer.sec();
+        if (elapsed >= TIME_LIMIT) break;
         ++total_iters;
         Move mv;
         if (!apply_random_move(cur, rng, mv, pos)) continue;
@@ -934,8 +944,11 @@ int main(int argc, char **argv) {
         if (cand_obj <= cur_obj) {
             accept = true;
         } else {
-            double t = timer.sec() / TIME_LIMIT;
-            double temp = T0 * pow(T1 / T0, t);
+            double t = elapsed * INV_TIME;
+            int idx = (int)(t * (TEMP_LUT_SIZE - 1));
+            if (idx < 0) idx = 0;
+            if (idx >= TEMP_LUT_SIZE) idx = TEMP_LUT_SIZE - 1;
+            double temp = temp_lut[idx];
             double prob = exp((cur_obj - cand_obj) / temp);
             if (rng.next_double() < prob) accept = true;
         }
