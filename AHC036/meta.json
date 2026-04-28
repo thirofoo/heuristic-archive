@@ -8,5 +8,5 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc036/tasks/ahc036_a",
-  "description": ""
+  "description": "Y国には N 個の都市と M 本の道路があり、i 番目の道路は都市 u_i と都市 v_i を双方向に結んでいる。どの道路も交差はなく、都市と道路からなるグラフは平面グラフである。"
 }

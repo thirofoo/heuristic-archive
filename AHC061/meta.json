@@ -8,5 +8,5 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc061/tasks/ahc061_a",
-  "description": ""
+  "description": "N\\times N のマス目で表される土地がある。一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス移動した先のマスの座標を (i,j) とする。"
 }

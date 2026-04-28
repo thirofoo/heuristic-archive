@@ -7,6 +7,6 @@
   "performance": 1289,
   "tags": [],
   "visualizer": null,
-  "problemUrl": "https://atcoder.jp/contests/ahc023/tasks/ahc023_a",
-  "description": ""
+  "problemUrl": "https://atcoder.jp/contests/ahc023/tasks/asprocon10_a",
+  "description": "サイズが H \\times W の長方形の土地があります。この土地はサイズ 1 \\times 1 の正方形の区画に分割されており、区画と区画の境界は一部が水路となっています。また、土地の外周は柵で囲まれており、外周に一箇所だけ設置されている出入口からのみ出入りできます。出入口はいずれか一つの区画の一辺に含まれており、複数の区画にまたがることはありません。"
 }

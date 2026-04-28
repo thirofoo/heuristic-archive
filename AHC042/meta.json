@@ -8,5 +8,5 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc042/tasks/ahc042_a",
-  "description": ""
+  "description": "N \\times N のマス目からなる盤面がある。 一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先のマスの座標を (i,j) とする。 マス (i,0),(i,1),\\cdots,(i,N-1) を 行 i、マス (0,j),(1,j),\\cdots,(N-1,j) を 列 j と呼ぶ。 初期状態では、盤面上に 鬼 と 福 の駒がそれぞれ 2N 個ずつ、全て異なるマスに存在している。"
 }

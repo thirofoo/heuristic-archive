@@ -8,5 +8,5 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc025/tasks/ahc025_a",
-  "description": ""
+  "description": "N 個のアイテムがある。 各アイテム i の重さ w_i は未知であり、 2つのアイテム集合の重さの総和を比較することの出来る天秤を用いて、以下の操作を繰り返し行う。"
 }

@@ -7,6 +7,6 @@
   "performance": null,
   "tags": [],
   "visualizer": null,
-  "problemUrl": "https://atcoder.jp/contests/masters2024-qual/tasks",
-  "description": ""
+  "problemUrl": "https://atcoder.jp/contests/masters-qual/tasks/masters_qual_a",
+  "description": "N\\times N マスの盤面がある。 一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先のマスの座標を (i,j) とする。 N\\times N マスの外周は壁で囲われており、マス間にも壁がある場合がある。 辺を共有する2マスは、間に壁がない時に「隣接マス」であると定義する。(13:15に追記)"
 }

@@ -8,5 +8,5 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc052/tasks/ahc052_a",
-  "description": ""
+  "description": "N\\times N マスのオフィスがある。 左上のマスの座標を (0, 0) とし、下方向に i、右方向に j 進んだ位置の座標を (i, j) とする。 N\\times N マスの外周は壁で囲まれており、隣接するマス間にも壁が存在する場合がある。"
 }

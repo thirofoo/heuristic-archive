@@ -8,5 +8,5 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc026/tasks/ahc026_a",
-  "description": ""
+  "description": "1,\\cdots,n の番号がちょうど一つずつ書かれた n 個のダンボール箱があり、m 個の山に分けて積まれている。 番号 v(1\\leq v\\leq n) の書かれた箱を「箱 v」、左から i(1\\leq i\\leq m) 番目の山を「山 i」と呼ぶことにする。 山の個数 m は n を割り切り、各山 i には n/m 個の箱が垂直に積まれており、箱の番号は下から順に b_{i,1},b_{i,2},\\cdots,b_{i,n/m} である。"
 }

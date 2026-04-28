@@ -8,5 +8,5 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc028/tasks/ahc028_a",
-  "description": ""
+  "description": "N\\times N マスのグリッド上に表現されたキー配列が与えられる。一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス移動した先のマスの座標を (i,j) とする。各マスには英大文字 A_{i,j} が書かれており、初期状態でマス (s_i, s_j) に指が置かれている。"
 }

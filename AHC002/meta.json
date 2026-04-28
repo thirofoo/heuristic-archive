@@ -8,5 +8,5 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc002/tasks/ahc002_a",
-  "description": ""
+  "description": "50\\times 50 マスの広さの床に長方形のタイルが隙間なく敷き詰められている。 各タイルは 1\\times 1, 1\\times 2, 2\\times 1 のいずれかの大きさである。 一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先のマスの座標を (i, j) とする。 高橋くんは (si, sj) のマスからスタートして、以下の条件を満たす経路で移動することが出来る。"
 }

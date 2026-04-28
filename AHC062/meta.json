@@ -8,5 +8,5 @@
   "tags": [],
   "visualizer": null,
   "problemUrl": "https://atcoder.jp/contests/ahc062/tasks/ahc062_a",
-  "description": ""
+  "description": "N \\times N の区画に区切られた王国がある。左上の区画を (0,0) とし、下方向に i 区画、右方向に j 区画進んだ区画を (i,j) とする。 区画 (i,j) には A_{i,j} 人の国民が住んでいる。"
 }
