@@ -12,7 +12,8 @@
   "tags": [
     "長期"
   ],
-  "visualizer": "visualizer.gif",
+  "visualizer": "visualizer.mp4",
+  "thumbnail": "thumbnail.webp",
   "problemUrl": "https://atcoder.jp/contests/ahc033/tasks/ahc033_a",
   "description": "N\\times N マスのコンテナターミナルがある。 一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先のマスの座標を (i,j) とする。 0 から N^2-1 の番号が振られた N^2 個のコンテナが運び込まれてくるので、N 台のクレーンを操作することで、指定された順番で搬出してほしい。",
   "editorials": [

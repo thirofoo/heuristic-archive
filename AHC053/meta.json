@@ -12,7 +12,8 @@
   "tags": [
     "短期"
   ],
-  "visualizer": "visualizer.gif",
+  "visualizer": "visualizer.mp4",
+  "thumbnail": "thumbnail.webp",
   "problemUrl": "https://atcoder.jp/contests/ahc053/tasks/ahc053_a",
   "description": "N 枚の何も書かれていないカードと、L 以上 U 以下の整数値を一様ランダムかつ独立に M 個生成する乱数生成器がある。",
   "editorials": [

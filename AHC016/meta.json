@@ -12,7 +12,8 @@
   "tags": [
     "長期"
   ],
-  "visualizer": "visualizer.png",
+  "visualizer": null,
+  "thumbnail": "thumbnail.webp",
   "problemUrl": "https://atcoder.jp/contests/ahc016/tasks/ahc016_a",
   "description": "整数 M とエラー率 \\epsilon が与えられるので、4\\leq N\\leq 100 の整数 N を決めて、頂点数が全て N であるような M 個の無向グラフ G_0,G_1,\\cdots,G_{M-1} を作成し出力せよ。グラフは非連結でも構わない。 その後、以下のクエリを 100 回処理せよ。",
   "editorials": [

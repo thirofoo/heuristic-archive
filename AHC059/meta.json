@@ -12,7 +12,8 @@
   "tags": [
     "短期"
   ],
-  "visualizer": "visualizer.gif",
+  "visualizer": "visualizer.mp4",
+  "thumbnail": "thumbnail.webp",
   "problemUrl": "https://atcoder.jp/contests/ahc059/tasks/ahc059_a",
   "description": "N\\times N マスの盤面がある。 一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス移動した先のマスの座標を (i,j) とする。",
   "editorials": [

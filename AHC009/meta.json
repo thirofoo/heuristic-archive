@@ -12,7 +12,8 @@
   "tags": [
     "短期"
   ],
-  "visualizer": "visualizer.gif",
+  "visualizer": "visualizer.mp4",
+  "thumbnail": "thumbnail.webp",
   "problemUrl": "https://atcoder.jp/contests/ahc009/tasks/ahc009_a",
   "description": "20\\times 20 マスの地図が与えられる。 外周は壁に囲まれており、隣接するマスとマスの間にも壁がある場合がある。 一番左上のマスの座標を (0, 0) とし、そこから下方向に i マス、右方向に j マス進んだ先のマスの座標を (i,j) とする。 マス (s_i, s_j) に高橋くんの自宅があり、マス (t_i, t_j) に AtCoder社のオフィスがある。 自宅からオフィスへの通勤経路を、上下左右の移動をそれぞれ U, D, L, R で表した長さ 200 以下の文字列として出力せよ。",
   "editorials": [

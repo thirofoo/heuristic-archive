@@ -12,7 +12,8 @@
   "tags": [
     "短期"
   ],
-  "visualizer": "visualizer.gif",
+  "visualizer": "visualizer.mp4",
+  "thumbnail": "thumbnail.webp",
   "problemUrl": "https://atcoder.jp/contests/ahc055/tasks/ahc055_a",
   "description": "N 個の宝箱があり、 i 番目の宝箱を宝箱 i と呼ぶ (0 \\le i \\lt N) 。宝箱 i の初期の硬さは H_i である。また、宝箱 i の中には武器 i が入っている。",
   "editorials": [

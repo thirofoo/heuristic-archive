@@ -12,7 +12,8 @@
   "tags": [
     "長期"
   ],
-  "visualizer": "visualizer.gif",
+  "visualizer": null,
+  "thumbnail": "thumbnail.webp",
   "problemUrl": "https://atcoder.jp/contests/ahc022/tasks/ahc022_a",
   "description": "L \\times L のグリッドが存在し、グリッドの上から i 行目（ 0 \\leq i \\lt L ）、左から j 列目（ 0 \\leq j \\lt L ）のセルを (i, j) で表す。 グリッドの上下、左右はトーラス型に繋がっている。 すなわち、 (0, j) と (L - 1, j) は上下に隣接し、 (i, 0) と (i, L - 1) は左右に隣接する。 セルのうち N 個は 出口セル と呼ばれ、それらの座標を (Y_0, X_0), (Y_1, X_1), \\ldots, (Y_{N-1}, X_{N-1}) とする。 ある 0,1,\\ldots,N-1 の順列 A=(A_0,A_1,\\ldots,A_{N-1}) が存在する。 これは i 番目の ワームホール に入ると、 A_i 番目の 出口セル に出ることを表す。 A の値は隠されており、それを推定することが問題の目的である。",
   "editorials": [

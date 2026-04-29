@@ -12,7 +12,8 @@
   "tags": [
     "短期"
   ],
-  "visualizer": "visualizer.gif",
+  "visualizer": "visualizer.mp4",
+  "thumbnail": "thumbnail.webp",
   "problemUrl": "https://atcoder.jp/contests/ahc037/tasks/ahc037_a",
   "description": "炭酸飲料の甘さと炭酸の強さは、それぞれ非負整数で表されます。甘さ x、炭酸の強さ y の炭酸飲料を (x, y) と表記します。",
   "editorials": [

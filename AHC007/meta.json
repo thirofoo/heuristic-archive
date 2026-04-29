@@ -12,7 +12,8 @@
   "tags": [
     "短期"
   ],
-  "visualizer": "visualizer.gif",
+  "visualizer": "visualizer.mp4",
+  "thumbnail": "thumbnail.webp",
   "problemUrl": "https://atcoder.jp/contests/ahc007/tasks/ahc007_a",
   "description": "頂点数が N、辺の数が M の無向グラフが与えられる。 各頂点は二次元平面上にあり、i 番目の頂点の座標は (x_i, y_i) である。 i 番目の辺は頂点 u_i と v_i を結び、その長さ l_i は、端点の間のユークリッド距離を整数に四捨五入したものを d_i=\\mathrm{round}(\\sqrt{(x_{u_i}-x_{v_i})^2+(y_{u_i}-y_{v_i})^2}) とすると、 d_i \\leq l_i \\leq 3 d_i を満たすことが事前に分かっている。",
   "editorials": [

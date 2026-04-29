@@ -618,6 +618,7 @@ def order_meta(meta: dict) -> dict:
         "performance",
         "tags",
         "visualizer",
+        "thumbnail",
         "problemUrl",
         "description",
         "editorials",
@@ -641,6 +642,20 @@ def ensure_placeholder_src(dir_path: str) -> None:
     os.makedirs(src_path, exist_ok=True)
     with open(gitkeep_path, "w", encoding="utf-8"):
         pass
+
+
+def detect_visualizer(dir_path: str) -> str | None:
+    visualizer_path = os.path.join(dir_path, "visualizer.mp4")
+    if os.path.exists(visualizer_path):
+        return "visualizer.mp4"
+    return None
+
+
+def detect_thumbnail(dir_path: str) -> str | None:
+    thumbnail_path = os.path.join(dir_path, "thumbnail.webp")
+    if os.path.exists(thumbnail_path):
+        return "thumbnail.webp"
+    return None
 
 
 def fetch_schedule(contest_url: str) -> dict:
@@ -708,9 +723,12 @@ def fetch_editorials(editorial_url: str) -> list[dict[str, str]]:
 def generate_meta(
     dir_name: str,
     data: dict,
+    dir_path: str | None = None,
     fetch_descriptions: bool = False,
     fetch_schedule_data: bool = False,
 ) -> dict:
+    if dir_path is None:
+        dir_path = dir_name
     problem_url = build_problem_url(dir_name, data)
     schedule = {}
     if fetch_schedule_data:
@@ -724,7 +742,8 @@ def generate_meta(
         "score": None,
         "performance": data.get("performance"),
         "tags": with_term_tag([], schedule.get("durationMinutes")),
-        "visualizer": "visualizer.gif",
+        "visualizer": detect_visualizer(dir_path),
+        "thumbnail": detect_thumbnail(dir_path),
         "problemUrl": problem_url,
         "description": "",
         "editorials": [],
@@ -790,7 +809,7 @@ def main():
         if data.get("rank") is not None:
             ensure_placeholder_src(dir_path)
 
-        meta = generate_meta(dir_name, data)
+        meta = generate_meta(dir_name, data, dir_path)
         meta_path = os.path.join(dir_path, "meta.json")
 
         if os.path.exists(meta_path):
@@ -802,13 +821,22 @@ def main():
                 meta = json.load(f)
 
             changed = False
-            generated_meta = generate_meta(dir_name, data)
+            generated_meta = generate_meta(dir_name, data, dir_path)
             for key, value in generated_meta.items():
                 if key not in meta:
                     meta[key] = value
                     changed = True
 
-            for key in ("id", "title", "date", "rank", "performance", "visualizer", "problemUrl"):
+            for key in (
+                "id",
+                "title",
+                "date",
+                "rank",
+                "performance",
+                "visualizer",
+                "thumbnail",
+                "problemUrl",
+            ):
                 if meta.get(key) != generated_meta[key]:
                     meta[key] = generated_meta[key]
                     changed = True

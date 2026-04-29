@@ -12,7 +12,8 @@
   "tags": [
     "長期"
   ],
-  "visualizer": "visualizer.gif",
+  "visualizer": "visualizer.mp4",
+  "thumbnail": "thumbnail.webp",
   "problemUrl": "https://atcoder.jp/contests/ahc029/tasks/ahc029_a",
   "description": "あなたは会社を経営するゲームをプレイしている。 会社が進めている複数のプロジェクトに対して、毎ターンごとに手札から方針カードを一つ選び消費し、そのカードに従ってプロジェクトを進め、手札の方針カードを補充する、ということを繰り返すターン制のゲームである。 全 T ターンが終了した時点で所持金を最大化することがこのゲームの目的である。",
   "editorials": [

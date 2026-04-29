@@ -12,7 +12,8 @@
   "tags": [
     "長期"
   ],
-  "visualizer": "visualizer.gif",
+  "visualizer": "visualizer.mp4",
+  "thumbnail": "thumbnail.webp",
   "problemUrl": "https://atcoder.jp/contests/ahc013/tasks/ahc013_a",
   "description": "株式会社リクルートには N 行 N 列のグリッドで表されるサーバ室があります。 サーバ室の上から i 行目（ 0 \\leq i \\lt N ）、左から j 列目（ 0 \\leq j \\lt N ）のセルを (i, j) と表します。 各セルには、コンピュータを最大1個まで置くことができます。 また、サーバ室には K 種類のコンピュータが 100 個ずつあります。 既に 100 \\times K 個のコンピュータが 100 \\times K 個のセルに置かれていて、残りの N^2 - 100 \\times K 個のセルには何も置かれていません。",
   "editorials": [

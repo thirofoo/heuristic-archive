@@ -12,7 +12,8 @@
   "tags": [
     "長期"
   ],
-  "visualizer": "visualizer.png",
+  "visualizer": null,
+  "thumbnail": "thumbnail.webp",
   "problemUrl": "https://atcoder.jp/contests/ahc014/tasks/ahc014_a",
   "description": "RectJoin は正方形の方眼紙と鉛筆を使って遊ぶ以下のような一人プレイゲームである。",
   "editorials": [

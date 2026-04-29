@@ -12,7 +12,8 @@
   "tags": [
     "長期"
   ],
-  "visualizer": "visualizer.gif",
+  "visualizer": "visualizer.mp4",
+  "thumbnail": "thumbnail.webp",
   "problemUrl": "https://atcoder.jp/contests/ahc043/tasks/ahc043_a",
   "description": "R国は N 行 N 列のグリッド状に分けられた区画からなる。上から i 行目 (0 \\le i < N)、左から j 列目 (0 \\le j < N) の区画を (i,j) とする。各区画は更地、線路、駅のいずれかである: 更地 他の区画と接続しない。 コストを払うことで、駅または線路を建設することができる。 線路 上下左右の更地でない区画のうち、最大2つの区画と接続する。線路は接続先に応じて6種類あり、以下の図のように番号付けられる。 コストを払うことで、駅に置き換えることができる。 駅 上下左右の最大4つの更地でない区画と接続する。",
   "editorials": [

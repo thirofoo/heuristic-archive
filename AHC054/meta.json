@@ -12,7 +12,8 @@
   "tags": [
     "長期"
   ],
-  "visualizer": "visualizer.gif",
+  "visualizer": "visualizer.mp4",
+  "thumbnail": "thumbnail.webp",
   "problemUrl": "https://atcoder.jp/contests/ahc054/tasks/ahc054_a",
   "description": "N \\times N マスの森がある。 左上のマスの座標を (0, 0) とし、下方向に i、右方向に j マス進んだ位置の座標を (i, j) とする。 各マスは「空きマス」もしくは「木」のいずれかである。N \\times N マスの範囲外は木で囲まれている。",
   "editorials": [
