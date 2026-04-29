@@ -14,6 +14,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+ATCODER_USER = "through"
+
 CONTEST_DATA = {
     "AHC002": {
         "title": "AtCoder Heuristic Contest 002",
@@ -616,6 +618,8 @@ def order_meta(meta: dict) -> dict:
         "rank",
         "score",
         "performance",
+        "language",
+        "submissionUrl",
         "tags",
         "visualizer",
         "thumbnail",
@@ -656,6 +660,93 @@ def detect_thumbnail(dir_path: str) -> str | None:
     if os.path.exists(thumbnail_path):
         return "thumbnail.webp"
     return None
+
+
+def detect_language(dir_path: str) -> str | None:
+    src_path = os.path.join(dir_path, "src")
+    candidates = (
+        ("last_submission.cpp", "C++"),
+        ("main.cpp", "C++"),
+        ("last_submission.rs", "Rust"),
+        ("main.rs", "Rust"),
+        ("last_submission.py", "Python"),
+        ("main.py", "Python"),
+    )
+    for filename, language in candidates:
+        if os.path.exists(os.path.join(src_path, filename)):
+            return language
+    return None
+
+
+def normalize_language(language: str | None) -> str | None:
+    if not language:
+        return None
+    if "C++" in language:
+        return "C++"
+    if "Rust" in language:
+        return "Rust"
+    if "Python" in language or "PyPy" in language:
+        return "Python"
+    return language.split(" (", 1)[0]
+
+
+def build_submission_url(dir_name: str, data: dict) -> str | None:
+    submission_id = data.get("submission_id")
+    if submission_id is None:
+        return None
+    slug = data.get("contest_slug", dir_name.lower())
+    return f"https://atcoder.jp/contests/{slug}/submissions/{submission_id}"
+
+
+def fetch_user_submissions(user: str) -> list[dict]:
+    submissions = []
+    from_second = 0
+    while True:
+        url = (
+            "https://kenkoooo.com/atcoder/atcoder-api/v3/user/submissions"
+            f"?user={urllib.parse.quote(user)}&from_second={from_second}"
+        )
+        request = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0",
+                "Accept": "application/json",
+                "Referer": "https://kenkoooo.com/atcoder/",
+            },
+        )
+        with urllib.request.urlopen(request, timeout=60) as response:
+            batch = json.load(response)
+        if not batch:
+            break
+
+        submissions.extend(batch)
+        next_from_second = max(submission["epoch_second"] for submission in batch) + 1
+        if next_from_second <= from_second:
+            break
+        from_second = next_from_second
+
+    return submissions
+
+
+def build_latest_submission_map(submissions: list[dict]) -> dict[str, dict]:
+    latest = {}
+    for submission in submissions:
+        contest_id = submission.get("contest_id")
+        if not contest_id:
+            continue
+        current = latest.get(contest_id)
+        submission_key = (submission.get("epoch_second", 0), submission.get("id", 0))
+        current_key = (
+            current.get("epoch_second", 0),
+            current.get("id", 0),
+        ) if current else None
+        if current is None or submission_key > current_key:
+            latest[contest_id] = submission
+    return latest
+
+
+def contest_slug(dir_name: str, data: dict) -> str:
+    return data.get("contest_slug", dir_name.lower())
 
 
 def fetch_schedule(contest_url: str) -> dict:
@@ -741,6 +832,8 @@ def generate_meta(
         "rank": data["rank"],
         "score": None,
         "performance": data.get("performance"),
+        "language": detect_language(dir_path),
+        "submissionUrl": build_submission_url(dir_name, data),
         "tags": with_term_tag([], schedule.get("durationMinutes")),
         "visualizer": detect_visualizer(dir_path),
         "thumbnail": detect_thumbnail(dir_path),
@@ -771,6 +864,16 @@ def main():
         help="Fetch contest start/end times from AtCoder contest pages.",
     )
     parser.add_argument(
+        "--fetch-submissions",
+        action="store_true",
+        help="Fetch latest submission URLs from AtCoder Problems submissions API.",
+    )
+    parser.add_argument(
+        "--atcoder-user",
+        default=ATCODER_USER,
+        help="AtCoder user ID used by --fetch-submissions.",
+    )
+    parser.add_argument(
         "--update-existing",
         action="store_true",
         help="Update existing meta.json files instead of only creating missing files.",
@@ -799,6 +902,14 @@ def main():
         for dir_name in os.listdir(script_dir)
         if os.path.isdir(os.path.join(script_dir, dir_name)) and not dir_name.startswith(".")
     }
+    latest_submissions = {}
+    if args.fetch_submissions:
+        try:
+            latest_submissions = build_latest_submission_map(
+                fetch_user_submissions(args.atcoder_user)
+            )
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            print(f"[ERROR] failed to fetch submissions: {exc}", file=sys.stderr)
 
     for dir_name, data in sorted(CONTEST_DATA.items()):
         dir_path = os.path.join(script_dir, dir_name)
@@ -833,6 +944,8 @@ def main():
                 "date",
                 "rank",
                 "performance",
+                "language",
+                "submissionUrl",
                 "visualizer",
                 "thumbnail",
                 "problemUrl",
@@ -886,6 +999,23 @@ def main():
                         changed = True
                     time.sleep(args.sleep)
 
+            if args.fetch_submissions:
+                slug = contest_slug(dir_name, data)
+                submission = latest_submissions.get(slug)
+                submission_url = None
+                language = detect_language(dir_path)
+                if submission:
+                    submission_url = (
+                        f"https://atcoder.jp/contests/{slug}/submissions/{submission['id']}"
+                    )
+                    language = normalize_language(submission.get("language")) or language
+                if meta.get("submissionUrl") != submission_url:
+                    meta["submissionUrl"] = submission_url
+                    changed = True
+                if meta.get("language") != language:
+                    meta["language"] = language
+                    changed = True
+
             if not changed:
                 ordered_meta = order_meta(meta)
                 if list(ordered_meta.keys()) == list(meta.keys()):
@@ -930,6 +1060,15 @@ def main():
                 meta.update(schedule)
                 meta["tags"] = with_term_tag(meta.get("tags", []), schedule.get("durationMinutes"))
                 time.sleep(args.sleep)
+
+        if args.fetch_submissions:
+            slug = contest_slug(dir_name, data)
+            submission = latest_submissions.get(slug)
+            if submission:
+                meta["submissionUrl"] = (
+                    f"https://atcoder.jp/contests/{slug}/submissions/{submission['id']}"
+                )
+                meta["language"] = normalize_language(submission.get("language")) or meta.get("language")
 
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(order_meta(meta), f, indent=2, ensure_ascii=False)
