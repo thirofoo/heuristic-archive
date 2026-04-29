@@ -1,0 +1,49 @@
+{
+  "id": "AHC003",
+  "title": "AtCoder Heuristic Contest 003",
+  "date": "2021-05-22",
+  "startDate": "2021-05-22T12:00:00+09:00",
+  "endDate": "2021-05-30T20:00:00+09:00",
+  "durationMinutes": 12000,
+  "durationText": "8日8時間",
+  "rank": null,
+  "extendedStanding": null,
+  "score": null,
+  "performance": null,
+  "language": null,
+  "submissionUrl": null,
+  "tags": [
+    "長期"
+  ],
+  "visualizer": null,
+  "thumbnail": null,
+  "problemUrl": "https://atcoder.jp/contests/ahc003/tasks/ahc003_a",
+  "description": "辺の長さが未知の30×30頂点の無向グリッドグラフがある。 一番左上の頂点を (0,0) とし、そこから下方向に i 回、右方向に j 回移動した先の頂点を (i, j) とする。 以下のクエリを1000個処理せよ。",
+  "editorials": [
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fspeakerdeck.com%2Fyos1up%2Fahc003-2wei-jie-fa",
+      "rank": 2
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fymatsux-cp-ja.blogspot.com%2F2021%2F06%2Fatcoder-heuristic-contest-003-10.html",
+      "rank": 10
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.terry-u16.net%2Fentry%2Fahc003",
+      "rank": 20
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2021%2F07%2F04%2F202921",
+      "rank": 498
+    },
+    {
+      "title": "AHC典型解法シリーズ第5弾「MCMC」",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fqiita.com%2Fthun-c%2Fitems%2F7f89becd832002309ff7",
+      "rank": null
+    }
+  ]
+}

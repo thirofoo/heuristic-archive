@@ -1,0 +1,39 @@
+{
+  "id": "AHC001",
+  "title": "AtCoder Heuristic Contest 001",
+  "date": "2021-03-06",
+  "startDate": "2021-03-06T12:00:00+09:00",
+  "endDate": "2021-03-14T20:00:00+09:00",
+  "durationMinutes": 12000,
+  "durationText": "8日8時間",
+  "rank": null,
+  "extendedStanding": null,
+  "score": null,
+  "performance": null,
+  "language": null,
+  "submissionUrl": null,
+  "tags": [
+    "長期"
+  ],
+  "visualizer": null,
+  "thumbnail": null,
+  "problemUrl": "https://atcoder.jp/contests/ahc001/tasks/ahc001_a",
+  "description": "AtCoder社はトップページにスポンサー企業 n 社のWeb広告を設置することにした。 広告を設置するスペースは 10000\\times 10000 の正方形をしており、各企業毎の広告スペースは軸に平行な長方形で正の面積を持ち、頂点の座標は整数値でなければならない。 異なる長方形は辺を接してもよいが、重なってはならない。つまり、共通部分が正の面積を持ってはならない。 どの広告にも属さない空きスペースが残っても構わない。",
+  "editorials": [
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.terry-u16.net%2Fentry%2Fahc001-how-to",
+      "rank": 15
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fassy.hatenablog.jp%2Fentry%2F2021%2F03%2F17%2F000702",
+      "rank": 33
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2021%2F03%2F20%2F082332",
+      "rank": 328
+    }
+  ]
+}

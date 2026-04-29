@@ -1,0 +1,29 @@
+{
+  "id": "AHC005",
+  "title": "AtCoder Heuristic Contest 005",
+  "date": "2021-08-07",
+  "startDate": "2021-08-07T16:00:00+09:00",
+  "endDate": "2021-08-07T20:00:00+09:00",
+  "durationMinutes": 240,
+  "durationText": "4時間",
+  "rank": null,
+  "extendedStanding": null,
+  "score": null,
+  "performance": null,
+  "language": null,
+  "submissionUrl": null,
+  "tags": [
+    "短期"
+  ],
+  "visualizer": null,
+  "thumbnail": null,
+  "problemUrl": "https://atcoder.jp/contests/ahc005/tasks/ahc005_a",
+  "description": "N\\times N マスの地図が与えられる。 一番左上のマスを (0,0) とし、そこから下方向に i 回、右方向に j 回移動した先のマスを (i, j) とする。 各マスは障害物(#)もしくは道路であり、道路マス上を上下左右に移動することが出来る。 各道路マスは5-9の数字で表され、隣接マスからそのマスへの移動にかかる時間を表している。 位置 (i, j) の道路マス上に居る時、以下の条件を満たす道路マス (i',j') を「視界に入る」と定義する。",
+  "editorials": [
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fassy.hatenablog.jp%2Fentry%2F2021%2F08%2F08%2F000925",
+      "rank": 9
+    }
+  ]
+}

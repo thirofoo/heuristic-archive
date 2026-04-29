@@ -1,0 +1,54 @@
+{
+  "id": "AHC060",
+  "title": "RECRUIT Nihonbashi Half Marathon 2026 Winter (AtCoder Heuristic Contest 060)",
+  "date": "2026-02-01",
+  "startDate": "2026-02-01T19:00:00+09:00",
+  "endDate": "2026-02-01T23:00:00+09:00",
+  "durationMinutes": 240,
+  "durationText": "4時間",
+  "rank": null,
+  "extendedStanding": null,
+  "score": null,
+  "performance": null,
+  "language": null,
+  "submissionUrl": null,
+  "tags": [
+    "短期"
+  ],
+  "visualizer": null,
+  "thumbnail": null,
+  "problemUrl": "https://atcoder.jp/contests/ahc060/tasks/ahc060_a",
+  "description": "N 頂点 M 辺の連結な無向グラフがあり、頂点は 0, 1, \\ldots, N-1 と番号づけられている。 i 本目の辺は頂点 A_i と頂点 B_i を結ぶ。",
+  "editorials": [
+    {
+      "title": "AHCラジオ",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fyoutube.com%2Flive%2FrlLQo-55_ss%3Ffeature%3Dshare",
+      "rank": null
+    },
+    {
+      "title": "AHCラジオで使用したスライド",
+      "url": "https://img.atcoder.jp/ahc060/AHC060.pdf",
+      "rank": null
+    },
+    {
+      "title": "AHC060参加レポ",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fzenn.dev%2Fsweetsweetsoul%2Farticles%2F993dc8e81fc55f",
+      "rank": 1
+    },
+    {
+      "title": "BFSベースのシンプルな解法",
+      "url": "https://atcoder.jp/contests/ahc060/editorial/17814",
+      "rank": 16
+    },
+    {
+      "title": "本番 1 位相当解法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkcpc.hatenablog.com%2Fentry%2F2026%2F02%2F02%2F162802",
+      "rank": 52
+    },
+    {
+      "title": "RECRUIT 日本橋ハーフマラソン 2026冬(AHC060)参加メモと復習",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2026%2F02%2F13%2F172934",
+      "rank": 331
+    }
+  ]
+}

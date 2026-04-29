@@ -1,0 +1,34 @@
+{
+  "id": "AHC006",
+  "title": "Kyocera Programming Contest（AtCoder Heuristic Contest 006）",
+  "date": "2021-11-14",
+  "startDate": "2021-11-14T16:00:00+09:00",
+  "endDate": "2021-11-14T20:00:00+09:00",
+  "durationMinutes": 240,
+  "durationText": "4時間",
+  "rank": null,
+  "extendedStanding": null,
+  "score": null,
+  "performance": null,
+  "language": null,
+  "submissionUrl": null,
+  "tags": [
+    "短期"
+  ],
+  "visualizer": null,
+  "thumbnail": null,
+  "problemUrl": "https://atcoder.jp/contests/ahc006/tasks/ahc006_a",
+  "description": "AtCoder社は冷めても美味しい料理をのんびり配達するフードデリバリーサービス AtCoder Foods を運営している。 このサービスでは、事前に配達の注文を沢山受け付けておき、複数の配達を一気に処理することで効率化を図っている。 現在のサービスエリアは二次元平面上の正方形領域 \\{(x,y)\\mid 0\\leq x, y\\leq 800\\} で表され、中心の (400, 400) の地点にAtCoder社のオフィスがある。 今日は注文が 1000 件入っており、i (1\\leq i\\leq 1000) 番目の注文は (a_i, b_i) にあるレストランから (c_i, d_i) への配達依頼である。",
+  "editorials": [
+    {
+      "title": "解説",
+      "url": "https://atcoder.jp/contests/ahc006/editorial/2981",
+      "rank": null
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.terry-u16.net%2Fentry%2Fahc006-for-beginners",
+      "rank": 20
+    }
+  ]
+}

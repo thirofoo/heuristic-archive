@@ -17,15 +17,39 @@ import urllib.request
 ATCODER_USER = "through"
 
 CONTEST_DATA = {
+    "AHC001": {
+        "title": "AtCoder Heuristic Contest 001",
+        "date": "2021-03-06",
+        "rank": None,
+        "performance": None,
+    },
     "AHC002": {
         "title": "AtCoder Heuristic Contest 002",
         "date": "2021-04-25",
         "rank": None,
         "performance": None,
     },
+    "AHC003": {
+        "title": "AtCoder Heuristic Contest 003",
+        "date": "2021-05-22",
+        "rank": None,
+        "performance": None,
+    },
+    "AHC004": {
+        "title": "AtCoder Heuristic Contest 004",
+        "date": "2021-06-26",
+        "rank": None,
+        "performance": None,
+    },
     "AHC005": {
         "title": "AtCoder Heuristic Contest 005",
         "date": "2021-08-07",
+        "rank": None,
+        "performance": None,
+    },
+    "AHC006": {
+        "title": "Kyocera Programming Contest（AtCoder Heuristic Contest 006）",
+        "date": "2021-11-14",
         "rank": None,
         "performance": None,
     },
@@ -252,11 +276,23 @@ CONTEST_DATA = {
         "rank": 135,
         "performance": 1951,
     },
+    "AHC044": {
+        "title": "AtCoder Heuristic Contest 044",
+        "date": "2025-03-16",
+        "rank": None,
+        "performance": None,
+    },
     "AHC045": {
         "title": "THIRD Programming Contest 2025 (AtCoder Heuristic Contest 045)",
         "date": "2025-04-07",
         "rank": 106,
         "performance": 2033,
+    },
+    "AHC046": {
+        "title": "BrainPad Programming Contest 2025 （AtCoder Heuristic Contest 046）",
+        "date": "2025-04-26",
+        "rank": None,
+        "performance": None,
     },
     "AHC047": {
         "title": "Toyota Programming Contest 2025#2 (AtCoder Heuristic Contest 047)",
@@ -318,6 +354,12 @@ CONTEST_DATA = {
         "rank": 252,
         "performance": 1711,
     },
+    "AHC057": {
+        "title": "AtCoder Heuristic Contest 057",
+        "date": "2025-11-29",
+        "rank": None,
+        "performance": None,
+    },
     "AHC058": {
         "title": "ALGO ARTIS Programming Contest 2025 December (AtCoder Heuristic Contest 058)",
         "date": "2025-12-14",
@@ -329,6 +371,12 @@ CONTEST_DATA = {
         "date": "2026-01-10",
         "rank": 42,
         "performance": 2344,
+    },
+    "AHC060": {
+        "title": "RECRUIT Nihonbashi Half Marathon 2026 Winter (AtCoder Heuristic Contest 060)",
+        "date": "2026-02-01",
+        "rank": None,
+        "performance": None,
     },
     "AHC061": {
         "title": "THIRD Programming Contest 2026 (AtCoder Heuristic Contest 061)",
@@ -636,6 +684,8 @@ def order_meta(meta: dict) -> dict:
 
 
 def should_materialize_dir(dir_name: str, data: dict, existing_dirs: set[str]) -> bool:
+    if re.fullmatch(r"AHC\d{3}", dir_name):
+        return True
     return dir_name in existing_dirs or data.get("rank") is not None
 
 

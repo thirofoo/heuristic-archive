@@ -1,0 +1,49 @@
+{
+  "id": "AHC057",
+  "title": "AtCoder Heuristic Contest 057",
+  "date": "2025-11-29",
+  "startDate": "2025-11-29T15:00:00+09:00",
+  "endDate": "2025-11-29T19:00:00+09:00",
+  "durationMinutes": 240,
+  "durationText": "4時間",
+  "rank": null,
+  "extendedStanding": null,
+  "score": null,
+  "performance": null,
+  "language": null,
+  "submissionUrl": null,
+  "tags": [
+    "短期"
+  ],
+  "visualizer": null,
+  "thumbnail": null,
+  "problemUrl": "https://atcoder.jp/contests/ahc057/tasks/ahc057_a",
+  "description": "0 \\leq x < L = 10^5、0 \\leq y < L = 10^5 からなる2次元平面を考える。ただし、この平面は左右端（x = 0 と x = L）、および上下端（y = 0 と y = L）がそれぞれつながっており、全体としてトーラス構造となっている。範囲外の座標は、x および y をそれぞれ L で割った余りに置き換えることで、常に 0 \\leq x, y < L の範囲に正規化される。例えば、位置 (10000, 90000) から (-20000, 30000) 進んだ先の座標は (90000, 20000) である。",
+  "editorials": [
+    {
+      "title": "AHCラジオ",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Flive%2FfKsLxhBuYPY",
+      "rank": null
+    },
+    {
+      "title": "解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fdocs.google.com%2Fpresentation%2Fd%2Fe%2F2PACX-1vSj93eBzxabOb_fxBWm0wolskzupS7lxjk1qaxFvWoBzc0XdWbl3gWCJ-kR9xrIWoxIXadfouHIrC17%2Fpubembed",
+      "rank": null
+    },
+    {
+      "title": "AHC057参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fkaede2020.hatenablog.com%2Fentry%2F2025%2F11%2F30%2F203146",
+      "rank": 4
+    },
+    {
+      "title": "重み付きマッチングを利用した解法",
+      "url": "https://atcoder.jp/contests/ahc057/editorial/14686",
+      "rank": 9
+    },
+    {
+      "title": "貪欲法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fnote.com%2Fnurupo0723%2Fn%2Fnaabdfd15e856%3Fsub_rt%3Dshare_pb",
+      "rank": 56
+    }
+  ]
+}

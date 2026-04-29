@@ -1,0 +1,49 @@
+{
+  "id": "AHC044",
+  "title": "AtCoder Heuristic Contest 044",
+  "date": "2025-03-16",
+  "startDate": "2025-03-16T19:00:00+09:00",
+  "endDate": "2025-03-16T23:00:00+09:00",
+  "durationMinutes": 240,
+  "durationText": "4時間",
+  "rank": null,
+  "extendedStanding": null,
+  "score": null,
+  "performance": null,
+  "language": null,
+  "submissionUrl": null,
+  "tags": [
+    "短期"
+  ],
+  "visualizer": null,
+  "thumbnail": null,
+  "problemUrl": "https://atcoder.jp/contests/ahc044/tasks/ahc044_a",
+  "description": "ある会社には N 人の社員がおり、それぞれ 0 から N-1 までの番号が付けられている。 あなたは、各社員 i (0 \\leq i \\leq N-1) について整数 a_i と b_i を決め (a_i=b_i でも構わない)、以下の規則で各週の掃除当番を割り当てることにした。",
+  "editorials": [
+    {
+      "title": "AHCラジオ",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.youtube.com%2Flive%2FTKAlQ5pcfdU",
+      "rank": null
+    },
+    {
+      "title": "ユーザ解説",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fwww.terry-u16.net%2Fentry%2Fahc044",
+      "rank": 2
+    },
+    {
+      "title": "AHC044参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Futac.hateblo.jp%2Fentry%2F2025%2F03%2F18%2F231717",
+      "rank": 43
+    },
+    {
+      "title": "O(N ^ 3) 解法",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fblog.tobisatis.com%2F2025%2F03%2Fatcoder-ahc044.html",
+      "rank": 69
+    },
+    {
+      "title": "AHC044参加記",
+      "url": "https://atcoder.jp/jump?url=https%3A%2F%2Fvvani07.hatenadiary.org%2Fentry%2F2025%2F03%2F24%2F130830",
+      "rank": 165
+    }
+  ]
+}
