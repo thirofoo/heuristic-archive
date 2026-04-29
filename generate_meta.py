@@ -616,6 +616,7 @@ def order_meta(meta: dict) -> dict:
         "durationMinutes",
         "durationText",
         "rank",
+        "extendedStanding",
         "score",
         "performance",
         "language",
@@ -698,6 +699,20 @@ def build_submission_url(dir_name: str, data: dict) -> str | None:
     return f"https://atcoder.jp/contests/{slug}/submissions/{submission_id}"
 
 
+def build_atcoder_cookie(env_name: str) -> str | None:
+    cookie = os.environ.get(env_name)
+    if cookie:
+        if "=" in cookie:
+            return cookie
+        return f"REVEL_SESSION={cookie}"
+
+    cookie = os.environ.get("ATCODER_COOKIE")
+    if cookie:
+        return cookie
+
+    return None
+
+
 def fetch_user_submissions(user: str) -> list[dict]:
     submissions = []
     from_second = 0
@@ -743,6 +758,155 @@ def build_latest_submission_map(submissions: list[dict]) -> dict[str, dict]:
         if current is None or submission_key > current_key:
             latest[contest_id] = submission
     return latest
+
+
+def fetch_standings(slug: str, cookie: str | None, extended: bool = False) -> dict:
+    path = "standings/extended/json" if extended else "standings/json"
+    url = f"https://atcoder.jp/contests/{slug}/{path}"
+    headers = {
+        "User-Agent": "Heuristic-Monorepo meta generator",
+        "Accept": "application/json",
+    }
+    if cookie:
+        headers["Cookie"] = cookie
+
+    request = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(request, timeout=60) as response:
+        content_type = response.headers.get("Content-Type", "")
+        body = response.read().decode("utf-8", errors="replace")
+
+    if "application/json" not in content_type and body.lstrip().startswith("<"):
+        raise RuntimeError("AtCoder standings require a signed-in REVEL_SESSION cookie")
+
+    return json.loads(body)
+
+
+def standing_entries(standings: dict) -> list[dict]:
+    entries = standings.get("StandingsData", [])
+    if isinstance(entries, list):
+        return entries
+    return []
+
+
+def standing_user(entry: dict) -> str | None:
+    user = entry.get("UserScreenName")
+    if isinstance(user, str):
+        return user
+    return None
+
+
+def standing_rank(entry: dict) -> int | None:
+    for key in ("Rank", "EntireRank"):
+        value = entry.get(key)
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str) and value.isdigit():
+            return int(value)
+    return None
+
+
+def standing_total_result(entry: dict) -> dict:
+    result = entry.get("TotalResult")
+    if isinstance(result, dict):
+        return result
+    return {}
+
+
+def standing_score(entry: dict) -> int:
+    score = standing_total_result(entry).get("Score")
+    if isinstance(score, int):
+        return score
+    if isinstance(score, float):
+        return int(score)
+    if isinstance(score, str) and score.isdigit():
+        return int(score)
+    return 0
+
+
+def standing_elapsed(entry: dict) -> int:
+    elapsed = standing_total_result(entry).get("Elapsed")
+    if isinstance(elapsed, int):
+        return elapsed
+    if isinstance(elapsed, float):
+        return int(elapsed)
+    if isinstance(elapsed, str) and elapsed.isdigit():
+        return int(elapsed)
+    return 0
+
+
+def standing_result_key(entry: dict) -> tuple[int, int]:
+    return (standing_score(entry), standing_elapsed(entry))
+
+
+def is_better_standing_entry(left: dict, right: dict) -> bool:
+    left_score = standing_score(left)
+    right_score = standing_score(right)
+    if left_score != right_score:
+        return left_score > right_score
+    return standing_elapsed(left) < standing_elapsed(right)
+
+
+def best_standing_entry(entries: list[dict]) -> dict | None:
+    best = None
+    for entry in entries:
+        if best is None or is_better_standing_entry(entry, best):
+            best = entry
+    return best
+
+
+def equivalent_official_rank(official_entries: list[dict], target: dict) -> int:
+    return 1 + sum(
+        1 for entry in official_entries if is_better_standing_entry(entry, target)
+    )
+
+
+def build_extended_standing(
+    slug: str,
+    official_standings: dict,
+    extended_standings: dict,
+    user: str,
+) -> dict | None:
+    official_entries = standing_entries(official_standings)
+    extended_entries = standing_entries(extended_standings)
+    official_user_entry = next(
+        (entry for entry in official_entries if standing_user(entry) == user),
+        None,
+    )
+    user_extended_entries = [
+        entry for entry in extended_entries if standing_user(entry) == user
+    ]
+    if not user_extended_entries:
+        return None
+
+    candidates = user_extended_entries
+    unrated_candidates = [
+        entry for entry in user_extended_entries if entry.get("IsRated") is False
+    ]
+    if unrated_candidates:
+        candidates = unrated_candidates
+
+    if official_user_entry is not None and len(user_extended_entries) > 1:
+        official_key = standing_result_key(official_user_entry)
+        non_official_candidates = [
+            entry
+            for entry in user_extended_entries
+            if standing_result_key(entry) != official_key
+        ]
+        if non_official_candidates and not unrated_candidates:
+            candidates = non_official_candidates
+
+    extended_entry = best_standing_entry(candidates)
+    if extended_entry is None:
+        return None
+
+    return {
+        "extendedRank": standing_rank(extended_entry),
+        "officialEquivalentRank": equivalent_official_rank(
+            official_entries,
+            extended_entry,
+        ),
+        "url": f"https://atcoder.jp/contests/{slug}/standings/extended",
+    }
 
 
 def contest_slug(dir_name: str, data: dict) -> str:
@@ -830,6 +994,7 @@ def generate_meta(
         "date": data["date"],
         **schedule,
         "rank": data["rank"],
+        "extendedStanding": None,
         "score": None,
         "performance": data.get("performance"),
         "language": detect_language(dir_path),
@@ -869,14 +1034,29 @@ def main():
         help="Fetch latest submission URLs from AtCoder Problems submissions API.",
     )
     parser.add_argument(
+        "--fetch-extended-standings",
+        action="store_true",
+        help="Fetch extended standings from AtCoder and add extendedStanding metadata.",
+    )
+    parser.add_argument(
         "--atcoder-user",
         default=ATCODER_USER,
-        help="AtCoder user ID used by --fetch-submissions.",
+        help="AtCoder user ID used by --fetch-submissions and --fetch-extended-standings.",
+    )
+    parser.add_argument(
+        "--atcoder-session-env",
+        default="ATCODER_REVEL_SESSION",
+        help="Environment variable containing REVEL_SESSION or a full Cookie header.",
     )
     parser.add_argument(
         "--update-existing",
         action="store_true",
         help="Update existing meta.json files instead of only creating missing files.",
+    )
+    parser.add_argument(
+        "--contest",
+        action="append",
+        help="Limit updates to a contest directory name. Can be passed multiple times.",
     )
     parser.add_argument(
         "--force-description",
@@ -911,7 +1091,20 @@ def main():
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             print(f"[ERROR] failed to fetch submissions: {exc}", file=sys.stderr)
 
+    atcoder_cookie = None
+    if args.fetch_extended_standings:
+        atcoder_cookie = build_atcoder_cookie(args.atcoder_session_env)
+        if not atcoder_cookie:
+            print(
+                "[ERROR] --fetch-extended-standings requires "
+                f"{args.atcoder_session_env}=<REVEL_SESSION> or ATCODER_COOKIE",
+                file=sys.stderr,
+            )
+
     for dir_name, data in sorted(CONTEST_DATA.items()):
+        if args.contest and dir_name not in set(args.contest):
+            continue
+
         dir_path = os.path.join(script_dir, dir_name)
         if not should_materialize_dir(dir_name, data, existing_dirs):
             continue
@@ -953,6 +1146,10 @@ def main():
                 if meta.get(key) != generated_meta[key]:
                     meta[key] = generated_meta[key]
                     changed = True
+
+            if "extendedStanding" not in meta:
+                meta["extendedStanding"] = None
+                changed = True
 
             if args.fetch_descriptions and (
                 args.force_description or not meta.get("description")
@@ -1016,6 +1213,38 @@ def main():
                     meta["language"] = language
                     changed = True
 
+            if args.fetch_extended_standings and atcoder_cookie:
+                slug = contest_slug(dir_name, data)
+                try:
+                    official_standings = fetch_standings(slug, atcoder_cookie)
+                    extended_standings = fetch_standings(
+                        slug,
+                        atcoder_cookie,
+                        extended=True,
+                    )
+                    extended_standing = build_extended_standing(
+                        slug,
+                        official_standings,
+                        extended_standings,
+                        args.atcoder_user,
+                    )
+                except (
+                    urllib.error.URLError,
+                    TimeoutError,
+                    OSError,
+                    RuntimeError,
+                    json.JSONDecodeError,
+                ) as exc:
+                    print(
+                        f"[ERROR] {dir_name}: failed to fetch extended standings: {exc}",
+                        file=sys.stderr,
+                    )
+                else:
+                    if meta.get("extendedStanding") != extended_standing:
+                        meta["extendedStanding"] = extended_standing
+                        changed = True
+                    time.sleep(args.sleep)
+
             if not changed:
                 ordered_meta = order_meta(meta)
                 if list(ordered_meta.keys()) == list(meta.keys()):
@@ -1069,6 +1298,32 @@ def main():
                     f"https://atcoder.jp/contests/{slug}/submissions/{submission['id']}"
                 )
                 meta["language"] = normalize_language(submission.get("language")) or meta.get("language")
+
+        if args.fetch_extended_standings and atcoder_cookie:
+            slug = contest_slug(dir_name, data)
+            try:
+                official_standings = fetch_standings(slug, atcoder_cookie)
+                extended_standings = fetch_standings(
+                    slug,
+                    atcoder_cookie,
+                    extended=True,
+                )
+                meta["extendedStanding"] = build_extended_standing(
+                    slug,
+                    official_standings,
+                    extended_standings,
+                    args.atcoder_user,
+                )
+            except (
+                urllib.error.URLError,
+                TimeoutError,
+                OSError,
+                RuntimeError,
+                json.JSONDecodeError,
+            ) as exc:
+                print(f"[ERROR] {dir_name}: failed to fetch extended standings: {exc}", file=sys.stderr)
+            else:
+                time.sleep(args.sleep)
 
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(order_meta(meta), f, indent=2, ensure_ascii=False)

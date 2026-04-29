@@ -7,6 +7,11 @@
   "durationMinutes": 14400,
   "durationText": "10日",
   "rank": 134,
+  "extendedStanding": {
+    "extendedRank": 133,
+    "officialEquivalentRank": 988,
+    "url": "https://atcoder.jp/contests/ahc036/standings/extended"
+  },
   "score": null,
   "performance": 1911,
   "language": "C++",
