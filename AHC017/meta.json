@@ -12,7 +12,7 @@
   "tags": [
     "長期"
   ],
-  "visualizer": null,
+  "visualizer": "visualizer.gif",
   "problemUrl": "https://atcoder.jp/contests/ahc017/tasks/ahc017_a",
   "description": "辺に重みの付いた N 頂点の無向平面グラフが与えられるので、D 日間で各辺をちょうど1回ずつ工事したい。 各辺の工事は 1 日で完了し、同じ日に最大で K 本の辺を同時に工事することが出来る。",
   "editorials": [

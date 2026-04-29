@@ -12,7 +12,7 @@
   "tags": [
     "短期"
   ],
-  "visualizer": null,
+  "visualizer": "visualizer.gif",
   "problemUrl": "https://atcoder.jp/contests/ahc020/tasks/ahc020_a",
   "description": "N 頂点 M 辺の重み付き平面無向グラフ G が与えられる。頂点 i の座標は (x_i, y_i) であり、辺 j は頂点 u_j と v_j を結ぶ重み w_j の辺である。頂点 u_j と頂点 v_j 間のユークリッド距離を四捨五入したものを D_j=\\mathrm{round}\\left(\\sqrt{(x_{u_j}-x_{v_j})^2+(y_{u_j}-y_{v_j})^2}\\right) とすると、重み w_j は 100D_j\\le w_j\\le 2500D_j を満たす。また住民の座標が K 個与えられ、住民 k の座標は (a_k, b_k) である。",
   "editorials": [

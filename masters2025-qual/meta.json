@@ -12,7 +12,7 @@
   "tags": [
     "短期"
   ],
-  "visualizer": null,
+  "visualizer": "visualizer.gif",
   "problemUrl": "https://atcoder.jp/contests/masters2025-qual/tasks/masters2025_qual_a",
   "description": "N \\times N のマス目で表される洞窟がある。 一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先のマスの座標を (i,j) とする。 洞窟の周囲は壁で囲まれており、外に出ることはできない。",
   "editorials": []

@@ -724,7 +724,7 @@ def generate_meta(
         "score": None,
         "performance": data.get("performance"),
         "tags": with_term_tag([], schedule.get("durationMinutes")),
-        "visualizer": None,
+        "visualizer": "visualizer.gif",
         "problemUrl": problem_url,
         "description": "",
         "editorials": [],
@@ -808,7 +808,7 @@ def main():
                     meta[key] = value
                     changed = True
 
-            for key in ("id", "title", "date", "rank", "performance", "problemUrl"):
+            for key in ("id", "title", "date", "rank", "performance", "visualizer", "problemUrl"):
                 if meta.get(key) != generated_meta[key]:
                     meta[key] = generated_meta[key]
                     changed = True

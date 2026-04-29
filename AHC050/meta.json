@@ -12,7 +12,7 @@
   "tags": [
     "短期"
   ],
-  "visualizer": null,
+  "visualizer": "visualizer.gif",
   "problemUrl": "https://atcoder.jp/contests/ahc050/tasks/ahc050_a",
   "description": "N \\times N のマス目からなるスケートリンクがある。左上のマスの座標を (0,0) とし、下方向に i マス、右方向に j マス進んだ位置のマスの座標を (i,j) とする。 N \\times N マスの外部はすべて岩で覆われており、侵入できない。初期状態では、 M 個のマスに岩が置かれている。",
   "editorials": [

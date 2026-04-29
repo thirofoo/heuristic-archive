@@ -12,7 +12,7 @@
   "tags": [
     "長期"
   ],
-  "visualizer": null,
+  "visualizer": "visualizer.png",
   "problemUrl": "https://atcoder.jp/contests/ahc048/tasks/ahc048_a",
   "description": "絵の具の色は、シアン (C)、マゼンタ (M)、イエロー (Y) からなる三次元ベクトル (C, M, Y) で表される。 ここで、0 \\leq C, M, Y \\leq 1 である。 色 p_1 = (C_1, M_1, Y_1) の絵の具を v_1 グラム、色 p_2 = (C_2, M_2, Y_2) の絵の具を v_2 グラム混ぜると、色 \\frac{v_1 \\cdot p_1 + v_2 \\cdot p_2}{v_1 + v_2} の絵の具が v_1 + v_2 グラム得られる。",
   "editorials": [

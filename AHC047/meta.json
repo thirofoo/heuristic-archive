@@ -12,7 +12,7 @@
   "tags": [
     "短期"
   ],
-  "visualizer": null,
+  "visualizer": "visualizer.gif",
   "problemUrl": "https://atcoder.jp/contests/ahc047/tasks/ahc047_a",
   "description": "高橋君には、好きな文字列が N 個ある。i 番目の文字列は S_i であり、その好ましさは P_i である。各 S_i は、a〜f の6種類の英小文字のみから構成されている。",
   "editorials": [

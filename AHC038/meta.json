@@ -12,7 +12,7 @@
   "tags": [
     "長期"
   ],
-  "visualizer": null,
+  "visualizer": "visualizer.gif",
   "problemUrl": "https://atcoder.jp/contests/ahc038/tasks/ahc038_a",
   "description": "N\\times N マスのたこ焼き器がある。 一番左上のマスの座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先のマスの座標を (i,j) とする。",
   "editorials": [

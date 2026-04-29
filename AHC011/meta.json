@@ -12,7 +12,7 @@
   "tags": [
     "長期"
   ],
-  "visualizer": null,
+  "visualizer": "visualizer.gif",
   "problemUrl": "https://atcoder.jp/contests/ahc011/tasks/ahc011_a",
   "description": "N \\times N の盤面上に N^2-1 枚のタイルが配置されている。 上から i 行目 (0\\leq i \\leq N-1)、左から j 列目 (0\\leq j\\leq N-1) の座標を (i, j) とする。 各タイルは中心から上下左右の4方向のうち1つ以上の方向に向かって線が伸びた図形が描かれており、左方向を1、上方向を2、右方向を4、下方向を8としたビットマスクを用いて以下のように表現される。",
   "editorials": [

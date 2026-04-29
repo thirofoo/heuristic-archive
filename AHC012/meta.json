@@ -12,7 +12,7 @@
   "tags": [
     "短期"
   ],
-  "visualizer": null,
+  "visualizer": "visualizer.gif",
   "problemUrl": "https://atcoder.jp/contests/ahc012/tasks/ahc012_a",
   "description": "原点を中心とした 半径 10^4 の円形をしたケーキの上に N 個のイチゴが乗っている。 i 番目のイチゴは中心が座標 (x_i, y_i) にあり、x_i^2+y_i^2<10^8 を満たす。 ケーキを高々 K 本の直線(線分ではないことに注意)でカットすることが出来る。 直線は互いに交差しても良い。 カットする直線は2つの異なる整数座標 (p_x,p_y) と (q_x,q_y) (-10^9\\leq p_x,p_y,q_x,q_y\\leq 10^9)を通る直線として指定する。 指定する二点はケーキの外部でも良い。 高橋社長は不器用なので一回のカットを途中で止めたり曲げたりすることは出来ない。",
   "editorials": [

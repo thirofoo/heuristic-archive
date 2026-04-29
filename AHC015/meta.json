@@ -12,7 +12,7 @@
   "tags": [
     "短期"
   ],
-  "visualizer": null,
+  "visualizer": "visualizer.gif",
   "problemUrl": "https://atcoder.jp/contests/ahc015/tasks/ahc015_a",
   "description": "格子状に 10\\times 10 個のキャンディーが入る箱がある。 箱は初期状態では空であり、100 個のキャンディーを順番に入れていく。 キャンディーは全部で 3 種類の味があり、事前に t 番目に受け取るキャンディーの味の種類 f_t (1\\leq f_t\\leq 3) が分かっている。 一方で、どの位置に入るかは事前には分からず、空いているマスの中から一様ランダムに選ばれる。 キャンディーを受け取る順番は固定で、変更することは出来ない。",
   "editorials": [

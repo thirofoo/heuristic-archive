@@ -116,3 +116,26 @@ ehthumbs_vista.db
 .cursor
 .cursorrules
 .aider*
+
+# =========================
+# C / C++
+# =========================
+# Compiled Object files, Static and Dynamic libs
+*.o
+*.a
+*.so
+*.obj
+*.lib
+*.dll
+
+# Executables
+*.exe
+*.out
+a.out
+*.app
+
+# =========================
+# Rust (Cargo)
+# =========================
+target/
+**/*.rs.bk

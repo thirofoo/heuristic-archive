@@ -12,7 +12,7 @@
   "tags": [
     "長期"
   ],
-  "visualizer": null,
+  "visualizer": "visualizer.gif",
   "problemUrl": "https://atcoder.jp/contests/ahc031/tasks/ahc031_a",
   "description": "縦横の長さが共に W のグリッドとして表現されるイベントホールがある。 一番左上の格子点の座標を (0,0) とし、そこから下方向に i マス、右方向に j マス進んだ先の格子点の座標を (i,j) とする。 一番右下の格子点の座標は (W, W) である。",
   "editorials": [

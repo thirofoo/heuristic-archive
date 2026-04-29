@@ -12,7 +12,7 @@
   "tags": [
     "長期"
   ],
-  "visualizer": null,
+  "visualizer": "visualizer.gif",
   "problemUrl": "https://atcoder.jp/contests/ahc045/tasks/ahc045_a",
   "description": "平面上に N 個の都市があり、 0 から N-1 までの番号が付けられている。 都市 i の座標は (x_i, y_i) としてジャッジ内部では定まっているが、入力では与えられない。 その代わりに都市 i が存在する可能性のある座標の長方形範囲 lx_i, rx_i, ly_i, ry_i が与えられ、 lx_i \\le x_i \\le rx_i および ly_i \\le y_i \\le ry_i を満たす。 都市間の距離はユークリッド距離の小数点以下を切り捨てた整数値 \\mathrm{dist}(i, j) = \\left\\lfloor \\sqrt{(x_i - x_j)^2 + (y_i - y_j)^2} \\right\\rfloor として定義される。",
   "editorials": [

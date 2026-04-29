@@ -12,7 +12,7 @@
   "tags": [
     "短期"
   ],
-  "visualizer": null,
+  "visualizer": "visualizer.gif",
   "problemUrl": "https://atcoder.jp/contests/ahc039/tasks/ahc039_a",
   "description": "二次元平面上に N 匹のサバと N 匹のイワシがいる。 以下の条件を満たす多角形を構築し、その内側に含まれるサバの総数から内側に含まれるイワシの総数を引いた値を最大化せよ。 なお、多角形の辺上に存在する点は全て多角形の内側に含まれるものとみなす。",
   "editorials": [

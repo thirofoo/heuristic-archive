@@ -12,7 +12,7 @@
   "tags": [
     "長期"
   ],
-  "visualizer": null,
+  "visualizer": "visualizer.gif",
   "problemUrl": "https://atcoder.jp/contests/ahc018/tasks/ahc018_a",
   "description": "N 行 N 列のグリッドで表される土地があります。 グリッドのうち W 箇所に水源があり、 K 箇所に家があります。 土地の上から i 行目（ 0 \\leq i \\lt N ）、左から j 列目（ 0 \\leq j \\lt N ）のセルを (i, j) と表すことにします。 各セル (i, j) の岩盤には、10 以上 5000 以下の整数で表される 頑丈さ S_{i,j} が予め設定されていますが、これらの値は入力では与えられません。",
   "editorials": [

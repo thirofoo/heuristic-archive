@@ -12,7 +12,7 @@
   "tags": [
     "短期"
   ],
-  "visualizer": null,
+  "visualizer": "visualizer.gif",
   "problemUrl": "https://atcoder.jp/contests/ahc058/tasks/ahc058_a",
   "description": "N 種類のIDと L 種類のLevelからなる N \\times L 種類の機械が存在し、Levelが i、IDが j の機械を機械 j^i と呼ぶ（0 \\leq i < L,\\ 0 \\leq j < N）。",
   "editorials": [

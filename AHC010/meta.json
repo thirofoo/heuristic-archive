@@ -12,7 +12,7 @@
   "tags": [
     "短期"
   ],
-  "visualizer": null,
+  "visualizer": "visualizer.gif",
   "problemUrl": "https://atcoder.jp/contests/ahc010/tasks/ahc010_a",
   "description": "30\\times 30 マスに並んだ線路タイルが与えられる。 タイルは回転したものを区別すると8種類あり、以下のように番号付ける。",
   "editorials": [

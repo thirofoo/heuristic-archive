@@ -12,7 +12,7 @@
   "tags": [
     "短期"
   ],
-  "visualizer": null,
+  "visualizer": "visualizer.gif",
   "problemUrl": "https://atcoder.jp/contests/ahc064/tasks/ahc064_a",
   "description": "貨物ターミナルには R 本の出発線が並んでおり、出発線の出口とは反対側に R 本の待避線が配置されている。 出発線および待避線には、それぞれ左から右へ順に 0,1,\\ldots,R-1 の番号が付けられている。 以降、出発線については出口側を「先頭」、その反対側を「末尾」と呼ぶ。待避線については、出発線に近い側を「先頭」、その反対側を「末尾」と呼ぶ。",
   "editorials": [
